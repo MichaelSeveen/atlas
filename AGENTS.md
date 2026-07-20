@@ -20,7 +20,7 @@ This repository is currently in **Phase 00 — Secure engineering foundation**. 
 - Backend checks: `go test ./...` and `go build ./cmd/api ./cmd/worker ./cmd/simulator`.
 - Boundary/policy checks: `go test ./internal/architecture -count=1`; seeded negatives cover forbidden imports, floating-point money, and direct domain `time.Now()`.
 - No frontend build toolchain/implementation, migration tool, CI workflow, container/local environment, database, broker, IdP, or runtime telemetry exporter exists yet.
-- Git is initialized on `main` with origin `https://github.com/MichaelSeveen/atlas.git`. S03 is verified in an uncommitted worktree based on `710bca0`; do not describe it as a pushed revision without a new post-commit verification record.
+- Git is initialized on `main` with origin `https://github.com/MichaelSeveen/atlas.git`. S03 implementation commit `b5fd25b` is locally post-commit verified; it has not been pushed in this task.
 
 ## Source-of-truth hierarchy
 

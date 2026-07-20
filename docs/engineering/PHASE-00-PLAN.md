@@ -83,7 +83,7 @@ These are release-blocking even though the phase file does not assign them `FND-
 
 ## Ordered execution plan
 
-S01 is complete with evidence bound to initial scaffold revision `f72f5468c52a05a442fa0efbbe996fa16450a2bb`. S02 implementation is committed as `dc638d2`; the owner-authorized canonical-PRD cleanup is committed and post-commit verified as `240adbf`. S03 is implemented and verified as `UNCOMMITTED_WORKTREE(base=710bca0a3c5dd44fb009512e2200a65b5da59dcd)`; no S03 commit or push is claimed. S04 is next in sequence but is not authorized by this status update.
+S01 is complete with evidence bound to initial scaffold revision `f72f5468c52a05a442fa0efbbe996fa16450a2bb`. S02 implementation is committed as `dc638d2`; the owner-authorized canonical-PRD cleanup is committed and post-commit verified as `240adbf`. S03 implementation is committed and post-commit verified as `b5fd25bac7844cfe929e28869d7c12f26e91b200`; no push is claimed. S04 is now authorized and active.
 
 | Order | Slice | Primary requirements | Hard prerequisite |
 |---:|---|---|---|
@@ -239,7 +239,7 @@ S01 is complete with evidence bound to initial scaffold revision `f72f5468c52a05
 5. Three fuzz targets complete their seed corpora and 100 executions each; disabling the money currency guard is killed by `TestCheckedArithmetic`.
 6. [S02 evidence](../../evidence/phase-00/primitives/S02-primitives-report.md) preserves its original pre-commit limitation; [canonicalization evidence](../../evidence/phase-00/architecture/PRD-canonicalization-report.md) records the committed S02/cleanup revisions and full post-commit revalidation.
 
-**S03 — Contract-first health, HTTP safety, and trace seed** completed its requirement-scoped acceptance conditions in the current uncommitted worktree:
+**S03 — Contract-first health, HTTP safety, and trace seed** completed its requirement-scoped acceptance conditions and is post-commit verified:
 
 1. The canonical OpenAPI defines only the three newly implemented operational endpoints and their closed schemas, safe problems, request/correlation/trace inputs, and response headers; invalid opaque-ID examples were corrected to the existing normative alphabet.
 2. `cmd/api` has a bounded graceful HTTP lifecycle. Liveness is process-only, readiness requires both dependency and migration state, version exposes only validated revision/contract/build time, and the executable defaults to not-ready while real probes are absent.
@@ -247,7 +247,7 @@ S01 is complete with evidence bound to initial scaffold revision `f72f5468c52a05
 4. Validated request/correlation/W3C trace context reaches a readiness child span; trace/metric fields are closed and bounded, invalid metadata is replaced, and telemetry-recorder degradation does not affect the operation.
 5. Named skipped test #3 proves migration lag changes readiness to a generic `503` while liveness and version remain available. `ADV-RES-001` resource facets and debug-route inventory are exercised.
 6. The metadata fuzzer completes its seed corpus plus 100 executions, and deleting the copied `/health/ready` contract path is killed by the focused contract suite.
-7. [S03 evidence](../../evidence/phase-00/http/S03-http-foundation-report.md) records the base revision, commands, proof artifacts, sanitization, and the explicit absence of database probes, a runtime exporter, CI, and post-commit identity.
+7. [S03 post-commit evidence](../../evidence/phase-00/http/S03-post-commit-verification.md) binds the result to implementation commit `b5fd25b`; the original [S03 report](../../evidence/phase-00/http/S03-http-foundation-report.md) remains preserved with its pre-commit limitation.
 
 ## Specification findings requiring attention
 

@@ -1,15 +1,15 @@
 # Atlas implementation status
 
-- **Status date:** 2026-07-20
+- **Status date:** 2026-07-21
 - **Current phase:** [Phase 00 — Secure engineering foundation](../atlas-prd/02-phases/PHASE-00_ENGINEERING_FOUNDATION.md)
-- **Current slice:** [S03 — contract-first health, HTTP safety, and trace seed](PHASE-00-PLAN.md#s03--contract-first-health-http-safety-and-trace-seed) is implemented and verified in an uncommitted worktree based on `710bca0a3c5dd44fb009512e2200a65b5da59dcd`. S04 is not authorized or started.
+- **Current slice:** [S03 — contract-first health, HTTP safety, and trace seed](PHASE-00-PLAN.md#s03--contract-first-health-http-safety-and-trace-seed) is committed and post-commit verified as `b5fd25bac7844cfe929e28869d7c12f26e91b200`. S04 is now authorized and is the active implementation slice.
 - **Implementation state:** Feature-free engineering foundation with typed Go primitives, static safety policies, and three operational API endpoints. No product or financial workflow, worker job, simulator scenario, database, broker, identity integration, runtime telemetry exporter, or frontend behavior exists.
 
 ## Repository baseline
 
 | Area | Verified state |
 |---|---|
-| Version control | Valid Git repository on branch `main`; origin is `https://github.com/MichaelSeveen/atlas.git`. The committed baseline is `710bca0a3c5dd44fb009512e2200a65b5da59dcd`; S03 changes are not yet committed or pushed. |
+| Version control | Valid Git repository on branch `main`; origin is `https://github.com/MichaelSeveen/atlas.git`. S03 implementation commit `b5fd25bac7844cfe929e28869d7c12f26e91b200` is locally post-commit verified. The local branch is ahead of origin; no push is claimed. |
 | Specification | Canonical PRD is `docs/atlas-prd/`: 59 pack files reported, 399 requirements, 60 threats, 154 adversarial tests, OpenAPI 3.1.1 (33 paths/41 operations), and AsyncAPI 3.0.0 (9 channels/17 messages). S03 adds the three operational HTTP paths and corrects opaque-ID examples without creating a duplicate contract. |
 | Application code | Go module `github.com/MichaelSeveen/atlas`; `cmd/api` now serves only liveness, readiness, and version while `cmd/worker` and `cmd/simulator` remain inert. Six narrow platform packages, architecture/layout/policy tests, and focused HTTP/contract tests exist. No product behavior, schemas, external Go dependencies, frontend package, or generated client. |
 | Tooling | Go pin, formatting/ignore policy, repository-owned Go-only S01/S02/S03 verification commands, module/static checks, bounded fuzz campaigns, and seeded mutation/canary proof. React + TypeScript is the sole frontend framework; its runtime, dependency manifest, package manager, and build toolchain remain deferred. CI, CODEOWNERS enforcement, SBOM/provenance, scanners, and container definitions remain absent. |
@@ -84,6 +84,6 @@ These are missing implementation decisions, not contradictory product semantics.
 
 ## Last verified source revision
 
-S03 is verified as `UNCOMMITTED_WORKTREE(base=710bca0a3c5dd44fb009512e2200a65b5da59dcd)`. The current turn did not authorize creating or pushing an S03 commit, so no S03 commit hash is claimed. Re-run the full verifier and add post-commit evidence if the owner later authorizes a commit.
+S03 implementation commit `b5fd25bac7844cfe929e28869d7c12f26e91b200` (tree `dc62b1448e4d0d8499e4c3a7b31d3224915cf00b`) passed the full repository-owned S03 verifier from a clean worktree on 2026-07-21. The local commit has not been pushed.
 
-The [S03 report](../../evidence/phase-00/http/S03-http-foundation-report.md) records the base revision, commands, outcomes, sanitization, and limitations. Historical S01/S02/canonicalization reports remain unchanged.
+The [S03 post-commit verification](../../evidence/phase-00/http/S03-post-commit-verification.md) binds the result to the implementation commit; the original [pre-commit S03 report](../../evidence/phase-00/http/S03-http-foundation-report.md) remains preserved. Historical S01/S02/canonicalization reports remain unchanged.

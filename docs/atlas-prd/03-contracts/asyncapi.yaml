@@ -1,0 +1,621 @@
+asyncapi: 3.0.0
+info:
+  title: Atlas Domain Event API
+  version: 2026-07-20
+  description: |
+    At-least-once domain event contracts for Atlas. Events are facts emitted from a transactional
+    outbox after authoritative state changes. Consumers must be idempotent and replay-safe.
+  license:
+    name: Portfolio reference - no production authorization
+servers:
+  staging:
+    host: broker.staging.atlas.example:9093
+    protocol: kafka-secure
+    description: Synthetic staging broker
+    security:
+      - $ref: '#/components/securitySchemes/saslScram'
+    tags:
+      - name: environment:staging
+channels:
+  ledgerJournalPosted:
+    address: atlas.ledger.journal-posted.v1
+    description: Balanced journal was durably posted.
+    messages:
+      journalPosted:
+        $ref: '#/components/messages/LedgerJournalPosted'
+  walletHoldLifecycle:
+    address: atlas.wallet.hold-lifecycle.v1
+    description: Reservation lifecycle facts.
+    messages:
+      holdCreated:
+        $ref: '#/components/messages/WalletHoldCreated'
+      holdCaptured:
+        $ref: '#/components/messages/WalletHoldCaptured'
+      holdReleased:
+        $ref: '#/components/messages/WalletHoldReleased'
+  transferLifecycle:
+    address: atlas.transfer.lifecycle.v1
+    description: Transfer state facts, partitioned by transfer ID.
+    messages:
+      transferStatusChanged:
+        $ref: '#/components/messages/TransferStatusChanged'
+      transferCompleted:
+        $ref: '#/components/messages/TransferCompleted'
+  paymentLifecycle:
+    address: atlas.payment.lifecycle.v1
+    messages:
+      paymentStatusChanged:
+        $ref: '#/components/messages/PaymentIntentStatusChanged'
+      refundStatusChanged:
+        $ref: '#/components/messages/RefundStatusChanged'
+  providerAttemptLifecycle:
+    address: atlas.provider.attempt-lifecycle.v1
+    messages:
+      providerAttemptStatusChanged:
+        $ref: '#/components/messages/ProviderAttemptStatusChanged'
+      providerOutcomeAmbiguous:
+        $ref: '#/components/messages/ProviderOutcomeAmbiguous'
+  settlementAndReconciliation:
+    address: atlas.finance.settlement-reconciliation.v1
+    messages:
+      settlementFileImported:
+        $ref: '#/components/messages/SettlementFileImported'
+      reconciliationRunCompleted:
+        $ref: '#/components/messages/ReconciliationRunCompleted'
+      reconciliationExceptionCreated:
+        $ref: '#/components/messages/ReconciliationExceptionCreated'
+  riskCases:
+    address: atlas.risk.case-lifecycle.v1
+    messages:
+      riskCaseOpened:
+        $ref: '#/components/messages/RiskCaseOpened'
+      riskCaseDecisionRecorded:
+        $ref: '#/components/messages/RiskCaseDecisionRecorded'
+  webhookDeliveryLifecycle:
+    address: atlas.webhook.delivery-lifecycle.v1
+    messages:
+      webhookDeliveryStatusChanged:
+        $ref: '#/components/messages/WebhookDeliveryStatusChanged'
+  auditPipeline:
+    address: atlas.audit.event-recorded.v1
+    messages:
+      auditEventRecorded:
+        $ref: '#/components/messages/AuditEventRecorded'
+operations:
+  publishLedgerJournalPosted:
+    action: send
+    channel:
+      $ref: '#/channels/ledgerJournalPosted'
+    messages:
+      - $ref: '#/channels/ledgerJournalPosted/messages/journalPosted'
+  consumeLedgerJournalPosted:
+    action: receive
+    channel:
+      $ref: '#/channels/ledgerJournalPosted'
+    messages:
+      - $ref: '#/channels/ledgerJournalPosted/messages/journalPosted'
+  publishWalletHoldLifecycle:
+    action: send
+    channel:
+      $ref: '#/channels/walletHoldLifecycle'
+    messages:
+      - $ref: '#/channels/walletHoldLifecycle/messages/holdCreated'
+      - $ref: '#/channels/walletHoldLifecycle/messages/holdCaptured'
+      - $ref: '#/channels/walletHoldLifecycle/messages/holdReleased'
+  publishTransferLifecycle:
+    action: send
+    channel:
+      $ref: '#/channels/transferLifecycle'
+    messages:
+      - $ref: '#/channels/transferLifecycle/messages/transferStatusChanged'
+      - $ref: '#/channels/transferLifecycle/messages/transferCompleted'
+  consumeTransferLifecycle:
+    action: receive
+    channel:
+      $ref: '#/channels/transferLifecycle'
+    messages:
+      - $ref: '#/channels/transferLifecycle/messages/transferStatusChanged'
+      - $ref: '#/channels/transferLifecycle/messages/transferCompleted'
+  publishPaymentLifecycle:
+    action: send
+    channel:
+      $ref: '#/channels/paymentLifecycle'
+    messages:
+      - $ref: '#/channels/paymentLifecycle/messages/paymentStatusChanged'
+      - $ref: '#/channels/paymentLifecycle/messages/refundStatusChanged'
+  publishProviderAttemptLifecycle:
+    action: send
+    channel:
+      $ref: '#/channels/providerAttemptLifecycle'
+    messages:
+      - $ref: '#/channels/providerAttemptLifecycle/messages/providerAttemptStatusChanged'
+      - $ref: '#/channels/providerAttemptLifecycle/messages/providerOutcomeAmbiguous'
+  publishSettlementAndReconciliation:
+    action: send
+    channel:
+      $ref: '#/channels/settlementAndReconciliation'
+    messages:
+      - $ref: '#/channels/settlementAndReconciliation/messages/settlementFileImported'
+      - $ref: '#/channels/settlementAndReconciliation/messages/reconciliationRunCompleted'
+      - $ref: '#/channels/settlementAndReconciliation/messages/reconciliationExceptionCreated'
+  publishRiskCases:
+    action: send
+    channel:
+      $ref: '#/channels/riskCases'
+    messages:
+      - $ref: '#/channels/riskCases/messages/riskCaseOpened'
+      - $ref: '#/channels/riskCases/messages/riskCaseDecisionRecorded'
+  publishWebhookDeliveryLifecycle:
+    action: send
+    channel:
+      $ref: '#/channels/webhookDeliveryLifecycle'
+    messages:
+      - $ref: '#/channels/webhookDeliveryLifecycle/messages/webhookDeliveryStatusChanged'
+  publishAuditPipeline:
+    action: send
+    channel:
+      $ref: '#/channels/auditPipeline'
+    messages:
+      - $ref: '#/channels/auditPipeline/messages/auditEventRecorded'
+components:
+  securitySchemes:
+    saslScram:
+      type: scramSha256
+      description: Per-environment machine identity with least-privilege topic ACLs.
+  messages:
+    LedgerJournalPosted:
+      name: ledger.journal.posted.v1
+      title: Ledger journal posted
+      summary: A balanced immutable journal and its synchronous balance projection committed.
+      contentType: application/json
+      correlationId:
+        location: $message.payload#/correlation_id
+      headers:
+        $ref: '#/components/schemas/EventTransportHeaders'
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              event_type: {const: ledger.journal.posted.v1}
+              data:
+                $ref: '#/components/schemas/LedgerJournalPostedData'
+    WalletHoldCreated:
+      name: wallet.hold.created.v1
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              event_type: {const: wallet.hold.created.v1}
+              data: {$ref: '#/components/schemas/WalletHoldData'}
+    WalletHoldCaptured:
+      name: wallet.hold.captured.v1
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              event_type: {const: wallet.hold.captured.v1}
+              data: {$ref: '#/components/schemas/WalletHoldCapturedData'}
+    WalletHoldReleased:
+      name: wallet.hold.released.v1
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              event_type: {const: wallet.hold.released.v1}
+              data: {$ref: '#/components/schemas/WalletHoldReleasedData'}
+    TransferStatusChanged:
+      name: transfer.status_changed.v1
+      contentType: application/json
+      correlationId:
+        location: $message.payload#/correlation_id
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              event_type: {const: transfer.status_changed.v1}
+              data: {$ref: '#/components/schemas/TransferStatusChangedData'}
+    TransferCompleted:
+      name: transfer.completed.v1
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              event_type: {const: transfer.completed.v1}
+              data: {$ref: '#/components/schemas/TransferCompletedData'}
+    PaymentIntentStatusChanged:
+      name: payment_intent.status_changed.v1
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              event_type: {const: payment_intent.status_changed.v1}
+              data: {$ref: '#/components/schemas/PaymentStatusChangedData'}
+    RefundStatusChanged:
+      name: refund.status_changed.v1
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              event_type: {const: refund.status_changed.v1}
+              data: {$ref: '#/components/schemas/RefundStatusChangedData'}
+    ProviderAttemptStatusChanged:
+      name: provider.attempt.status_changed.v1
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              event_type: {const: provider.attempt.status_changed.v1}
+              data: {$ref: '#/components/schemas/ProviderAttemptStatusChangedData'}
+    ProviderOutcomeAmbiguous:
+      name: provider.outcome.ambiguous.v1
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              event_type: {const: provider.outcome.ambiguous.v1}
+              data: {$ref: '#/components/schemas/ProviderOutcomeAmbiguousData'}
+    SettlementFileImported:
+      name: settlement.file.imported.v1
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              event_type: {const: settlement.file.imported.v1}
+              data: {$ref: '#/components/schemas/SettlementFileImportedData'}
+    ReconciliationRunCompleted:
+      name: reconciliation.run.completed.v1
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              event_type: {const: reconciliation.run.completed.v1}
+              data: {$ref: '#/components/schemas/ReconciliationRunCompletedData'}
+    ReconciliationExceptionCreated:
+      name: reconciliation.exception.created.v1
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              event_type: {const: reconciliation.exception.created.v1}
+              data: {$ref: '#/components/schemas/ReconciliationExceptionCreatedData'}
+    RiskCaseOpened:
+      name: risk.case.opened.v1
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              event_type: {const: risk.case.opened.v1}
+              data: {$ref: '#/components/schemas/RiskCaseOpenedData'}
+    RiskCaseDecisionRecorded:
+      name: risk.case.decision_recorded.v1
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              event_type: {const: risk.case.decision_recorded.v1}
+              data: {$ref: '#/components/schemas/RiskCaseDecisionData'}
+    WebhookDeliveryStatusChanged:
+      name: webhook.delivery.status_changed.v1
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              event_type: {const: webhook.delivery.status_changed.v1}
+              data: {$ref: '#/components/schemas/WebhookDeliveryData'}
+    AuditEventRecorded:
+      name: audit.event.recorded.v1
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              event_type: {const: audit.event.recorded.v1}
+              data: {$ref: '#/components/schemas/AuditEventRecordedData'}
+  schemas:
+    OpaqueId:
+      type: string
+      minLength: 10
+      maxLength: 64
+      pattern: '^[a-z]{2,8}_[0-9A-HJKMNP-TV-Z]{20,32}$'
+    Currency:
+      type: string
+      pattern: '^[A-Z]{3}$'
+    Money:
+      type: object
+      additionalProperties: false
+      required: [amount_minor, currency]
+      properties:
+        amount_minor: {type: string, pattern: '^(0|[1-9][0-9]{0,18})$'}
+        currency: {$ref: '#/components/schemas/Currency'}
+    SignedMoney:
+      type: object
+      additionalProperties: false
+      required: [amount_minor, currency]
+      properties:
+        amount_minor: {type: string, pattern: '^-?(0|[1-9][0-9]{0,18})$'}
+        currency: {$ref: '#/components/schemas/Currency'}
+    EventTransportHeaders:
+      type: object
+      additionalProperties: false
+      required: [event_id, event_type, aggregate_id]
+      properties:
+        event_id: {$ref: '#/components/schemas/OpaqueId'}
+        event_type: {type: string, maxLength: 160}
+        aggregate_id: {$ref: '#/components/schemas/OpaqueId'}
+        tenant_id:
+          anyOf: [{$ref: '#/components/schemas/OpaqueId'}, {type: 'null'}]
+        traceparent: {type: [string, 'null'], maxLength: 256}
+    Actor:
+      type: object
+      additionalProperties: false
+      required: [type, id]
+      properties:
+        type: {type: string, enum: [customer, merchant_user, workforce, machine, system]}
+        id: {$ref: '#/components/schemas/OpaqueId'}
+    EventEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - spec_version
+        - event_id
+        - event_type
+        - occurred_at
+        - recorded_at
+        - producer
+        - aggregate_type
+        - aggregate_id
+        - aggregate_version
+        - correlation_id
+        - actor
+        - data
+      properties:
+        spec_version: {const: '1.0'}
+        event_id: {$ref: '#/components/schemas/OpaqueId'}
+        event_type: {type: string, maxLength: 160}
+        occurred_at: {type: string, format: date-time}
+        recorded_at: {type: string, format: date-time}
+        producer: {type: string, maxLength: 100}
+        tenant_id:
+          anyOf: [{$ref: '#/components/schemas/OpaqueId'}, {type: 'null'}]
+        aggregate_type: {type: string, maxLength: 80}
+        aggregate_id: {$ref: '#/components/schemas/OpaqueId'}
+        aggregate_version: {type: integer, minimum: 1}
+        correlation_id: {$ref: '#/components/schemas/OpaqueId'}
+        causation_id:
+          anyOf: [{$ref: '#/components/schemas/OpaqueId'}, {type: 'null'}]
+        traceparent: {type: [string, 'null'], maxLength: 256}
+        actor: {$ref: '#/components/schemas/Actor'}
+        data: {type: object}
+    LedgerJournalPostedData:
+      type: object
+      additionalProperties: false
+      required: [journal_id, template, business_reference, currencies, posting_count, posted_at]
+      properties:
+        journal_id: {$ref: '#/components/schemas/OpaqueId'}
+        template: {type: string, maxLength: 80}
+        business_reference: {type: string, maxLength: 160}
+        currencies:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/Currency'}
+        posting_count: {type: integer, minimum: 2}
+        posted_at: {type: string, format: date-time}
+    WalletHoldData:
+      type: object
+      additionalProperties: false
+      required: [hold_id, wallet_id, amount, purpose, expires_at]
+      properties:
+        hold_id: {$ref: '#/components/schemas/OpaqueId'}
+        wallet_id: {$ref: '#/components/schemas/OpaqueId'}
+        amount: {$ref: '#/components/schemas/Money'}
+        purpose: {type: string, maxLength: 80}
+        business_reference: {type: string, maxLength: 160}
+        expires_at: {type: string, format: date-time}
+    WalletHoldCapturedData:
+      allOf:
+        - $ref: '#/components/schemas/WalletHoldData'
+        - type: object
+          required: [captured_amount, remaining_amount, journal_id]
+          properties:
+            captured_amount: {$ref: '#/components/schemas/Money'}
+            remaining_amount: {$ref: '#/components/schemas/Money'}
+            journal_id: {$ref: '#/components/schemas/OpaqueId'}
+    WalletHoldReleasedData:
+      allOf:
+        - $ref: '#/components/schemas/WalletHoldData'
+        - type: object
+          required: [released_amount, reason_category]
+          properties:
+            released_amount: {$ref: '#/components/schemas/Money'}
+            reason_category: {type: string, maxLength: 80}
+    TransferStatusChangedData:
+      type: object
+      additionalProperties: false
+      required: [transfer_id, previous_status, new_status, sequence, amount]
+      properties:
+        transfer_id: {$ref: '#/components/schemas/OpaqueId'}
+        previous_status: {type: string, maxLength: 80}
+        new_status: {type: string, maxLength: 80}
+        sequence: {type: integer, minimum: 1}
+        amount: {$ref: '#/components/schemas/Money'}
+        reason_category: {type: [string, 'null'], maxLength: 80}
+        funds_disposition: {type: [string, 'null'], enum: [reserved, posted, released, none, unknown, null]}
+    TransferCompletedData:
+      type: object
+      additionalProperties: false
+      required: [transfer_id, amount, journal_ids, completed_at]
+      properties:
+        transfer_id: {$ref: '#/components/schemas/OpaqueId'}
+        amount: {$ref: '#/components/schemas/Money'}
+        journal_ids:
+          type: array
+          minItems: 1
+          items: {$ref: '#/components/schemas/OpaqueId'}
+        completed_at: {type: string, format: date-time}
+    PaymentStatusChangedData:
+      type: object
+      additionalProperties: false
+      required: [payment_intent_id, previous_status, new_status, amount]
+      properties:
+        payment_intent_id: {$ref: '#/components/schemas/OpaqueId'}
+        previous_status: {type: string}
+        new_status: {type: string}
+        amount: {$ref: '#/components/schemas/Money'}
+        amount_capturable: {$ref: '#/components/schemas/Money'}
+        amount_received: {$ref: '#/components/schemas/Money'}
+    RefundStatusChangedData:
+      type: object
+      additionalProperties: false
+      required: [refund_id, payment_intent_id, previous_status, new_status, amount]
+      properties:
+        refund_id: {$ref: '#/components/schemas/OpaqueId'}
+        payment_intent_id: {$ref: '#/components/schemas/OpaqueId'}
+        previous_status: {type: string}
+        new_status: {type: string}
+        amount: {$ref: '#/components/schemas/Money'}
+        journal_id:
+          anyOf: [{$ref: '#/components/schemas/OpaqueId'}, {type: 'null'}]
+    ProviderAttemptStatusChangedData:
+      type: object
+      additionalProperties: false
+      required: [attempt_id, provider, operation, previous_status, new_status]
+      properties:
+        attempt_id: {$ref: '#/components/schemas/OpaqueId'}
+        provider: {type: string, maxLength: 64}
+        operation: {type: string, maxLength: 80}
+        previous_status: {type: string}
+        new_status: {type: string}
+        normalized_result: {type: [string, 'null'], maxLength: 80}
+        provider_reference_hash: {type: [string, 'null'], pattern: '^[a-f0-9]{64}$'}
+    ProviderOutcomeAmbiguousData:
+      type: object
+      additionalProperties: false
+      required: [attempt_id, provider, operation, first_ambiguous_at, next_query_at]
+      properties:
+        attempt_id: {$ref: '#/components/schemas/OpaqueId'}
+        provider: {type: string}
+        operation: {type: string}
+        first_ambiguous_at: {type: string, format: date-time}
+        next_query_at: {type: string, format: date-time}
+        age_seconds: {type: integer, minimum: 0}
+    SettlementFileImportedData:
+      type: object
+      additionalProperties: false
+      required: [settlement_file_id, provider, period_start, period_end, content_sha256, row_count]
+      properties:
+        settlement_file_id: {$ref: '#/components/schemas/OpaqueId'}
+        provider: {type: string}
+        period_start: {type: string, format: date-time}
+        period_end: {type: string, format: date-time}
+        content_sha256: {type: string, pattern: '^[a-f0-9]{64}$'}
+        row_count: {type: integer, minimum: 0}
+    ReconciliationCounts:
+      type: object
+      additionalProperties: false
+      required: [matched, missing_internal, missing_provider, mismatched, duplicated]
+      properties:
+        matched: {type: integer, minimum: 0}
+        missing_internal: {type: integer, minimum: 0}
+        missing_provider: {type: integer, minimum: 0}
+        mismatched: {type: integer, minimum: 0}
+        duplicated: {type: integer, minimum: 0}
+    ReconciliationRunCompletedData:
+      type: object
+      additionalProperties: false
+      required: [run_id, settlement_batch_id, ruleset_version, counts, completed_at]
+      properties:
+        run_id: {$ref: '#/components/schemas/OpaqueId'}
+        settlement_batch_id: {$ref: '#/components/schemas/OpaqueId'}
+        ruleset_version: {type: string}
+        counts: {$ref: '#/components/schemas/ReconciliationCounts'}
+        completed_at: {type: string, format: date-time}
+    ReconciliationExceptionCreatedData:
+      type: object
+      additionalProperties: false
+      required: [exception_id, class, settlement_batch_id]
+      properties:
+        exception_id: {$ref: '#/components/schemas/OpaqueId'}
+        class: {type: string, enum: [missing_internal, missing_provider, amount_mismatch, currency_mismatch, duplicate, fee_mismatch, date_mismatch]}
+        settlement_batch_id: {$ref: '#/components/schemas/OpaqueId'}
+        amount:
+          anyOf: [{$ref: '#/components/schemas/SignedMoney'}, {type: 'null'}]
+        internal_reference: {type: [string, 'null'], maxLength: 160}
+        provider_reference_hash: {type: [string, 'null'], pattern: '^[a-f0-9]{64}$'}
+    RiskCaseOpenedData:
+      type: object
+      additionalProperties: false
+      required: [case_id, priority, trigger_classes, subjects]
+      properties:
+        case_id: {$ref: '#/components/schemas/OpaqueId'}
+        priority: {type: string, enum: [low, medium, high, critical]}
+        trigger_classes:
+          type: array
+          minItems: 1
+          items: {type: string, maxLength: 80}
+        subjects:
+          type: array
+          minItems: 1
+          items: {$ref: '#/components/schemas/OpaqueId'}
+    RiskCaseDecisionData:
+      type: object
+      additionalProperties: false
+      required: [case_id, decision, reviewer_id, policy_version, reason_category]
+      properties:
+        case_id: {$ref: '#/components/schemas/OpaqueId'}
+        decision: {type: string, enum: [allow, decline, restrict, request_information, escalate]}
+        reviewer_id: {$ref: '#/components/schemas/OpaqueId'}
+        policy_version: {type: string, maxLength: 80}
+        reason_category: {type: string, maxLength: 120}
+    WebhookDeliveryData:
+      type: object
+      additionalProperties: false
+      required: [delivery_id, event_id, endpoint_id, previous_status, new_status, attempt_count]
+      properties:
+        delivery_id: {$ref: '#/components/schemas/OpaqueId'}
+        event_id: {$ref: '#/components/schemas/OpaqueId'}
+        endpoint_id: {$ref: '#/components/schemas/OpaqueId'}
+        previous_status: {type: string}
+        new_status: {type: string}
+        attempt_count: {type: integer, minimum: 0}
+        normalized_failure: {type: [string, 'null'], maxLength: 80}
+    AuditEventRecordedData:
+      type: object
+      additionalProperties: false
+      required: [audit_event_id, classification, action, decision]
+      properties:
+        audit_event_id: {$ref: '#/components/schemas/OpaqueId'}
+        classification: {type: string, enum: [security, financial, privacy, operational, administrative]}
+        action: {type: string, maxLength: 120}
+        decision: {type: string, enum: [allowed, denied, executed, failed]}

@@ -1,0 +1,27 @@
+# Local secrets and configuration
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Go build/test output
+/bin/
+/coverage/
+*.test
+*.out
+
+# Local tooling and editor state
+.idea/
+.vscode/
+.tmp/
+tmp/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Local logs; evidence reports belong under evidence/ and stay versionable.
+*.log

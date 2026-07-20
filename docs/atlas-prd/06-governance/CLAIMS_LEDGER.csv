@@ -1,0 +1,21 @@
+Claim ID,Public claim,Required evidence,Disallowed shortcut,Status,Evidence link,Source revision,Last verified,Owner,Limitation
+CLM-001,"Atlas uses an immutable double-entry ledger","DB role denial; balanced-journal property tests; reversal demonstration; independent rebuild","README statement or hash chain alone",Planned,,,,Ledger owner,
+CLM-002,"A retried transfer creates one economic effect","Concurrent idempotency test; commit-response-loss failpoint; one journal/business reference","One sequential duplicate unit test",Planned,,,,Payments owner,
+CLM-003,"Atlas prevents overspending under contention","Hot-wallet concurrency test; holds and final balance verification","Checking balance before write without race test",Planned,,,,Ledger owner,
+CLM-004,"External provider timeouts are handled safely","Accepted-then-timeout simulator; outcome_unknown trace; later success/failure; no blind resubmit","Catching timeout and returning failed",Planned,,,,Payments owner,
+CLM-005,"Tenant isolation is enforced server-side","Automated and manual object/action/field/list/count/export matrix","Hiding controls in frontend",Planned,,,,Security owner,
+CLM-006,"Privileged corrections require maker-checker","Payload hash; maker/checker separation; stale state/permission test; audit","Two UI buttons",Planned,,,,Operations owner,
+CLM-007,"Webhooks are authentic and replay-resistant","Raw-body signature fixtures; timestamp/key/dedupe tests; Go/TypeScript differential","HMAC example without delivery/replay tests",Planned,,,,Security owner,
+CLM-008,"Webhook delivery resists SSRF","DNS rebinding/private/IPv6/redirect hostile-server suite plus constrained egress evidence","URL regex",Planned,,,,Security owner,
+CLM-009,"Settlement and reconciliation detect discrepancies","Duplicate/missing/currency/fee/one-minor-unit fixtures; deterministic rerun; exception workflow","Comparing totals only",Planned,,,,Finance owner,
+CLM-010,"Statements are ledger-derived and exact","Independent opening/movement/closing oracle; PDF/CSV/JSON differential","Rendering transaction rows from app status",Planned,,,,Reporting owner,
+CLM-011,"Audit evidence is tamper-evident within a defined model","Manifest/signature verification for modified/missing/reordered batches; key/restore test","Calling a table immutable",Planned,,,,Security owner,
+CLM-012,"Atlas has tested disaster recovery","Isolated PITR; cross-store reconciliation; measured reopen point and limitations","Backup success notification",Planned,,,,Reliability owner,
+CLM-013,"Atlas is observable end-to-end","Trace from request through DB/outbox/worker/provider/webhook; bounded/redacted attributes","Installing OpenTelemetry SDK",Planned,,,,Reliability owner,
+CLM-014,"Atlas APIs are contract-first","Validated OpenAPI/AsyncAPI; conformance and breaking-change checks; deployed revision match","Generated docs after coding",Planned,,,,API owner,
+CLM-015,"Atlas is secure by design","Threat/control mapping; adversarial report; findings/regressions; key/session/auth evidence","Badge list or zero-finding scan",Planned,,,,Security owner,"Not a certification"
+CLM-016,"Atlas supports exact large monetary values in the browser","String/BigInt-safe rendering/submission and boundary/locale tests","JavaScript number formatting only",Planned,,,,Frontend owner,
+CLM-017,"Atlas performance results are meaningful","Published workload/data/hardware/revision; p50/p95/p99/resources; post-run invariants","Peak TPS screenshot",Planned,,,,Reliability owner,
+CLM-018,"Atlas protects sensitive data","Data inventory; masking/reveal tests; canary sink scan; export/download authorization","Encryption claim without sink tests",Planned,,,,Privacy owner,
+CLM-019,"Atlas handles duplicate and out-of-order events","Outbox/inbox failpoint; duplicate/redelivery/replay/state-regression tests","Broker exactly-once setting",Planned,,,,Platform owner,
+CLM-020,"Atlas is an enterprise-grade portfolio design","Completed phase/evidence gates and explicit limitations","Calling an unfinished demo enterprise-grade",Planned,,,,Product owner,"Portfolio reference only"

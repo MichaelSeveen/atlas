@@ -58,6 +58,10 @@ Every non-2xx response uses RFC 9457 Problem Details with `application/problem+j
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | No | Content type not accepted |
 | `UNSUPPORTED_API_VERSION` | 400 | No | Requested version unavailable |
 | `REQUEST_TOO_LARGE` | 413 | No | Body or upload exceeds explicit limit |
+| `ROUTE_NOT_FOUND` | 404 | No | Requested route is not in the deployed API inventory |
+| `METHOD_NOT_ALLOWED` | 405 | No | Route exists but does not support the requested method |
+| `CORS_ORIGIN_DENIED` | 403 | No | Browser origin is not on the exact configured allowlist |
+| `INTERNAL_ERROR` | 500 | Yes | Unexpected internal failure with no implementation detail disclosure |
 | `PRECONDITION_REQUIRED` | 428 | No | Sensitive mutation requires `If-Match` |
 | `PRECONDITION_FAILED` | 412 | No | Supplied resource version is stale |
 

@@ -18,6 +18,7 @@ servers:
   - url: http://localhost:8080
     description: Local development
 tags:
+  - name: Platform
   - name: Identity
   - name: Wallets
   - name: Beneficiaries
@@ -30,6 +31,94 @@ tags:
 security:
   - bffSession: []
 paths:
+  /health/live:
+    get:
+      operationId: getLiveness
+      tags: [Platform]
+      summary: Report process liveness only
+      description: Returns process liveness without checking or disclosing dependency topology.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Traceparent'
+      responses:
+        '200':
+          description: API process is alive
+          headers:
+            X-Request-Id: {$ref: '#/components/headers/XRequestId'}
+            X-Correlation-Id: {$ref: '#/components/headers/XCorrelationId'}
+            traceparent: {$ref: '#/components/headers/Traceparent'}
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Liveness'}
+              example: {status: alive}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
+        '413': {$ref: '#/components/responses/RequestTooLarge'}
+        '415': {$ref: '#/components/responses/UnsupportedMediaType'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /health/ready:
+    get:
+      operationId: getReadiness
+      tags: [Platform]
+      summary: Report safe dependency and migration readiness
+      description: Fails closed when required dependencies or migration state cannot be verified; never returns topology or migration detail.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Traceparent'
+      responses:
+        '200':
+          description: Required dependency and migration checks are ready
+          headers:
+            X-Request-Id: {$ref: '#/components/headers/XRequestId'}
+            X-Correlation-Id: {$ref: '#/components/headers/XCorrelationId'}
+            traceparent: {$ref: '#/components/headers/Traceparent'}
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Readiness'}
+              example: {status: ready}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
+        '413': {$ref: '#/components/responses/RequestTooLarge'}
+        '415': {$ref: '#/components/responses/UnsupportedMediaType'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
+
+  /version:
+    get:
+      operationId: getVersion
+      tags: [Platform]
+      summary: Report safe build and contract identity
+      description: Returns only source revision, canonical contract version, and UTC build time.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Traceparent'
+      responses:
+        '200':
+          description: Safe build identity
+          headers:
+            X-Request-Id: {$ref: '#/components/headers/XRequestId'}
+            X-Correlation-Id: {$ref: '#/components/headers/XCorrelationId'}
+            traceparent: {$ref: '#/components/headers/Traceparent'}
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/VersionInfo'}
+              example:
+                source_revision: 710bca0a3c5dd44fb009512e2200a65b5da59dcd
+                contract_version: 2026-07-20
+                build_time: '2026-07-20T00:00:00Z'
+        '400': {$ref: '#/components/responses/RequestMalformed'}
+        '413': {$ref: '#/components/responses/RequestTooLarge'}
+        '415': {$ref: '#/components/responses/UnsupportedMediaType'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
   /v1/me:
     get:
       operationId: getCurrentPrincipal
@@ -271,21 +360,21 @@ paths:
             examples:
               internal:
                 value:
-                  source_wallet_id: wal_01JATLAS00000000000001
+                  source_wallet_id: wal_01JAT1AS00000000000001
                   destination:
                     type: atlas_wallet
-                    wallet_id: wal_01JATLAS00000000000002
+                    wallet_id: wal_01JAT1AS00000000000002
                   amount: {amount_minor: '250000', currency: NGN}
                   client_reference: payroll-july-042
                   description: Synthetic contractor payment
               external:
                 value:
-                  source_wallet_id: wal_01JATLAS00000000000001
+                  source_wallet_id: wal_01JAT1AS00000000000001
                   destination:
                     type: beneficiary
-                    beneficiary_id: ben_01JATLAS00000000000001
+                    beneficiary_id: ben_01JAT1AS00000000000001
                   amount: {amount_minor: '750000', currency: NGN}
-                  quote_id: quo_01JATLAS00000000000001
+                  quote_id: quo_01JAT1AS00000000000001
                   client_reference: vendor-invoice-771
       responses:
         '201':
@@ -1053,6 +1142,27 @@ components:
             webhooks:write: Manage endpoints and replay deliveries
 
   parameters:
+    RequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      description: Optional opaque request identifier; the server validates and replaces unsafe values.
+      schema: {$ref: '#/components/schemas/OpaqueId'}
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      description: Optional opaque correlation identifier for observability only; never authorization input.
+      schema: {$ref: '#/components/schemas/OpaqueId'}
+    Traceparent:
+      name: traceparent
+      in: header
+      required: false
+      description: W3C trace context used only for observability; malformed values are replaced.
+      schema:
+        type: string
+        maxLength: 55
+        pattern: '^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$'
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -1120,6 +1230,14 @@ components:
   headers:
     XRequestId:
       schema: {$ref: '#/components/schemas/OpaqueId'}
+    XCorrelationId:
+      schema: {$ref: '#/components/schemas/OpaqueId'}
+    Traceparent:
+      schema:
+        type: string
+        pattern: '^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$'
+    CacheControl:
+      schema: {type: string, const: no-store}
     ETag:
       schema: {type: string}
     IdempotencyReplayed:
@@ -1137,7 +1255,7 @@ components:
             title: Authentication required
             status: 401
             code: AUTHENTICATION_REQUIRED
-            request_id: req_01JATLAS00000000000001
+            request_id: req_01JAT1AS00000000000001
             retryable: false
     StepUpRequired:
       description: A fresh higher-assurance authentication is required
@@ -1149,7 +1267,7 @@ components:
             title: Additional verification required
             status: 403
             code: STEP_UP_REQUIRED
-            request_id: req_01JATLAS00000000000001
+            request_id: req_01JAT1AS00000000000001
             retryable: false
     Forbidden:
       description: Action is not authorized
@@ -1178,7 +1296,7 @@ components:
                 title: Idempotency key conflict
                 status: 409
                 code: IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST
-                request_id: req_01JATLAS00000000000001
+                request_id: req_01JAT1AS00000000000001
                 retryable: false
             outcomeUnknown:
               value:
@@ -1186,7 +1304,7 @@ components:
                 title: Transfer outcome is still being determined
                 status: 409
                 code: TRANSFER_OUTCOME_UNKNOWN
-                request_id: req_01JATLAS00000000000001
+                request_id: req_01JAT1AS00000000000001
                 retryable: true
     PreconditionFailed:
       description: ETag/resource version no longer matches
@@ -1202,27 +1320,110 @@ components:
         application/problem+json:
           schema: {$ref: '#/components/schemas/Problem'}
 
+    RequestMalformed:
+      description: Request method, query, or body shape is not supported by this operation
+      headers:
+        X-Request-Id: {$ref: '#/components/headers/XRequestId'}
+        X-Correlation-Id: {$ref: '#/components/headers/XCorrelationId'}
+        traceparent: {$ref: '#/components/headers/Traceparent'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    RequestTooLarge:
+      description: Request body exceeds the explicit foundation endpoint limit
+      headers:
+        X-Request-Id: {$ref: '#/components/headers/XRequestId'}
+        X-Correlation-Id: {$ref: '#/components/headers/XCorrelationId'}
+        traceparent: {$ref: '#/components/headers/Traceparent'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    UnsupportedMediaType:
+      description: Request content encoding or media type is unsupported
+      headers:
+        X-Request-Id: {$ref: '#/components/headers/XRequestId'}
+        X-Correlation-Id: {$ref: '#/components/headers/XCorrelationId'}
+        traceparent: {$ref: '#/components/headers/Traceparent'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    InternalError:
+      description: Internal failure with no implementation detail disclosure
+      headers:
+        X-Request-Id: {$ref: '#/components/headers/XRequestId'}
+        X-Correlation-Id: {$ref: '#/components/headers/XCorrelationId'}
+        traceparent: {$ref: '#/components/headers/Traceparent'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    ServiceUnavailable:
+      description: Required dependency or migration state is not ready; no topology is disclosed
+      headers:
+        X-Request-Id: {$ref: '#/components/headers/XRequestId'}
+        X-Correlation-Id: {$ref: '#/components/headers/XCorrelationId'}
+        traceparent: {$ref: '#/components/headers/Traceparent'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+          example:
+            type: https://atlas.example/problems/dependency-degraded
+            title: Service unavailable
+            status: 503
+            code: DEPENDENCY_DEGRADED
+            request_id: req_01JAT1AS00000000000001
+            correlation_id: cor_01JAT1AS00000000000001
+            retryable: true
+
   schemas:
     OpaqueId:
       type: string
       minLength: 10
       maxLength: 64
       pattern: '^[a-z]{2,8}_[0-9A-HJKMNP-TV-Z]{20,32}$'
+    Liveness:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: {type: string, const: alive}
+    Readiness:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: {type: string, const: ready}
+    VersionInfo:
+      type: object
+      additionalProperties: false
+      required: [source_revision, contract_version, build_time]
+      properties:
+        source_revision:
+          type: string
+          pattern: '^(development|[0-9a-f]{7,64})$'
+        contract_version:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+        build_time: {type: string, format: date-time}
     WalletId:
       allOf: [{$ref: '#/components/schemas/OpaqueId'}]
-      examples: [wal_01JATLAS00000000000001]
+      examples: [wal_01JAT1AS00000000000001]
     BeneficiaryId:
       allOf: [{$ref: '#/components/schemas/OpaqueId'}]
-      examples: [ben_01JATLAS00000000000001]
+      examples: [ben_01JAT1AS00000000000001]
     TransferId:
       allOf: [{$ref: '#/components/schemas/OpaqueId'}]
-      examples: [trf_01JATLAS00000000000001]
+      examples: [trf_01JAT1AS00000000000001]
     PaymentIntentId:
       allOf: [{$ref: '#/components/schemas/OpaqueId'}]
-      examples: [pi_01JATLAS00000000000001]
+      examples: [pi_01JAT1AS00000000000001]
     RefundId:
       allOf: [{$ref: '#/components/schemas/OpaqueId'}]
-      examples: [ref_01JATLAS00000000000001]
+      examples: [ref_01JAT1AS00000000000001]
     WebhookEndpointId:
       allOf: [{$ref: '#/components/schemas/OpaqueId'}]
     WebhookDeliveryId:

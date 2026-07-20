@@ -8,7 +8,7 @@ This repository is currently in **Phase 00 — Secure engineering foundation**. 
 
 ## Stack and commands discovered
 
-- Backend: Go only. The module is `github.com/MichaelSeveen/atlas`, derived from the configured GitHub origin, with language baseline Go 1.25.0 and toolchain Go 1.25.7. Separate feature-free `api`, `worker`, and `simulator` entry points exist.
+- Backend: Go only. The module is `github.com/MichaelSeveen/atlas`, derived from the configured GitHub origin, with language baseline Go 1.25.0 and toolchain Go 1.25.7. Separate feature-free `api`, `worker`, and `simulator` entry points exist. The API exposes only the three S03 operational routes; worker and simulator remain inert.
 - Frontend framework: React + TypeScript only; do not add Vue or a second frontend framework. `apps/web/` is an ownership placeholder and has no package, build toolchain, or UI yet.
 - Authoritative store: PostgreSQL. Redis is ephemeral only. Async fan-out uses a transactional outbox and an at-least-once broker only when required.
 - Contracts: source-controlled OpenAPI 3.1.1 and AsyncAPI 3.0.0.
@@ -16,10 +16,11 @@ This repository is currently in **Phase 00 — Secure engineering foundation**. 
 - External dependencies: deterministic synthetic provider, KYC, and settlement simulators only.
 - S01 verification: `pwsh -NoProfile -File ./scripts/verify-s01.ps1`.
 - S02 verification: `pwsh -NoProfile -File ./scripts/verify-s02.ps1`.
+- S03 verification: `pwsh -NoProfile -File ./scripts/verify-s03.ps1`.
 - Backend checks: `go test ./...` and `go build ./cmd/api ./cmd/worker ./cmd/simulator`.
 - Boundary/policy checks: `go test ./internal/architecture -count=1`; seeded negatives cover forbidden imports, floating-point money, and direct domain `time.Now()`.
-- No frontend build toolchain/implementation, migration tool, CI workflow, container/local environment, database, broker, IdP, or runtime telemetry exists yet.
-- Git is initialized on `main` with origin `https://github.com/MichaelSeveen/atlas.git`. S02 implementation is committed as `dc638d2`; owner-authorized canonical-PRD cleanup revision `240adbf` is post-commit verified with separate evidence.
+- No frontend build toolchain/implementation, migration tool, CI workflow, container/local environment, database, broker, IdP, or runtime telemetry exporter exists yet.
+- Git is initialized on `main` with origin `https://github.com/MichaelSeveen/atlas.git`. S03 is verified in an uncommitted worktree based on `710bca0`; do not describe it as a pushed revision without a new post-commit verification record.
 
 ## Source-of-truth hierarchy
 

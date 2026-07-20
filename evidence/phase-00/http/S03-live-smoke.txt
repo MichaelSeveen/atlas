@@ -1,0 +1,10 @@
+S03 actual cmd/api loopback smoke
+verification_date=2026-07-20
+source_revision=UNCOMMITTED_WORKTREE(base=710bca0a3c5dd44fb009512e2200a65b5da59dcd)
+command=ATLAS_HTTP_ADDR=127.0.0.1:18080 go run ./cmd/api
+GET /health/live=200 application/json cache-control:no-store body:{"status":"alive"}
+GET /health/ready=503 application/problem+json cache-control:no-store
+GET /version=200 application/json cache-control:no-store body:{"source_revision":"development","contract_version":"2026-07-20","build_time":"1970-01-01T00:00:00Z"}
+default_readiness=NOT_READY_UNTIL_REAL_PROBES_EXIST
+listener_after_smoke=STOPPED
+result=PASS

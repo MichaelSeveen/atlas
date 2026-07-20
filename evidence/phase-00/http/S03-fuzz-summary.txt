@@ -1,0 +1,10 @@
+S03 hostile request metadata fuzz summary
+verification_date=2026-07-20
+source_revision=UNCOMMITTED_WORKTREE(base=710bca0a3c5dd44fb009512e2200a65b5da59dcd)
+target=FuzzUntrustedRequestMetadata
+seed_corpus=3
+bounded_executions=100
+observed_total_corpus=9
+failures=0
+invariant=every response request ID, correlation ID, and traceparent is valid even when input is malformed or hostile
+result=PASS

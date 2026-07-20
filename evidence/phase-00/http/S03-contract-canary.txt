@@ -1,0 +1,10 @@
+S03 canonical contract-path mutation canary
+verification_date=2026-07-20
+source_revision=UNCOMMITTED_WORKTREE(base=710bca0a3c5dd44fb009512e2200a65b5da59dcd)
+active_contract=docs/atlas-prd/03-contracts/openapi.yaml
+mutation_target=REMOVE_HEALTH_READY_PATH_FROM_DISPOSABLE_COPY
+mutation_expected=go_test_failure
+mutation_observed=go_test_failure
+contract_ready_path_canary=KILLED
+canonical_contract_modified_by_canary=NO
+result=PASS

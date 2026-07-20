@@ -1,0 +1,18 @@
+S03 sanitized in-memory golden trace seed
+verification_date=2026-07-20
+source_revision=UNCOMMITTED_WORKTREE(base=710bca0a3c5dd44fb009512e2200a65b5da59dcd)
+test=TestGoldenSyntheticTraceAndBoundedMetrics
+request=GET /health/ready
+request_id=req_01JAT1AS00000000000001
+correlation_id=cor_01JAT1AS00000000000001
+trace_id=4bf92f3577b34da6a3ce929d0e0e4736
+inbound_parent_span_id=00f067aa0ba902b7
+server_span=GET /health/ready span_id=0102030405060708 parent_span_id=00f067aa0ba902b7 outcome=ok status=200
+readiness_span=readiness.check span_id=090a0b0c0d0e0f10 parent_span_id=0102030405060708 outcome=ready
+span_ids_unique=true
+metric_labels=method:GET,route:/health/ready,status:200,duration:bounded
+arbitrary_attribute_map=ABSENT
+unsafe_high_cardinality_value=ABSENT
+telemetry_recorder_panic_changes_http_result=NO
+runtime_collector_or_exporter=DEFERRED
+result=PASS

@@ -23,7 +23,7 @@ go build ./cmd/api ./cmd/worker ./cmd/simulator
 go test ./internal/architecture -run TestBoundaryCheckerRejectsForbiddenImport -count=1 -v
 ```
 
-The three process entry points are deliberately inert and independently buildable. They do not expose endpoints, connect to infrastructure, or implement domain behavior.
+S01 created three independently buildable, initially inert process entry points. S03 later activated only the API operational foundation; no product or financial behavior was added.
 
 ## S02 commands
 
@@ -36,6 +36,16 @@ pwsh -NoProfile -File ./scripts/test-s02-mutation.ps1
 
 S02 adds only narrow Go primitives for integer money/currency, opaque IDs, UTC clocks, actor/correlation context, and stable safe errors, plus static bans on floating-point money and direct domain `time.Now()`. See [platform primitives and static policy](docs/engineering/PLATFORM_PRIMITIVES.md). It adds no Node.js/package-manager toolchain or product behavior.
 
+## S03 commands
+
+```powershell
+pwsh -NoProfile -File ./scripts/verify-s03.ps1
+go test ./cmd/api/... ./tests/contract -count=1
+pwsh -NoProfile -File ./scripts/test-s03-contract-canary.ps1
+```
+
+S03 makes the API process serve only `GET /health/live`, `GET /health/ready`, and `GET /version`. The executable is live but deliberately not ready until later slices provide real dependency and migration probes. HTTP limits, exact-origin CORS, safe problems, validated request/correlation/trace context, and a closed trace/metric seed are documented in [the HTTP foundation](docs/engineering/HTTP_FOUNDATION.md). No database, product endpoint, authentication, runtime telemetry exporter, worker job, simulator scenario, or UI was added.
+
 ## Repository boundaries
 
 - `cmd/` owns process composition only.
@@ -44,6 +54,6 @@ S02 adds only narrow Go primitives for integer money/currency, opaque IDs, UTC c
 - Cross-context imports of persistence, store, repository, database, SQL, or private internal packages are forbidden.
 - `internal/platform/` and `internal/architecture/` cannot import domain contexts.
 - Shared `common`, `shared`, or `models` domain packages are forbidden.
-- `contracts/` is reserved for implementation publication/generation. Until S03 defines promotion, canonical HTTP/event contracts remain under `docs/atlas-prd/03-contracts/`.
+- `contracts/` is reserved for future generated/published artifacts. The sole mutable HTTP/event contracts remain under `docs/atlas-prd/03-contracts/`; a second hand-edited copy is forbidden.
 
 See [AGENTS.md](AGENTS.md), [implementation status](docs/engineering/IMPLEMENTATION_STATUS.md), and the [Phase 00 plan](docs/engineering/PHASE-00-PLAN.md) before making changes.

@@ -2,20 +2,20 @@
 
 - **Status date:** 2026-07-20
 - **Current phase:** [Phase 00 — Secure engineering foundation](../atlas-prd/02-phases/PHASE-00_ENGINEERING_FOUNDATION.md)
-- **Current slice:** [S01 — versioned repository and process-boundary scaffold](PHASE-00-PLAN.md#s01--versioned-repository-and-process-boundary-scaffold) is implemented and verified with the pre-commit limitation below. S02 is not authorized or started.
+- **Current slice:** [S01 — versioned repository and process-boundary scaffold](PHASE-00-PLAN.md#s01--versioned-repository-and-process-boundary-scaffold) is implemented and verified against the initial source revision below. S02 is not authorized or started.
 - **Implementation state:** Feature-free engineering scaffold; no product, financial, API, worker-job, simulator-scenario, database, or frontend behavior exists.
 
 ## Repository baseline
 
 | Area | Verified state |
 |---|---|
-| Version control | Valid Git repository on branch `main`, initialized during S01. `HEAD` is unborn and every file is uncommitted/untracked; no commit or history scan exists because the user prohibited creating a commit without separate approval. |
+| Version control | Valid Git repository on branch `main`; origin is `https://github.com/MichaelSeveen/atlas.git`. Initial scaffold source revision `f72f5468c52a05a442fa0efbbe996fa16450a2bb` is verified, with its report stored in a subsequent evidence-only commit. |
 | Specification | Canonical PRD is `docs/atlas-prd/`: 59 pack files reported, 399 requirements, 60 threats, 154 adversarial tests, OpenAPI 3.1.1 (30 paths/38 operations), and AsyncAPI 3.0.0 (9 channels/17 messages). S01 traceability rows and the PRD manifest were updated together. |
 | Application code | Go module `github.com/MichaelSeveen/atlas`, derived from the configured GitHub origin; separate inert `cmd/api`, `cmd/worker`, and `cmd/simulator` entry points; architecture/layout tests. No product behavior, schemas, runtime dependencies, frontend package, or generated client. |
 | Tooling | Go pin, formatting/ignore policy, repository-owned Go-only S01 verification command, module-boundary checker, and update policy. React + TypeScript is the sole frontend framework; its runtime, dependency manifest, package manager, and build toolchain are deliberately deferred. CI, CODEOWNERS enforcement, SBOM/provenance, scanners, and container definitions remain absent. |
 | Local environment | No database, broker, Redis, object-storage, IdP, telemetry, application, reset, or seed configuration. |
 | Verified pins | Go 1.25.7, with Go language baseline 1.25.0. Module path `github.com/MichaelSeveen/atlas` matches the configured origin. React + TypeScript is selected, but no frontend build toolchain is pinned in S01. |
-| Sensitive/generated/binary scan | Basic key/token/secret-assignment scan found no candidate material. No build binary is retained; `.tmp/` build cache is ignored. Eleven root PRD duplicates remain and are hash-guarded against canonical sources. Git-history scanning remains impossible until a first commit/history exists. |
+| Sensitive/generated/binary scan | Basic current-tree and initial-history key/token/secret-assignment scans found no candidate material. No build binary is retained; `.tmp/` build/module caches are ignored. Eleven root PRD duplicates remain and are hash-guarded against canonical sources. Dedicated history scanning remains S07 work. |
 
 ## Phase 00 requirement state
 
@@ -45,7 +45,6 @@ None. S01 is complete; S02 (`FND-005`, `FND-006`) is the next planned slice but 
 
 | Decision/gap | Impact | Required resolution |
 |---|---|---|
-| Git `HEAD` is unborn | S01 evidence can identify branch/configuration/digests but not a commit; history secret checks, provenance, and clean-clone proof remain impossible. | Owner reviews the uncommitted scaffold and separately authorizes the first commit. Rerun S01 afterward and supersede the pre-commit evidence. |
 | Root-level duplicate PRD files exist | Eleven files currently hash-identically to canonical files in `docs/atlas-prd/`, but two mutable locations can drift. | Treat `docs/atlas-prd/` as authoritative; decide whether to remove the verified duplicates before the first source baseline. |
 | Broker and identity provider are not selected | Blocks the full local stack, integration tests, realm separation, and broker semantics. | Create decision records before S04; do not introduce Kafka or a custom IdP by default. |
 | Deployment platform and secret-management implementation are not selected | Blocks production-reference configuration, signing/provenance, credential isolation, backup/PITR, and rotation procedure. | Resolve with scoped ADRs before S04/S05/S07, using abstractions and reversible local/reference choices. |
@@ -69,16 +68,16 @@ These are missing implementation decisions, not contradictory product semantics.
 - [Requirements traceability matrix](../atlas-prd/06-governance/REQUIREMENTS_TRACEABILITY.csv)
 - [Threat register](../atlas-prd/06-governance/THREAT_REGISTER.csv)
 - [Phase 00 audit and execution plan](PHASE-00-PLAN.md)
-- [Current S01 boundary report](../../evidence/phase-00/architecture/S01-boundary-report-v2.md)
+- [Current S01 boundary report](../../evidence/phase-00/architecture/S01-boundary-report-v3.md)
 - [Module boundary model](MODULE_BOUNDARIES.md)
 - [Toolchain policy](TOOLCHAIN_POLICY.md)
 
 ## Last verified source revision
 
-No Git commit/source revision exists; `HEAD` is `UNBORN`. S01 evidence is therefore pre-commit and must be superseded after the first owner-approved commit. The specification baseline was verified against PRD version/date `2026-07-20`; all 58 entries in `docs/atlas-prd/MANIFEST.sha256` matched after the traceability update, and the manifest file SHA-256 was:
+S01 was verified against initial scaffold source revision `f72f5468c52a05a442fa0efbbe996fa16450a2bb`. The evidence and traceability update is intentionally stored in the subsequent evidence-only commit. The specification baseline was verified against PRD version/date `2026-07-20`; all 58 entries in `docs/atlas-prd/MANIFEST.sha256` matched, and the manifest file SHA-256 was:
 
 ```text
-48E77F2217D177444FF16A939F48BE1247335659705FC8ADE5FF22F5642B84D8
+42838F6F25F9DA9305DAA18340340342AC1CE211F7E67A783F5F393D35C3DC62
 ```
 
-Replace this manifest-only identifier with a Git commit plus build/configuration digests after the first commit is explicitly authorized.
+Revalidate and add a new evidence version after any source/configuration change; do not rewrite the historical reports.

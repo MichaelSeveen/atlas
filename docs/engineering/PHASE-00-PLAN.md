@@ -30,7 +30,7 @@ Slice references (`S01`–`S08`) identify the primary sequencing below. Threat I
 
 | Requirement | Status | Existing repository evidence | Missing implementation and completion proof | Applicable threats | Primary sequence |
 |---|---|---|---|---|---|
-| `FND-001` | Satisfied | Roadmap-aligned ownership tree, [root commands](../../README.md), pinned Go metadata, layout/canonical-source tests, and [S01 evidence](../../evidence/phase-00/architecture/S01-boundary-report-v2.md) | Reverify from a clean clone after the first commit; later slices must replace placeholders with owned artifacts without creating duplicate contract/spec truth. | `THR-013`, `THR-042`, `THR-060` | S01 complete; preserve |
+| `FND-001` | Satisfied | Roadmap-aligned ownership tree, [root commands](../../README.md), pinned Go metadata, layout/canonical-source tests, and [S01 evidence](../../evidence/phase-00/architecture/S01-boundary-report-v3.md) | Reverify from a clean clone; later slices must replace placeholders with owned artifacts without creating duplicate contract/spec truth. | `THR-013`, `THR-042`, `THR-060` | S01 complete; preserve |
 | `FND-002` | Satisfied | Rules in [module boundaries](MODULE_BOUNDARIES.md) are enforced by a clean import scan and seeded cross-context persistence-import rejection in `internal/architecture` | Database write ownership is intentionally not claimed and remains S05/`FND-060`; extend the checker as real context APIs appear. | `THR-040`, `THR-054`, `THR-060` | S01 complete; DB proof S05 |
 | `FND-003` | Satisfied | Separate inert `cmd/api`, `cmd/worker`, and `cmd/simulator` entry points pass package tests and build together as independent Go packages | Runtime lifecycle, health, config, identities, jobs, and listeners remain later-slice work; no endpoint/behavior is claimed. | `THR-025`, `THR-042`, `THR-060` | S01 complete; extend S03/S04 |
 | `FND-004` | Satisfied | React + TypeScript is selected in the [PRD README](../atlas-prd/README.md), [product charter](../atlas-prd/00-master/00_PRODUCT_CHARTER.md), and [architecture §3](../atlas-prd/01-architecture/00_SYSTEM_ARCHITECTURE.md); no Vue implementation exists | Preserve with one frontend package/lockfile and CI rule rejecting a second framework. The later shell must prove route/identity separation and accessible failure states. | `THR-029`, `THR-060` | Preserve in S01/S04 |
@@ -83,7 +83,7 @@ These are release-blocking even though the phase file does not assign them `FND-
 
 ## Ordered execution plan
 
-S01 is complete with an `UNBORN` pre-commit evidence limitation. S02 is next in sequence but is not authorized by this status update.
+S01 is complete with evidence bound to initial scaffold revision `f72f5468c52a05a442fa0efbbe996fa16450a2bb`. S02 is next in sequence but is not authorized by this status update.
 
 | Order | Slice | Primary requirements | Hard prerequisite |
 |---:|---|---|---|
@@ -98,17 +98,17 @@ S01 is complete with an `UNBORN` pre-commit evidence limitation. S02 is next in 
 
 ### S01 — Versioned repository and process-boundary scaffold
 
-- **Status:** implemented and verified 2026-07-20; no commit was created, so evidence source revision is `UNBORN`.
+- **Status:** implemented and verified 2026-07-20 against initial scaffold revision `f72f5468c52a05a442fa0efbbe996fa16450a2bb`.
 - **Objective:** turn the specification directory into a versionable, buildable but feature-free modular-monolith skeleton with explicit ownership and dependency rules.
 - **Requirement IDs:** `FND-001`, `FND-002`, `FND-003`; preserve `FND-004`; begin toolchain pins for `FND-054`.
 - **Expected files/modules:** Git metadata after owner confirmation; `.gitignore`, `.gitattributes`, `.editorconfig`, toolchain pin/update note, `go.mod`, `cmd/api/`, `cmd/worker/`, `cmd/simulator/`, domain/platform directory skeleton, `apps/web/` ownership marker, architecture dependency checker/test, root command documentation. Do not copy mutable domain models into shared code.
 - **Architecture/ADR impact:** implements ADR 0001 and does not create a new service/broker/database. Record the Go module path, Go toolchain, deferred frontend build-toolchain decision, active contract location, and CI-host assumptions; an ADR is needed only if the modular-monolith decision is changed.
 - **Security/abuse cases:** keep debug/test endpoints absent; make process identities/config explicit; prevent cross-module persistence imports; canonicalize PRD ownership so duplicate root files cannot drift unnoticed.
-- **Migration/rollback:** no database migration. Changes are additive scaffolding; rollback is removal before the first source baseline. Do not delete root duplicates without explicit approval and a repeated hash comparison.
+- **Migration/rollback:** no database migration. Future scaffold changes use reviewed Git reverts or forward fixes. Do not delete root duplicates without explicit approval and a repeated hash comparison.
 - **Automated tests:** three entry points build; package tests run; dependency graph contains only allowed edges; a fixture with a forbidden import fails; repository layout/duplicate-contract check passes.
 - **Adversarial test:** the Phase 00 “forbidden import” test deliberately attempts a cross-module persistence import and must fail (`THR-040`, `THR-060`).
 - **Observability/runbook:** no runtime telemetry claim; document build/start failure diagnostics and exact prerequisite checks.
-- **Evidence:** `evidence/phase-00/architecture/S01-boundary-report.*` containing source revision (or explicit pre-commit limitation), tool versions, dependency graph, commands, expected/observed output, and digest.
+- **Evidence:** `evidence/phase-00/architecture/S01-boundary-report-v3.*` containing the verified source revision, tool versions, dependency graph, commands, expected/observed output, and digest; earlier versions remain immutable history.
 - **Content opportunity:** `CNT-00-02`, only after the failing boundary test is reproducible.
 - **Completion procedure:** `go test ./...`, `go build ./cmd/api ./cmd/worker ./cmd/simulator`, and the repository-owned boundary/layout check all pass from a fresh workspace; no product endpoint, schema, or financial behavior exists.
 
@@ -221,13 +221,13 @@ S01 is complete with an `UNBORN` pre-commit evidence limitation. S02 is next in 
 
 **S01 — Versioned repository and process-boundary scaffold** completed its requirement-scoped acceptance conditions:
 
-1. `.` is a valid Git worktree on `main`; no commit or deletion was performed. Evidence explicitly records `source_revision=UNBORN`.
+1. `.` is a valid Git worktree on `main`; origin is `https://github.com/MichaelSeveen/atlas.git`, and evidence names the verified initial scaffold revision. No root-level duplicate PRD file was deleted.
 2. Go 1.25.7 and module path `github.com/MichaelSeveen/atlas` are repository-owned and tied to the configured origin; React + TypeScript is the sole frontend decision and its build toolchain is explicitly deferred.
 3. Roadmap-aligned ownership directories exist without speculative domain behavior.
 4. `api`, `worker`, and `simulator` entry points compile and remain inert.
 5. The clean dependency scan passes and the seeded transfer-to-ledger-persistence import is rejected.
 6. Layout, canonical PRD manifest, and retained duplicate hash checks pass.
-7. [Current S01 evidence](../../evidence/phase-00/architecture/S01-boundary-report-v2.md) records commands, versions, outcomes, hashes, threats, limitations, and revalidation procedure; the original report remains preserved as superseded history.
+7. [Current S01 evidence](../../evidence/phase-00/architecture/S01-boundary-report-v3.md) records the verified source revision, commands, versions, outcomes, hashes, threats, limitations, and revalidation procedure; both pre-commit reports remain preserved as superseded history.
 
 S02 — safe cross-cutting primitives and static bans — is next, but remains unimplemented until separately authorized.
 

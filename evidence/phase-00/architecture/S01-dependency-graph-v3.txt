@@ -1,0 +1,23 @@
+evidence_id=EVD-P00-S01-003
+source_revision=f72f5468c52a05a442fa0efbbe996fa16450a2bb
+module_path=github.com/MichaelSeveen/atlas
+clean_go_import_violations=0
+seeded_fixture_source=internal/transfer/service.go
+seeded_fixture_import=github.com/MichaelSeveen/atlas/internal/ledger/persistence
+seeded_fixture_violations=1
+seeded_fixture_rule=cross-context import must target the context root or application API
+
+allowed=cmd -> context root | context/application
+allowed=context -> internal/platform
+allowed=context A -> context B root | context B/application
+allowed=context -> own subpackages
+
+forbidden=internal/platform -> domain context
+forbidden=internal/architecture -> domain context
+forbidden=context A -> context B private subpackage
+forbidden=context -> internal/architecture
+forbidden=internal/common | internal/shared | internal/models
+forbidden=unregistered internal/* module | cmd/* process
+
+database_write_ownership=NOT_ASSESSED_UNTIL_S05_FND-060
+ci_enforcement=ABSENT_UNTIL_S07_FND-020

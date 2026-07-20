@@ -51,7 +51,7 @@ try {
         'test',
         './internal/architecture',
         '-run',
-        'TestArchitectureBoundaries|TestBoundaryCheckerRejectsForbiddenImport|TestBoundaryCheckerRejectsUnregisteredModule|TestImportRules|TestRepositoryLayout|TestCanonicalPRDDuplicates|TestCanonicalPRDManifest',
+        'TestArchitectureBoundaries|TestBoundaryCheckerRejectsForbiddenImport|TestBoundaryCheckerRejectsUnregisteredModule|TestImportRules|TestRepositoryLayout|TestNoRootPRDDuplicates|TestCanonicalPRDManifest',
         '-count=1',
         '-v'
     )

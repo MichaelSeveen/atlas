@@ -245,7 +245,7 @@ func TestRepositoryLayout(t *testing.T) {
 
 }
 
-func TestCanonicalPRDDuplicates(t *testing.T) {
+func TestNoRootPRDDuplicates(t *testing.T) {
 	root := repositoryRoot(t)
 	pairs := map[string]string{
 		"00_PRODUCT_CHARTER.md":                    "docs/atlas-prd/00-master/00_PRODUCT_CHARTER.md",
@@ -262,18 +262,16 @@ func TestCanonicalPRDDuplicates(t *testing.T) {
 	}
 
 	for duplicate, canonical := range pairs {
-		duplicatePath := filepath.Join(root, duplicate)
-		if _, err := os.Stat(duplicatePath); os.IsNotExist(err) {
-			continue
-		} else if err != nil {
-			t.Errorf("inspect duplicate %q: %v", duplicate, err)
-			continue
+		canonicalPath := filepath.Join(root, filepath.FromSlash(canonical))
+		if _, err := os.Stat(canonicalPath); err != nil {
+			t.Errorf("canonical PRD artifact %q: %v", canonical, err)
 		}
 
-		duplicateHash := fileSHA256(t, duplicatePath)
-		canonicalHash := fileSHA256(t, filepath.Join(root, filepath.FromSlash(canonical)))
-		if duplicateHash != canonicalHash {
-			t.Errorf("non-authoritative root copy %q drifted from %q", duplicate, canonical)
+		duplicatePath := filepath.Join(root, duplicate)
+		if _, err := os.Stat(duplicatePath); err == nil {
+			t.Errorf("non-authoritative root PRD copy %q reappeared; use %q", duplicate, canonical)
+		} else if !os.IsNotExist(err) {
+			t.Errorf("inspect forbidden root PRD copy %q: %v", duplicate, err)
 		}
 	}
 }

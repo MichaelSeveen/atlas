@@ -2,20 +2,20 @@
 
 - **Status date:** 2026-07-20
 - **Current phase:** [Phase 00 — Secure engineering foundation](../atlas-prd/02-phases/PHASE-00_ENGINEERING_FOUNDATION.md)
-- **Current slice:** [S02 — safe cross-cutting primitives and static bans](PHASE-00-PLAN.md#s02--safe-cross-cutting-primitives-and-static-bans) is implemented and verified as an uncommitted worktree based on the revision below. S03 is not authorized or started.
+- **Current slice:** [S02 — safe cross-cutting primitives and static bans](PHASE-00-PLAN.md#s02--safe-cross-cutting-primitives-and-static-bans) is implemented and committed. The owner-authorized canonical-PRD cleanup is complete as an S03 prerequisite; S03 is not authorized or started.
 - **Implementation state:** Feature-free engineering foundation with typed Go primitives and static safety policies; no product, financial workflow, endpoint, worker-job, simulator-scenario, database, broker, identity integration, or frontend behavior exists.
 
 ## Repository baseline
 
 | Area | Verified state |
 |---|---|
-| Version control | Valid Git repository on branch `main`; origin is `https://github.com/MichaelSeveen/atlas.git`. Current committed base is `a59c45e209279dae66e7b20fec7193bc6c8a8645`; S02 is verified in an uncommitted worktree based on that revision and must be reverified after any authorized commit. |
+| Version control | Valid Git repository on branch `main`; origin is `https://github.com/MichaelSeveen/atlas.git`. S02 implementation commit is `dc638d2`. The subsequent owner-authorized cleanup removes only the eleven reverified root duplicates and makes their absence enforceable. |
 | Specification | Canonical PRD is `docs/atlas-prd/`: 59 pack files reported, 399 requirements, 60 threats, 154 adversarial tests, OpenAPI 3.1.1 (30 paths/38 operations), and AsyncAPI 3.0.0 (9 channels/17 messages). S01/S02 traceability rows and the PRD manifest were updated together. |
 | Application code | Go module `github.com/MichaelSeveen/atlas`, derived from the configured GitHub origin; separate inert `cmd/api`, `cmd/worker`, and `cmd/simulator` entry points; six narrow platform packages for money, IDs, clocks, actor/correlation context, and errors; architecture/layout/policy tests. No product behavior, schemas, external runtime dependencies, frontend package, or generated client. |
 | Tooling | Go pin, formatting/ignore policy, repository-owned Go-only S01/S02 verification commands, module-boundary checker, float-money/wall-clock static bans, fuzz campaigns, mutation proof, and update policy. React + TypeScript is the sole frontend framework; its runtime, dependency manifest, package manager, and build toolchain are deliberately deferred. CI, CODEOWNERS enforcement, SBOM/provenance, scanners, and container definitions remain absent. |
 | Local environment | No database, broker, Redis, object-storage, IdP, telemetry, application, reset, or seed configuration. |
 | Verified pins | Go 1.25.7, with Go language baseline 1.25.0. Module path `github.com/MichaelSeveen/atlas` matches the configured origin. React + TypeScript is selected, but no frontend build toolchain is pinned through S02. |
-| Sensitive/generated/binary scan | Basic current-tree and initial-history key/token/secret-assignment scans found no candidate material. No build binary is retained; `.tmp/` build/module caches are ignored. Eleven root PRD duplicates remain and are hash-guarded against canonical sources. Dedicated history scanning remains S07 work. |
+| Sensitive/generated/binary scan | Basic current-tree and initial-history key/token/secret-assignment scans found no candidate material. No build binary is retained; `.tmp/` build/module caches are ignored. The eleven verified root PRD duplicates were removed and the architecture test rejects their reappearance. Dedicated history scanning remains S07 work. |
 
 ## Phase 00 requirement state
 
@@ -47,7 +47,6 @@ None. S01 and S02 are requirement-scoped complete; S03 is the next planned slice
 
 | Decision/gap | Impact | Required resolution |
 |---|---|---|
-| Root-level duplicate PRD files exist | Eleven files currently hash-identically to canonical files in `docs/atlas-prd/`, but two mutable locations can drift. | Treat `docs/atlas-prd/` as authoritative; decide whether to remove the verified duplicates before the first source baseline. |
 | Broker and identity provider are not selected | Blocks the full local stack, integration tests, realm separation, and broker semantics. | Create decision records before S04; do not introduce Kafka or a custom IdP by default. |
 | Deployment platform and secret-management implementation are not selected | Blocks production-reference configuration, signing/provenance, credential isolation, backup/PITR, and rotation procedure. | Resolve with scoped ADRs before S04/S05/S07, using abstractions and reversible local/reference choices. |
 | Frontend route-shell/generated-client strategy is undecided | React is selected, but shell separation and generated/verified client approach remain open. | Decide before frontend/contract slice; preserve separate identity realms, request clients, and authorization boundaries. |
@@ -59,11 +58,9 @@ These are missing implementation decisions, not contradictory product semantics.
 ## Known deviations
 
 - Roadmap directories now exist, but most are intentional ownership placeholders and must not be described as implemented capability.
-- Eleven non-authoritative root files duplicate canonical PRD artifacts byte-for-byte.
 - The architecture decision index says `06-governance/adr/`; the real accepted-ADR directory is `06-governance/adrs/`.
 - The PRD contracts live under `docs/atlas-prd/03-contracts/`; no implementation-owned contract publication/generation location exists yet.
 - The PRD validation report proves planning-pack consistency only; it is not implementation, security, performance, recovery, or compliance evidence.
-- S02 verification is revision-aware but not commit-bound: it is an uncommitted worktree based on `a59c45e209279dae66e7b20fec7193bc6c8a8645`.
 
 ## Evidence links
 
@@ -80,6 +77,6 @@ These are missing implementation decisions, not contradictory product semantics.
 
 ## Last verified source revision
 
-S02 was verified as `UNCOMMITTED_WORKTREE(base=a59c45e209279dae66e7b20fec7193bc6c8a8645)`. This is an explicit pre-commit limitation, not a source-commit claim. The specification baseline was verified against PRD version/date `2026-07-20`; all 58 entries in `docs/atlas-prd/MANIFEST.sha256` matched. The current manifest digest is recorded in the S02 evidence sidecar/report after the traceability update.
+S02 implementation is committed as `dc638d2`. The owner-authorized canonical-PRD cleanup reverified all eleven root/canonical pairs byte-identical immediately before deletion, preserves every canonical artifact, and replaces the former optional drift check with a hard absence check. The specification baseline remains `2026-07-20`; all 58 entries in `docs/atlas-prd/MANIFEST.sha256` match.
 
-Revalidate and add a new evidence version after any source/configuration change or authorized S02 commit; do not rewrite the historical reports.
+The committed cleanup revision and post-commit verification are recorded in a new evidence version; historical S01/S02 reports remain unchanged.

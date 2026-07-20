@@ -4,7 +4,7 @@ Atlas is a security-first, multi-currency wallet and financial-operations portfo
 
 ## Canonical specification
 
-`docs/atlas-prd/` is the only authoritative PRD root. The eleven historical root-level copies are non-authoritative and remain untouched pending an explicit owner decision. The architecture test fails if any retained copy drifts from its canonical source.
+`docs/atlas-prd/` is the only authoritative PRD root. The eleven historical root-level copies were removed in an owner-authorized cleanup after all eleven were reverified byte-identical to their canonical files. The architecture test now fails if any root duplicate reappears.
 
 ## Toolchain policy
 

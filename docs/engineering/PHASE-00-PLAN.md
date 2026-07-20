@@ -14,7 +14,7 @@ The audit uses [project-wide gates](../atlas-prd/00-master/03_REQUIREMENTS_AND_Q
 
 ## Repository audit summary
 
-S01 and S02 are implemented as a feature-free engineering foundation. Git is valid on branch `main`; the configured GitHub origin supplies the Go module identity. The repository has a pinned Go policy, React + TypeScript as the sole frontend decision with its build toolchain deferred, three inert process entry points, roadmap ownership directories, typed cross-cutting Go primitives, static import/money/clock checks, seeded negative tests, bounded fuzz campaigns, a killed money mutation, and revision-aware evidence. It still has no product/frontend behavior, database/migration implementation, CI, container/local environment, broker, IdP, or runtime observability. The PRD pack remains structurally valid after traceability updates: all 58 manifest entries match. Eleven root-level files remain byte-identical duplicates of canonical files under `docs/atlas-prd/` and are hash-guarded, not authoritative.
+S01 and S02 are implemented as a feature-free engineering foundation. Git is valid on branch `main`; the configured GitHub origin supplies the Go module identity. The repository has a pinned Go policy, React + TypeScript as the sole frontend decision with its build toolchain deferred, three inert process entry points, roadmap ownership directories, typed cross-cutting Go primitives, static import/money/clock checks, seeded negative tests, bounded fuzz campaigns, a killed money mutation, and revision-aware evidence. It still has no product/frontend behavior, database/migration implementation, CI, container/local environment, broker, IdP, or runtime observability. The PRD pack remains structurally valid after traceability updates: all 58 manifest entries match. The eleven reverified root-level duplicates were removed with owner approval, and the architecture test rejects their reappearance.
 
 | Status | Count |
 |---|---:|
@@ -104,8 +104,8 @@ S01 is complete with evidence bound to initial scaffold revision `f72f5468c52a05
 - **Expected files/modules:** Git metadata after owner confirmation; `.gitignore`, `.gitattributes`, `.editorconfig`, toolchain pin/update note, `go.mod`, `cmd/api/`, `cmd/worker/`, `cmd/simulator/`, domain/platform directory skeleton, `apps/web/` ownership marker, architecture dependency checker/test, root command documentation. Do not copy mutable domain models into shared code.
 - **Architecture/ADR impact:** implements ADR 0001 and does not create a new service/broker/database. Record the Go module path, Go toolchain, deferred frontend build-toolchain decision, active contract location, and CI-host assumptions; an ADR is needed only if the modular-monolith decision is changed.
 - **Security/abuse cases:** keep debug/test endpoints absent; make process identities/config explicit; prevent cross-module persistence imports; canonicalize PRD ownership so duplicate root files cannot drift unnoticed.
-- **Migration/rollback:** no database migration. Future scaffold changes use reviewed Git reverts or forward fixes. Do not delete root duplicates without explicit approval and a repeated hash comparison.
-- **Automated tests:** three entry points build; package tests run; dependency graph contains only allowed edges; a fixture with a forbidden import fails; repository layout/duplicate-contract check passes.
+- **Migration/rollback:** no database migration. Future scaffold changes use reviewed Git reverts or forward fixes. The root duplicates were deleted only after explicit approval and a repeated eleven-pair hash comparison; recovery remains available through Git history.
+- **Automated tests:** three entry points build; package tests run; dependency graph contains only allowed edges; a fixture with a forbidden import fails; repository layout, canonical manifest, and root-duplicate absence checks pass.
 - **Adversarial test:** the Phase 00 “forbidden import” test deliberately attempts a cross-module persistence import and must fail (`THR-040`, `THR-060`).
 - **Observability/runbook:** no runtime telemetry claim; document build/start failure diagnostics and exact prerequisite checks.
 - **Evidence:** `evidence/phase-00/architecture/S01-boundary-report-v3.*` containing the verified source revision, tool versions, dependency graph, commands, expected/observed output, and digest; earlier versions remain immutable history.
@@ -222,12 +222,12 @@ S01 is complete with evidence bound to initial scaffold revision `f72f5468c52a05
 
 **S01 — Versioned repository and process-boundary scaffold** completed its requirement-scoped acceptance conditions:
 
-1. `.` is a valid Git worktree on `main`; origin is `https://github.com/MichaelSeveen/atlas.git`, and evidence names the verified initial scaffold revision. No root-level duplicate PRD file was deleted.
+1. `.` is a valid Git worktree on `main`; origin is `https://github.com/MichaelSeveen/atlas.git`, and evidence names the verified initial scaffold revision. S01 initially retained the root duplicates; the later owner-authorized cleanup removed them only after a repeated byte-for-byte comparison.
 2. Go 1.25.7 and module path `github.com/MichaelSeveen/atlas` are repository-owned and tied to the configured origin; React + TypeScript is the sole frontend decision and its build toolchain is explicitly deferred.
 3. Roadmap-aligned ownership directories exist without speculative domain behavior.
 4. `api`, `worker`, and `simulator` entry points compile and remain inert.
 5. The clean dependency scan passes and the seeded transfer-to-ledger-persistence import is rejected.
-6. Layout, canonical PRD manifest, and retained duplicate hash checks pass.
+6. Layout, canonical PRD manifest, and root-duplicate absence checks pass.
 7. [Current S01 evidence](../../evidence/phase-00/architecture/S01-boundary-report-v3.md) records the verified source revision, commands, versions, outcomes, hashes, threats, limitations, and revalidation procedure; both pre-commit reports remain preserved as superseded history.
 
 **S02 — Safe cross-cutting primitives and static bans** completed its requirement-scoped acceptance conditions:

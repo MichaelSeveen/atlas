@@ -19,7 +19,7 @@ This repository is currently in **Phase 00 — Secure engineering foundation**. 
 - Backend checks: `go test ./...` and `go build ./cmd/api ./cmd/worker ./cmd/simulator`.
 - Boundary/policy checks: `go test ./internal/architecture -count=1`; seeded negatives cover forbidden imports, floating-point money, and direct domain `time.Now()`.
 - No frontend build toolchain/implementation, migration tool, CI workflow, container/local environment, database, broker, IdP, or runtime telemetry exists yet.
-- Git is initialized on `main` with origin `https://github.com/MichaelSeveen/atlas.git`. S02 work is currently uncommitted on base `a59c45e209279dae66e7b20fec7193bc6c8a8645`; evidence must retain that limitation until an owner-authorized commit is created and reverified.
+- Git is initialized on `main` with origin `https://github.com/MichaelSeveen/atlas.git`. S02 implementation is committed as `dc638d2`; the owner-authorized canonical-PRD cleanup follows as a separate revision and must retain post-commit verification evidence.
 
 ## Source-of-truth hierarchy
 
@@ -67,7 +67,7 @@ Do not silently resolve conflicts. Cite the exact files/sections, check accepted
 - Before implementation, name the phase/slice, requirement IDs, threat IDs, affected contexts, authorization and financial boundaries, idempotency/concurrency risks, before/after-commit failures, contract changes, and evidence.
 - Load only relevant sections of large contracts, CSV registers, test catalogues, and later phases. Search by stable ID, endpoint, event, module, phase, or control family.
 - Do not copy complete PRD files, contracts, registers, or catalogues into context documents.
-- Use `docs/atlas-prd/` as canonical. Identical root-level copies are non-authoritative and must not drift.
+- Use `docs/atlas-prd/` as canonical. Root-level PRD or contract copies are forbidden; link to or edit the canonical artifact directly.
 
 ## Testing and evidence rules
 

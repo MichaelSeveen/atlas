@@ -9,7 +9,7 @@
 
 | Area | Verified state |
 |---|---|
-| Version control | Valid Git repository on branch `main`; origin is `https://github.com/MichaelSeveen/atlas.git`. S02 implementation commit is `dc638d2`. The subsequent owner-authorized cleanup removes only the eleven reverified root duplicates and makes their absence enforceable. |
+| Version control | Valid Git repository on branch `main`; origin is `https://github.com/MichaelSeveen/atlas.git`. S02 implementation commit is `dc638d2`; owner-authorized canonical-PRD cleanup commit `240adbf` removes only the eleven reverified root duplicates and makes their absence enforceable. |
 | Specification | Canonical PRD is `docs/atlas-prd/`: 59 pack files reported, 399 requirements, 60 threats, 154 adversarial tests, OpenAPI 3.1.1 (30 paths/38 operations), and AsyncAPI 3.0.0 (9 channels/17 messages). S01/S02 traceability rows and the PRD manifest were updated together. |
 | Application code | Go module `github.com/MichaelSeveen/atlas`, derived from the configured GitHub origin; separate inert `cmd/api`, `cmd/worker`, and `cmd/simulator` entry points; six narrow platform packages for money, IDs, clocks, actor/correlation context, and errors; architecture/layout/policy tests. No product behavior, schemas, external runtime dependencies, frontend package, or generated client. |
 | Tooling | Go pin, formatting/ignore policy, repository-owned Go-only S01/S02 verification commands, module-boundary checker, float-money/wall-clock static bans, fuzz campaigns, mutation proof, and update policy. React + TypeScript is the sole frontend framework; its runtime, dependency manifest, package manager, and build toolchain are deliberately deferred. CI, CODEOWNERS enforcement, SBOM/provenance, scanners, and container definitions remain absent. |
@@ -71,12 +71,13 @@ These are missing implementation decisions, not contradictory product semantics.
 - [Phase 00 audit and execution plan](PHASE-00-PLAN.md)
 - [Current S01 boundary report](../../evidence/phase-00/architecture/S01-boundary-report-v3.md)
 - [Current S02 primitives report](../../evidence/phase-00/primitives/S02-primitives-report.md)
+- [Canonical PRD cleanup report](../../evidence/phase-00/architecture/PRD-canonicalization-report.md)
 - [Module boundary model](MODULE_BOUNDARIES.md)
 - [Platform primitives and static policy](PLATFORM_PRIMITIVES.md)
 - [Toolchain policy](TOOLCHAIN_POLICY.md)
 
 ## Last verified source revision
 
-S02 implementation is committed as `dc638d2`. The owner-authorized canonical-PRD cleanup reverified all eleven root/canonical pairs byte-identical immediately before deletion, preserves every canonical artifact, and replaces the former optional drift check with a hard absence check. The specification baseline remains `2026-07-20`; all 58 entries in `docs/atlas-prd/MANIFEST.sha256` match.
+S02 implementation is committed as `dc638d2949335fc5808aea39906618406cd5c042`. Owner-authorized canonical-PRD cleanup revision `240adbf32b73951062b9e2233e1aa6257b4d386d` was verified after commit: all eleven root/canonical pairs had been byte-identical immediately before deletion, every canonical artifact remains, the hard absence check passes, and all 58 entries in `docs/atlas-prd/MANIFEST.sha256` match.
 
-The committed cleanup revision and post-commit verification are recorded in a new evidence version; historical S01/S02 reports remain unchanged.
+The [canonicalization report](../../evidence/phase-00/architecture/PRD-canonicalization-report.md) records the committed cleanup revision and post-commit verification. Historical S01/S02 reports remain unchanged.

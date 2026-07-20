@@ -83,7 +83,7 @@ These are release-blocking even though the phase file does not assign them `FND-
 
 ## Ordered execution plan
 
-S01 is complete with evidence bound to initial scaffold revision `f72f5468c52a05a442fa0efbbe996fa16450a2bb`. S02 is verified as an uncommitted worktree based on `a59c45e209279dae66e7b20fec7193bc6c8a8645`; its evidence records that pre-commit limitation. S03 is next in sequence but is not authorized by this status update.
+S01 is complete with evidence bound to initial scaffold revision `f72f5468c52a05a442fa0efbbe996fa16450a2bb`. S02 implementation is committed as `dc638d2`; the owner-authorized canonical-PRD cleanup is committed and post-commit verified as `240adbf`. S03 is next in sequence but is not authorized by this status update.
 
 | Order | Slice | Primary requirements | Hard prerequisite |
 |---:|---|---|---|
@@ -114,7 +114,7 @@ S01 is complete with evidence bound to initial scaffold revision `f72f5468c52a05
 
 ### S02 — Safe cross-cutting primitives and static bans
 
-- **Status:** implemented and verified 2026-07-20 as an uncommitted worktree based on revision `a59c45e209279dae66e7b20fec7193bc6c8a8645`.
+- **Status:** implemented in `dc638d2` and post-commit reverified 2026-07-20 at canonical-cleanup revision `240adbf`.
 - **Objective:** establish the small shared primitives needed by every later module without creating a “common models” bypass.
 - **Requirement IDs:** `FND-005`, `FND-006`.
 - **Expected files/modules:** narrowly scoped platform packages for money, opaque IDs, UTC clock, actor/audit context, correlation/causation context, and domain errors; TypeScript exact-money fixture/helper only if the web package is ready; custom static-check rule and violating fixtures.
@@ -237,7 +237,7 @@ S01 is complete with evidence bound to initial scaffold revision `f72f5468c52a05
 3. Fixed-clock boundary tests, bounded correlation fields, opaque-ID parsing/generation, and safe error rendering pass.
 4. Domain static checks reject seeded floating-money and direct wall-clock violations while accepting explicit safe controls.
 5. Three fuzz targets complete their seed corpora and 100 executions each; disabling the money currency guard is killed by `TestCheckedArithmetic`.
-6. [S02 evidence](../../evidence/phase-00/primitives/S02-primitives-report.md) is revision-aware and explicitly records its uncommitted-worktree limitation.
+6. [S02 evidence](../../evidence/phase-00/primitives/S02-primitives-report.md) preserves its original pre-commit limitation; [canonicalization evidence](../../evidence/phase-00/architecture/PRD-canonicalization-report.md) records the committed S02/cleanup revisions and full post-commit revalidation.
 
 S03 — contract-first health, HTTP safety, and trace seed — is next, but remains unimplemented until separately authorized.
 

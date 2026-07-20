@@ -1,0 +1,7 @@
+[
+  {"amount_minor":"0","currency":"NGN"},
+  {"amount_minor":"250000","currency":"NGN"},
+  {"amount_minor":"9007199254740993","currency":"USD"},
+  {"amount_minor":"9223372036854775807","currency":"USD"},
+  {"amount_minor":"-9223372036854775807","currency":"USD"}
+]

@@ -11,7 +11,7 @@ The Go pin matches the toolchain available when S01 was implemented; that is a r
 
 ## Frontend framework decision
 
-React + TypeScript is the sole frontend choice under `FND-004`. No frontend runtime, package manager, dependency manifest, or build tool is active in S01. `apps/web/` is an ownership placeholder only. Select the smallest suitable frontend build toolchain when frontend implementation is separately authorized; update this policy, the verification command, dependency controls, and evidence in that slice.
+React + TypeScript is the sole frontend choice under `FND-004`. No frontend runtime, package manager, dependency manifest, or build tool is active through S02. `apps/web/` is an ownership placeholder only. Select the smallest suitable frontend build toolchain when frontend implementation is separately authorized; update this policy, the verification command, dependency controls, and evidence in that slice.
 
 ## Go module identity
 

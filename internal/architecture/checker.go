@@ -16,15 +16,20 @@ import (
 // Violation describes one import that bypasses an Atlas module boundary.
 type Violation struct {
 	File       string
+	Line       int
 	ImportPath string
 	Rule       string
 }
 
 func (v Violation) String() string {
-	if v.ImportPath == "" {
-		return fmt.Sprintf("%s: %s", v.File, v.Rule)
+	location := v.File
+	if v.Line > 0 {
+		location = fmt.Sprintf("%s:%d", v.File, v.Line)
 	}
-	return fmt.Sprintf("%s: %s imports %s", v.File, v.Rule, v.ImportPath)
+	if v.ImportPath == "" {
+		return fmt.Sprintf("%s: %s", location, v.Rule)
+	}
+	return fmt.Sprintf("%s: %s imports %s", location, v.Rule, v.ImportPath)
 }
 
 var domainModules = map[string]struct{}{
@@ -100,17 +105,20 @@ func Check(root, modulePath string) ([]Violation, error) {
 		if sourceKind == ownershipUnregistered {
 			violations = append(violations, Violation{
 				File: relative,
+				Line: 1,
 				Rule: "unregistered top-level module or command " + sourceModule,
 			})
 		}
 		if sourceKind == ownershipForbidden {
 			violations = append(violations, Violation{
 				File: relative,
+				Line: 1,
 				Rule: "forbidden shared domain module " + sourceModule,
 			})
 		}
 
-		parsed, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+		fileSet := token.NewFileSet()
+		parsed, err := parser.ParseFile(fileSet, path, nil, 0)
 		if err != nil {
 			return fmt.Errorf("parse imports in %q: %w", relative, err)
 		}
@@ -120,8 +128,12 @@ func Check(root, modulePath string) ([]Violation, error) {
 				return fmt.Errorf("unquote import in %q: %w", relative, err)
 			}
 			if violation, found := checkImport(relative, sourceModule, sourceKind, importPath, modulePath); found {
+				violation.Line = fileSet.Position(imported.Pos()).Line
 				violations = append(violations, violation)
 			}
+		}
+		if sourceKind == ownershipDomain {
+			violations = append(violations, checkDomainPolicies(relative, parsed, fileSet)...)
 		}
 		return nil
 	})
@@ -132,6 +144,9 @@ func Check(root, modulePath string) ([]Violation, error) {
 	sort.Slice(violations, func(i, j int) bool {
 		if violations[i].File != violations[j].File {
 			return violations[i].File < violations[j].File
+		}
+		if violations[i].Line != violations[j].Line {
+			return violations[i].Line < violations[j].Line
 		}
 		if violations[i].ImportPath != violations[j].ImportPath {
 			return violations[i].ImportPath < violations[j].ImportPath

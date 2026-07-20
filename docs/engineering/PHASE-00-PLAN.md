@@ -14,13 +14,13 @@ The audit uses [project-wide gates](../atlas-prd/00-master/03_REQUIREMENTS_AND_Q
 
 ## Repository audit summary
 
-S01 is implemented as a feature-free engineering scaffold. Git is valid on branch `main`; the configured GitHub origin supplies the Go module identity. The repository has a pinned Go policy, React + TypeScript as the sole frontend decision with its build toolchain deferred, three inert process entry points, roadmap ownership directories, a static import-boundary checker, a seeded forbidden-import test, and revision-aware evidence. It still has no product/frontend behavior, database/migration implementation, CI, container/local environment, broker, IdP, or runtime observability. The PRD pack remains structurally valid after traceability updates: all 58 manifest entries match. Eleven root-level files remain byte-identical duplicates of canonical files under `docs/atlas-prd/` and are hash-guarded, not authoritative.
+S01 and S02 are implemented as a feature-free engineering foundation. Git is valid on branch `main`; the configured GitHub origin supplies the Go module identity. The repository has a pinned Go policy, React + TypeScript as the sole frontend decision with its build toolchain deferred, three inert process entry points, roadmap ownership directories, typed cross-cutting Go primitives, static import/money/clock checks, seeded negative tests, bounded fuzz campaigns, a killed money mutation, and revision-aware evidence. It still has no product/frontend behavior, database/migration implementation, CI, container/local environment, broker, IdP, or runtime observability. The PRD pack remains structurally valid after traceability updates: all 58 manifest entries match. Eleven root-level files remain byte-identical duplicates of canonical files under `docs/atlas-prd/` and are hash-guarded, not authoritative.
 
 | Status | Count |
 |---|---:|
-| Satisfied | 5 |
+| Satisfied | 7 |
 | Partially satisfied | 4 |
-| Absent | 28 |
+| Absent | 26 |
 | Conflicting | 0 |
 | Not yet assessed | 0 |
 
@@ -34,8 +34,8 @@ Slice references (`S01`–`S08`) identify the primary sequencing below. Threat I
 | `FND-002` | Satisfied | Rules in [module boundaries](MODULE_BOUNDARIES.md) are enforced by a clean import scan and seeded cross-context persistence-import rejection in `internal/architecture` | Database write ownership is intentionally not claimed and remains S05/`FND-060`; extend the checker as real context APIs appear. | `THR-040`, `THR-054`, `THR-060` | S01 complete; DB proof S05 |
 | `FND-003` | Satisfied | Separate inert `cmd/api`, `cmd/worker`, and `cmd/simulator` entry points pass package tests and build together as independent Go packages | Runtime lifecycle, health, config, identities, jobs, and listeners remain later-slice work; no endpoint/behavior is claimed. | `THR-025`, `THR-042`, `THR-060` | S01 complete; extend S03/S04 |
 | `FND-004` | Satisfied | React + TypeScript is selected in the [PRD README](../atlas-prd/README.md), [product charter](../atlas-prd/00-master/00_PRODUCT_CHARTER.md), and [architecture §3](../atlas-prd/01-architecture/00_SYSTEM_ARCHITECTURE.md); no Vue implementation exists | Preserve with one frontend package/lockfile and CI rule rejecting a second framework. The later shell must prove route/identity separation and accessible failure states. | `THR-029`, `THR-060` | Preserve in S01/S04 |
-| `FND-005` | Absent | [ADR 0006](../atlas-prd/06-governance/adrs/0006-integer-money-and-currency.md) defines money representation; other primitives are only named by Phase 00 | Implement money, opaque ID, injectable UTC clock, actor/correlation context, and stable domain errors. Table/property/fuzz tests cover bounds, currency mismatch, ID parsing, deterministic time, safe error metadata, and Go/TypeScript fixtures. | `THR-001`, `THR-002`, `THR-009`, `THR-030`, `THR-031` | S02 |
-| `FND-006` | Absent | Integer-money policy exists in ADR 0006; no code or enforcement exists | Add custom static checks banning floating money and direct domain `time.Now()`. Prove each rule fails on a seeded violating fixture and does not flag safe boundary formatting/clock adapters. | `THR-001`, `THR-029`, `THR-031` | S02 |
+| `FND-005` | Satisfied | Narrow [platform primitives](PLATFORM_PRIMITIVES.md) implement bounded integer money/currency, cryptographically random opaque IDs, injectable UTC clocks, explicit actor and correlation/causation contexts, and data-minimizing stable domain errors. Table/property tests, canonical JSON fixtures, three 100-execution fuzz campaigns, clock-boundary cases, and a killed currency-guard mutation are recorded in [S02 evidence](../../evidence/phase-00/primitives/S02-primitives-report.md). | Add a frontend consumer for the shared decimal-string fixture only when the frontend toolchain is authorized; keep product authorization, tenancy, persistence, and telemetry semantics out of these primitives. | `THR-001`, `THR-002`, `THR-009`, `THR-030`, `THR-031` | S02 complete; preserve |
+| `FND-006` | Satisfied | The architecture checker rejects named `float32`/`float64` money and direct domain `time.Now()` (including aliases/dot imports), while safe-control fixtures permit non-money measurements and the platform clock adapter. Seeded canaries are captured in [S02 evidence](../../evidence/phase-00/primitives/S02-primitives-report.md). | Wire the existing command into protected CI in S07/`FND-020`; reviewers must still reject deliberately obscure aliases/names because this is a conservative syntax check. | `THR-001`, `THR-029`, `THR-031` | S02 complete; CI enforcement S07 |
 | `FND-010` | Absent | Required topology appears only in Phase 00 | Add one documented command that provisions the complete local stack from a clean machine. Prove readiness, restart, deterministic teardown, constrained resources, and no hidden manual step. | `THR-019`, `THR-025`, `THR-042`, `THR-045` | S04 after S01/S03 decisions |
 | `FND-011` | Absent | Scenario behavior is defined in [ADR 0007](../atlas-prd/06-governance/adrs/0007-provider-simulators.md); no seeds/fixtures exist | Seed synthetic tenants/users/accounts and named provider scenarios with fixed clock/seed. Prove repeatable identifiers/checksums, rerun isolation, and settlement/provider scenario contracts. | `THR-043`, `THR-045`, `THR-060` | S04 |
 | `FND-012` | Absent | Synthetic-only policy exists in [scope §5](../atlas-prd/00-master/01_SCOPE_AND_NON_GOALS.md) and [ADR 0005](../atlas-prd/06-governance/adrs/0005-no-cardholder-data.md) | Make local/reference config reject production credentials/endpoints and real-data modes. Test production mode with development keys, real-looking service endpoints/data canaries, and missing synthetic designation. | `THR-020`, `THR-045` | S04 |
@@ -83,7 +83,7 @@ These are release-blocking even though the phase file does not assign them `FND-
 
 ## Ordered execution plan
 
-S01 is complete with evidence bound to initial scaffold revision `f72f5468c52a05a442fa0efbbe996fa16450a2bb`. S02 is next in sequence but is not authorized by this status update.
+S01 is complete with evidence bound to initial scaffold revision `f72f5468c52a05a442fa0efbbe996fa16450a2bb`. S02 is verified as an uncommitted worktree based on `a59c45e209279dae66e7b20fec7193bc6c8a8645`; its evidence records that pre-commit limitation. S03 is next in sequence but is not authorized by this status update.
 
 | Order | Slice | Primary requirements | Hard prerequisite |
 |---:|---|---|---|
@@ -114,6 +114,7 @@ S01 is complete with evidence bound to initial scaffold revision `f72f5468c52a05
 
 ### S02 — Safe cross-cutting primitives and static bans
 
+- **Status:** implemented and verified 2026-07-20 as an uncommitted worktree based on revision `a59c45e209279dae66e7b20fec7193bc6c8a8645`.
 - **Objective:** establish the small shared primitives needed by every later module without creating a “common models” bypass.
 - **Requirement IDs:** `FND-005`, `FND-006`.
 - **Expected files/modules:** narrowly scoped platform packages for money, opaque IDs, UTC clock, actor/audit context, correlation/causation context, and domain errors; TypeScript exact-money fixture/helper only if the web package is ready; custom static-check rule and violating fixtures.
@@ -125,7 +126,7 @@ S01 is complete with evidence bound to initial scaffold revision `f72f5468c52a05
 - **Observability/runbook:** define safe correlation fields and stable error codes; no PII attributes. No operational runbook required beyond developer diagnostics.
 - **Evidence:** primitive test report, fuzz seed/corpus summary, mutation result, and static-rule failure transcript.
 - **Content opportunity:** `CNT-00-04` after the custom rules genuinely block seeded violations.
-- **Completion procedure:** platform primitive tests, fuzz corpus replay, mutation target, Go/TypeScript fixture comparison, and static policy checks pass.
+- **Completion procedure:** platform primitive tests, bounded fuzz corpus replay, mutation target, canonical Go JSON fixture replay, and static policy checks pass. A frontend fixture consumer is deferred because S02 is explicitly Go-only and no frontend build toolchain exists.
 
 ### S03 — Contract-first health, HTTP safety, and trace seed
 
@@ -217,7 +218,7 @@ S01 is complete with evidence bound to initial scaffold revision `f72f5468c52a05
 - **Content opportunity:** `CNT-00-01..05` only where each item has its stated evidence.
 - **Completion procedure:** from a clean clone, one documented command verifies prerequisites and starts the stack; all gates run; a traced request is reproduced; artifacts verify; an isolated restore passes checksums/replay; the evidence catalogue and status/traceability rows match the exact source revision.
 
-## Completed first implementation slice
+## Completed implementation slices
 
 **S01 — Versioned repository and process-boundary scaffold** completed its requirement-scoped acceptance conditions:
 
@@ -229,7 +230,16 @@ S01 is complete with evidence bound to initial scaffold revision `f72f5468c52a05
 6. Layout, canonical PRD manifest, and retained duplicate hash checks pass.
 7. [Current S01 evidence](../../evidence/phase-00/architecture/S01-boundary-report-v3.md) records the verified source revision, commands, versions, outcomes, hashes, threats, limitations, and revalidation procedure; both pre-commit reports remain preserved as superseded history.
 
-S02 — safe cross-cutting primitives and static bans — is next, but remains unimplemented until separately authorized.
+**S02 — Safe cross-cutting primitives and static bans** completed its requirement-scoped acceptance conditions:
+
+1. Six narrow Go platform packages implement money/currency, opaque identifiers, UTC clocks, actor context, correlation/causation context, and stable data-minimizing errors without product behavior.
+2. Canonical decimal-string money fixtures cover zero, values beyond JavaScript's safe integer, signed bounds, currency mismatch, locale-formatted rejection, and maximum-plus-one overflow.
+3. Fixed-clock boundary tests, bounded correlation fields, opaque-ID parsing/generation, and safe error rendering pass.
+4. Domain static checks reject seeded floating-money and direct wall-clock violations while accepting explicit safe controls.
+5. Three fuzz targets complete their seed corpora and 100 executions each; disabling the money currency guard is killed by `TestCheckedArithmetic`.
+6. [S02 evidence](../../evidence/phase-00/primitives/S02-primitives-report.md) is revision-aware and explicitly records its uncommitted-worktree limitation.
+
+S03 — contract-first health, HTTP safety, and trace seed — is next, but remains unimplemented until separately authorized.
 
 ## Specification findings requiring attention
 

@@ -15,10 +15,11 @@ This repository is currently in **Phase 00 — Secure engineering foundation**. 
 - Telemetry: OpenTelemetry-compatible traces, metrics, and structured logs.
 - External dependencies: deterministic synthetic provider, KYC, and settlement simulators only.
 - S01 verification: `pwsh -NoProfile -File ./scripts/verify-s01.ps1`.
+- S02 verification: `pwsh -NoProfile -File ./scripts/verify-s02.ps1`.
 - Backend checks: `go test ./...` and `go build ./cmd/api ./cmd/worker ./cmd/simulator`.
-- Boundary checks: `go test ./internal/architecture -count=1`; the seeded negative test is `TestBoundaryCheckerRejectsForbiddenImport`.
+- Boundary/policy checks: `go test ./internal/architecture -count=1`; seeded negatives cover forbidden imports, floating-point money, and direct domain `time.Now()`.
 - No frontend build toolchain/implementation, migration tool, CI workflow, container/local environment, database, broker, IdP, or runtime telemetry exists yet.
-- Git is initialized on `main`, but no commit/`HEAD` exists. Evidence must state `UNBORN` until an owner-approved commit is created.
+- Git is initialized on `main` with origin `https://github.com/MichaelSeveen/atlas.git`. S02 work is currently uncommitted on base `a59c45e209279dae66e7b20fec7193bc6c8a8645`; evidence must retain that limitation until an owner-authorized commit is created and reverified.
 
 ## Source-of-truth hierarchy
 

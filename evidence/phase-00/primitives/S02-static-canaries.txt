@@ -1,0 +1,22 @@
+Atlas S02 static-policy canary transcript
+Date: 2026-07-20
+Base revision: a59c45e209279dae66e7b20fec7193bc6c8a8645
+Source state: UNCOMMITTED_WORKTREE
+
+Command:
+go test ./internal/architecture -run 'TestArchitectureBoundaries|TestBoundaryCheckerRejectsFloatingPointMoney|TestBoundaryCheckerRejectsDirectTimeNow|TestBoundaryCheckerRejectsDotImportedTime|TestDomainPolicyAllowsNonMoneyFloatAndClockAdapter' -count=1 -v
+
+Observed assertions:
+PASS field Amount float64 -> floating-point money violation
+PASS type Money float32 -> floating-point money violation
+PASS inferred Balance = 1.25 -> floating-point money violation
+PASS fee := float64(1) -> floating-point money violation
+PASS calculateAmount() float64 -> floating-point money violation
+PASS aliased wallclock.Now() -> direct time.Now violation
+PASS dot-imported Now() -> dot-import and direct time.Now violations
+PASS CPUUtilization float64 -> allowed non-money measurement control
+PASS internal/platform/clock time.Now().UTC() -> allowed adapter control
+PASS clean repository architecture scan -> zero violations
+
+Result: PASS
+Sanitization: synthetic source only; no credentials, personal data, tokens, or runtime payloads.

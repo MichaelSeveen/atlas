@@ -25,6 +25,17 @@ go test ./internal/architecture -run TestBoundaryCheckerRejectsForbiddenImport -
 
 The three process entry points are deliberately inert and independently buildable. They do not expose endpoints, connect to infrastructure, or implement domain behavior.
 
+## S02 commands
+
+```powershell
+pwsh -NoProfile -File ./scripts/verify-s02.ps1
+go test ./internal/platform/... -count=1
+go test ./internal/architecture -count=1
+pwsh -NoProfile -File ./scripts/test-s02-mutation.ps1
+```
+
+S02 adds only narrow Go primitives for integer money/currency, opaque IDs, UTC clocks, actor/correlation context, and stable safe errors, plus static bans on floating-point money and direct domain `time.Now()`. See [platform primitives and static policy](docs/engineering/PLATFORM_PRIMITIVES.md). It adds no Node.js/package-manager toolchain or product behavior.
+
 ## Repository boundaries
 
 - `cmd/` owns process composition only.

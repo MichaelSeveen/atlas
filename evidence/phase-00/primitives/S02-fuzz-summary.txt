@@ -1,0 +1,27 @@
+Atlas S02 fuzz corpus summary
+Date: 2026-07-20
+Base revision: a59c45e209279dae66e7b20fec7193bc6c8a8645
+Source state: UNCOMMITTED_WORKTREE
+
+FuzzParseMinorUnits
+- package: ./internal/platform/money
+- committed literal seeds: 9
+- bounded executions: 100
+- result: PASS
+
+FuzzCheckedAddition
+- package: ./internal/platform/money
+- committed literal seed pairs: 5
+- independent oracle: math/big bounded comparison
+- bounded executions: 100
+- result: PASS
+
+FuzzParse
+- package: ./internal/platform/identifier
+- committed literal seeds: 5
+- bounded executions: 100
+- result: PASS
+
+Reproduce: pwsh -NoProfile -File ./scripts/verify-s02.ps1
+Seed note: Go's fuzz engine does not expose a stable runtime PRNG seed flag. Reproducible baseline inputs are the committed f.Add corpus literals; each campaign is execution-bounded with -fuzztime=100x.
+Sanitization: synthetic values only; no credentials, personal data, tokens, or runtime payloads.

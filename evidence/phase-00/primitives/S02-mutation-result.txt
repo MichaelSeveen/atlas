@@ -1,0 +1,15 @@
+Atlas S02 mutation result
+Date: 2026-07-20
+Base revision: a59c45e209279dae66e7b20fec7193bc6c8a8645
+Source state: UNCOMMITTED_WORKTREE
+
+Target: money.Amount.Add same-currency guard
+Mutation: replace the currency comparison condition with false in an isolated repository-local temporary copy
+Test: go test ./internal/platform/money -run TestCheckedArithmetic -count=1
+Expected: test process fails because cross-currency addition is accepted
+Observed: test process failed and reported the currency-mismatch assertion
+Result: mutation_currency_guard=KILLED
+
+Reproduce: pwsh -NoProfile -File ./scripts/test-s02-mutation.ps1
+Cleanup: the isolated .tmp/s02-money-mutation copy is deleted in a validated finally block; repository source is never mutated.
+Sanitization: synthetic currencies and integer values only; no credentials, personal data, tokens, or runtime payloads.

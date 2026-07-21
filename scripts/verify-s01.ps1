@@ -58,7 +58,7 @@ try {
 
     Write-Output "toolchain_go=$expectedGo"
     Write-Output 'frontend_framework=React+TypeScript'
-    Write-Output 'frontend_build_toolchain=DEFERRED'
+    Write-Output 'frontend_build_toolchain=bun@1.3.0'
     Write-Output "source_revision=$sourceRevision"
     Write-Output 's01_verification=PASS'
 }

@@ -1,0 +1,18 @@
+{
+  "realm": "atlas-customer-local",
+  "enabled": true,
+  "displayName": "Atlas Customer — Synthetic Local",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "users": [
+    {
+      "id": "00000000-0000-4000-8000-000000000101",
+      "username": "synthetic-customer",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "customer@synthetic.invalid",
+      "attributes": {"synthetic_data": ["true"]}
+    }
+  ]
+}

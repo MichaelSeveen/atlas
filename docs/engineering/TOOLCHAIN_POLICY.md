@@ -1,17 +1,19 @@
 # Atlas toolchain policy
 
-## Active S01 pin
+## Active pins
 
 | Tool | Repository pin | Source |
 |---|---|---|
 | Go language baseline | `1.25.0` | `go.mod` |
 | Go toolchain | `1.25.7` | `go.mod`, `.go-version` |
+| Frontend package/runtime tool | Bun `1.3.0` | `apps/web/package.json`, `apps/web/Containerfile` |
+| Frontend framework | React and React DOM `19.2.7` | `apps/web/package.json`, `apps/web/bun.lock` |
 
-The Go pin matches the toolchain available when S01 was implemented; that is a reproducibility choice, not a compatibility or support-lifetime claim. CI/container verification remains outstanding under `FND-020` and `FND-054`.
+The pins match the reviewed S01/S04 implementation environments; they are reproducibility choices, not compatibility or support-lifetime claims. CI, SBOM, provenance, immutable image digest, and automated update verification remain outstanding under `FND-020..024` and `FND-054`.
 
 ## Frontend framework decision
 
-React + TypeScript is the sole frontend choice under `FND-004`. No frontend runtime, package manager, dependency manifest, or build tool is active through S02. `apps/web/` is an ownership placeholder only. Select the smallest suitable frontend build toolchain when frontend implementation is separately authorized; update this policy, the verification command, dependency controls, and evidence in that slice.
+React + TypeScript is the sole frontend choice under `FND-004`. ADR 0009 selects Bun as the only package manager, test runner, bundler, and frontend server runtime. `bun.lock` is versioned; competing lockfiles and script runtimes are rejected by `TestFrontendToolchainPolicy`. Do not add Node.js, pnpm, npm, Yarn, Vue, or a second frontend application toolchain without an owner-approved superseding ADR.
 
 ## Go module identity
 
@@ -20,9 +22,9 @@ The module path is `github.com/MichaelSeveen/atlas`, derived from configured ori
 ## Dependency policy
 
 - Pin Go tool dependencies when they are introduced; `go.mod`/`go.sum` changes receive dependency review.
-- Pin frontend dependencies exactly once the frontend build toolchain is deliberately selected; do not add competing package managers or unbounded ranges for build/security-critical tools.
+- Pin all frontend dependencies exactly and update `package.json` with `bun.lock`; do not add a competing package manager or unbounded range.
 - Pin container base images and CI actions by immutable version/digest when those artifacts are introduced in S07.
-- React + TypeScript remains the sole frontend choice. S01 implements no UI.
+- React + TypeScript remains the sole frontend choice. S04 implements only actor route shells and synthetic environment state.
 
 ## Update procedure
 

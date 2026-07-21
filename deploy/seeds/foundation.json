@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "seed_id": "atlas-phase00-foundation-v1",
+  "virtual_time": "2026-07-21T00:00:00Z",
+  "tenants": [
+    {"id": "ten_01JAT1AS00000000000001", "label": "Synthetic Customer Tenant", "synthetic": true},
+    {"id": "ten_01JAT1AS00000000000002", "label": "Synthetic Merchant Tenant", "synthetic": true}
+  ],
+  "users": [
+    {"id": "usr_01JAT1AS00000000000001", "tenant_id": "ten_01JAT1AS00000000000001", "label": "Synthetic Customer", "synthetic": true},
+    {"id": "usr_01JAT1AS00000000000002", "tenant_id": "ten_01JAT1AS00000000000002", "label": "Synthetic Merchant Operator", "synthetic": true},
+    {"id": "usr_01JAT1AS00000000000003", "label": "Synthetic Workforce Operator", "synthetic": true}
+  ],
+  "accounts": [
+    {"id": "acc_01JAT1AS00000000000001", "tenant_id": "ten_01JAT1AS00000000000001", "label": "Fixture Account — No Financial State", "synthetic": true},
+    {"id": "acc_01JAT1AS00000000000002", "tenant_id": "ten_01JAT1AS00000000000002", "label": "Fixture Account — No Financial State", "synthetic": true}
+  ],
+  "provider_scenarios": [
+    {"id": "provider.immediate-success.v1", "category": "provider", "seed": 1101},
+    {"id": "provider.validation-decline.v1", "category": "provider", "seed": 1102},
+    {"id": "provider.timeout-before-receipt.v1", "category": "provider", "seed": 1103},
+    {"id": "provider.accepted-then-timeout.v1", "category": "provider", "seed": 1104},
+    {"id": "provider.duplicate-callback.v1", "category": "provider", "seed": 1105},
+    {"id": "provider.out-of-order-callback.v1", "category": "provider", "seed": 1106},
+    {"id": "provider.malformed-response.v1", "category": "provider", "seed": 1107},
+    {"id": "provider.prolonged-outage.v1", "category": "provider", "seed": 1108}
+  ]
+}

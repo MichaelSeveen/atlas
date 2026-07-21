@@ -1,0 +1,6 @@
+[install]
+exact = true
+linker = "isolated"
+
+[test]
+root = "./src"

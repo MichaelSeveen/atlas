@@ -3,6 +3,7 @@ package architecture
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -180,14 +181,24 @@ func TestRepositoryLayout(t *testing.T) {
 		"AGENTS.md",
 		"README.md",
 		"apps/web",
+		"apps/web/Containerfile",
+		"apps/web/bun.lock",
+		"apps/web/package.json",
 		"cmd/api/main.go",
 		"cmd/api/internal/server/server.go",
+		"cmd/envctl/main.go",
 		"cmd/simulator/main.go",
 		"cmd/worker/main.go",
 		"contracts/asyncapi",
 		"contracts/openapi",
 		"contracts/provider-fixtures",
 		"deploy/local",
+		"deploy/local/compose.yaml",
+		"deploy/environments/local.json",
+		"deploy/environments/test.json",
+		"deploy/environments/staging.json",
+		"deploy/environments/production-reference.json",
+		"deploy/seeds/foundation.json",
 		"deploy/production-reference",
 		"deploy/staging",
 		"docs/adr",
@@ -204,6 +215,7 @@ func TestRepositoryLayout(t *testing.T) {
 		"internal/platform/correlation",
 		"internal/platform/domainerror",
 		"internal/platform/identifier",
+		"internal/platform/environment",
 		"internal/platform/money",
 		"internal/audit",
 		"internal/customer",
@@ -228,6 +240,16 @@ func TestRepositoryLayout(t *testing.T) {
 		"docs/runbooks/DATABASE_UNAVAILABLE.md",
 		"scripts/test-s03-contract-canary.ps1",
 		"scripts/verify-s03.ps1",
+		"scripts/s04.ps1",
+		"scripts/test-s04-config-canary.ps1",
+		"scripts/test-s04-live.ps1",
+		"scripts/test-s04-reset-canary.ps1",
+		"scripts/test-s04-seed-canary.ps1",
+		"scripts/verify-s04.ps1",
+		"docs/engineering/LOCAL_ENVIRONMENT.md",
+		"docs/atlas-prd/06-governance/adrs/0008-local-reference-platform.md",
+		"docs/atlas-prd/06-governance/adrs/0009-react-bun-route-shells.md",
+		"evidence/phase-00/environment/S04-environment-report.md",
 		"tests/architecture",
 		"tests/chaos",
 		"tests/contract",
@@ -248,6 +270,46 @@ func TestRepositoryLayout(t *testing.T) {
 		}
 	}
 
+}
+
+func TestFrontendToolchainPolicy(t *testing.T) {
+	root := repositoryRoot(t)
+	manifestPath := filepath.Join(root, "apps", "web", "package.json")
+	content, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest struct {
+		PackageManager string            `json:"packageManager"`
+		Scripts        map[string]string `json:"scripts"`
+		Dependencies   map[string]string `json:"dependencies"`
+	}
+	if err := json.Unmarshal(content, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if manifest.PackageManager != "bun@1.3.0" {
+		t.Errorf("frontend package manager must be exactly bun@1.3.0, got %q", manifest.PackageManager)
+	}
+	for dependency, version := range map[string]string{"react": "19.2.7", "react-dom": "19.2.7"} {
+		if manifest.Dependencies[dependency] != version {
+			t.Errorf("frontend dependency %s must be exactly %s", dependency, version)
+		}
+	}
+	for name, command := range manifest.Scripts {
+		for _, forbidden := range []string{"node ", "npm ", "pnpm ", "yarn "} {
+			if strings.Contains(strings.ToLower(command), forbidden) {
+				t.Errorf("frontend script %s uses forbidden tool %q", name, forbidden)
+			}
+		}
+	}
+	for _, relative := range []string{
+		"apps/web/package-lock.json", "apps/web/pnpm-lock.yaml", "apps/web/yarn.lock",
+		"apps/web/.npmrc", "apps/web/.nvmrc",
+	} {
+		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(relative))); !os.IsNotExist(err) {
+			t.Errorf("forbidden competing frontend artifact %q exists or cannot be checked: %v", relative, err)
+		}
+	}
 }
 
 func TestNoRootPRDDuplicates(t *testing.T) {
@@ -283,12 +345,14 @@ func TestNoRootPRDDuplicates(t *testing.T) {
 
 func TestCanonicalPRDManifest(t *testing.T) {
 	root := repositoryRoot(t)
-	manifestPath := filepath.Join(root, "docs", "atlas-prd", "MANIFEST.sha256")
+	prdRoot := filepath.Join(root, "docs", "atlas-prd")
+	manifestPath := filepath.Join(prdRoot, "MANIFEST.sha256")
 	manifest, err := os.ReadFile(manifestPath)
 	if err != nil {
 		t.Fatalf("read PRD manifest: %v", err)
 	}
 
+	seen := make(map[string]struct{})
 	for lineNumber, line := range strings.Split(strings.TrimSpace(string(manifest)), "\n") {
 		fields := strings.Fields(strings.TrimSpace(line))
 		if len(fields) != 2 || len(fields[0]) != sha256.Size*2 || !strings.HasPrefix(fields[1], "./") {
@@ -301,6 +365,26 @@ func TestCanonicalPRDManifest(t *testing.T) {
 		if !strings.EqualFold(actual, fields[0]) {
 			t.Errorf("PRD manifest mismatch for %s: expected %s, observed %s", fields[1], fields[0], actual)
 		}
+		seen[strings.TrimPrefix(filepath.ToSlash(fields[1]), "./")] = struct{}{}
+	}
+	if err := filepath.WalkDir(prdRoot, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || path == manifestPath {
+			return nil
+		}
+		relative, err := filepath.Rel(prdRoot, path)
+		if err != nil {
+			return err
+		}
+		relative = filepath.ToSlash(relative)
+		if _, found := seen[relative]; !found {
+			t.Errorf("canonical PRD file %q is absent from MANIFEST.sha256", relative)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
 	}
 }
 

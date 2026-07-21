@@ -13,6 +13,12 @@
 *.test
 *.out
 
+# Bun/React local build output; bun.lock remains versioned.
+node_modules/
+apps/web/dist/
+output/playwright/
+.playwright-cli/
+
 # Local tooling and editor state
 .idea/
 .vscode/

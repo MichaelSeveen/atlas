@@ -38,6 +38,7 @@ Every artifact has a sidecar metadata file or embedded header containing:
 | Evidence ID | Phase | Type | Supports | Artifact | Revision | Result | Reproduce | Last verified | Limitation |
 |---|---|---|---|---|---|---|---|---|---|
 | EVD-0001 | Phase 03 | ledger verification | LED-012; CLM-001; THR-001 | `evidence/...` | commit | pass | command/runbook | date | ... |
+| EVD-P00-S04-001 | Phase 00 | synthetic environment | FND-004; FND-010..013; FND-030..033; FND-054 | `evidence/phase-00/environment/S04-environment-report.md` | pre-commit `UNCOMMITTED_WORKTREE(base=c327135)` | pass with explicit partials | `scripts/verify-s04.ps1 -Live` | 2026-07-21 | exact clean-machine wrapper, executable seeds, and staging/production credentials remain outstanding |
 
 ## Minimum phase evidence
 

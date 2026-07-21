@@ -1,0 +1,204 @@
+name: atlas-local
+
+x-app-security: &app-security
+  read_only: true
+  tmpfs:
+    - /tmp:size=32m,mode=1777
+  cap_drop: [ALL]
+  security_opt:
+    - no-new-privileges:true
+  restart: unless-stopped
+  mem_limit: 128m
+  pids_limit: 128
+  networks: [atlas-internal]
+
+services:
+  postgres:
+    image: docker.io/library/postgres:18.4-alpine
+    environment:
+      POSTGRES_DB: ${ATLAS_POSTGRES_DB:?required}
+      POSTGRES_USER: ${ATLAS_POSTGRES_USER:?required}
+      POSTGRES_PASSWORD: ${ATLAS_POSTGRES_PASSWORD:?required}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --auth-local=scram-sha-256
+    command: ["postgres", "-c", "password_encryption=scram-sha-256", "-c", "log_connections=off", "-c", "log_disconnections=off"]
+    volumes:
+      - atlas-postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    ports:
+      - "127.0.0.1:15432:5432"
+    restart: unless-stopped
+    mem_limit: 320m
+    pids_limit: 128
+    networks: [atlas-internal]
+
+  redis:
+    image: docker.io/library/redis:8.2.7-alpine
+    command: ["sh", "-c", "exec redis-server --appendonly no --save '' --requirepass \"$${ATLAS_REDIS_PASSWORD}\" --maxmemory 64mb --maxmemory-policy allkeys-lru"]
+    environment:
+      ATLAS_REDIS_PASSWORD: ${ATLAS_REDIS_PASSWORD:?required}
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${ATLAS_REDIS_PASSWORD}\" --no-auth-warning ping | grep PONG"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    ports:
+      - "127.0.0.1:16379:6379"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    mem_limit: 128m
+    pids_limit: 96
+    networks: [atlas-internal]
+
+  nats:
+    image: docker.io/library/nats:2.14.0-alpine
+    command: ["-c", "/etc/nats/nats.conf"]
+    environment:
+      ATLAS_NATS_TOKEN: ${ATLAS_NATS_TOKEN:?required}
+    volumes:
+      - ./nats.conf:/etc/nats/nats.conf:ro
+      - atlas-nats:/data/jetstream
+    ports:
+      - "127.0.0.1:14222:4222"
+      - "127.0.0.1:18222:8222"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    mem_limit: 128m
+    pids_limit: 96
+    networks: [atlas-internal]
+
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${ATLAS_MINIO_ROOT_USER:?required}
+      MINIO_ROOT_PASSWORD: ${ATLAS_MINIO_ROOT_PASSWORD:?required}
+      MINIO_BROWSER_REDIRECT_URL: http://127.0.0.1:19001
+    volumes:
+      - atlas-minio:/data
+    ports:
+      - "127.0.0.1:19000:9000"
+      - "127.0.0.1:19001:9001"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    mem_limit: 256m
+    pids_limit: 128
+    networks: [atlas-internal]
+
+  otel-collector:
+    image: docker.io/otel/opentelemetry-collector:0.155.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    mem_limit: 128m
+    pids_limit: 96
+    networks: [atlas-internal]
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.0
+    command: ["start-dev", "--import-realm", "--http-enabled=true", "--hostname-strict=false"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${ATLAS_KEYCLOAK_ADMIN:?required}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${ATLAS_KEYCLOAK_ADMIN_PASSWORD:?required}
+      KC_HEALTH_ENABLED: "true"
+      JAVA_OPTS_KC_HEAP: -XX:InitialRAMPercentage=20 -XX:MaxRAMPercentage=60
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro
+      - atlas-keycloak:/opt/keycloak/data
+    ports:
+      - "127.0.0.1:18081:8080"
+    mem_limit: 640m
+    pids_limit: 384
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    networks: [atlas-internal]
+
+  api:
+    <<: *app-security
+    image: localhost/atlas-api:s04
+    build:
+      context: ../..
+      dockerfile: deploy/local/Containerfile.backend
+      args:
+        SOURCE_REVISION: ${ATLAS_SOURCE_REVISION:-development}
+        CONTRACT_VERSION: "2026-07-20"
+        BUILD_TIME: ${ATLAS_BUILD_TIME:-1970-01-01T00:00:00Z}
+    entrypoint: ["/atlas/api"]
+    environment:
+      ATLAS_ENV_CONFIG: /config/environment.json
+      ATLAS_HTTP_ADDR: 0.0.0.0:8080
+    volumes:
+      - ../environments/local.json:/config/environment.json:ro
+    depends_on: [postgres, redis, nats, minio, otel-collector, keycloak]
+    ports:
+      - "127.0.0.1:18080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/health/ready"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  worker:
+    <<: *app-security
+    image: localhost/atlas-worker:s04
+    build:
+      context: ../..
+      dockerfile: deploy/local/Containerfile.backend
+    entrypoint: ["/atlas/worker"]
+    environment:
+      ATLAS_ENV_CONFIG: /config/environment.json
+    volumes:
+      - ../environments/local.json:/config/environment.json:ro
+    depends_on: [postgres, redis, nats, minio, otel-collector, keycloak]
+
+  simulator:
+    <<: *app-security
+    image: localhost/atlas-simulator:s04
+    build:
+      context: ../..
+      dockerfile: deploy/local/Containerfile.backend
+    entrypoint: ["/atlas/simulator"]
+    environment:
+      ATLAS_ENV_CONFIG: /config/environment.json
+    volumes:
+      - ../environments/local.json:/config/environment.json:ro
+    depends_on: [postgres, redis, nats, minio, otel-collector, keycloak]
+
+  web:
+    <<: *app-security
+    image: localhost/atlas-web:s04
+    build:
+      context: ../../apps/web
+      dockerfile: Containerfile
+    environment:
+      ATLAS_ENVIRONMENT: local
+      ATLAS_ENVIRONMENT_BANNER: LOCAL — SYNTHETIC DATA ONLY
+      ATLAS_MOCK_MODE: "false"
+      ATLAS_WEB_PORT: "3000"
+    ports:
+      - "127.0.0.1:13000:3000"
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:3000/runtime-config.json').then(r=>{if(!r.ok)throw new Error('unready')})"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+networks:
+  atlas-internal:
+    driver: bridge
+
+volumes:
+  atlas-postgres:
+  atlas-nats:
+  atlas-minio:
+  atlas-keycloak:

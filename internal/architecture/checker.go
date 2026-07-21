@@ -59,6 +59,10 @@ var processCommands = map[string]struct{}{
 	"worker":    {},
 }
 
+var engineeringCommands = map[string]struct{}{
+	"envctl": {},
+}
+
 var forbiddenSharedModules = map[string]struct{}{
 	"common": {},
 	"models": {},
@@ -172,6 +176,9 @@ func sourceOwnership(relative string) (string, ownership) {
 	if len(parts) >= 2 && parts[0] == "cmd" {
 		module := parts[1]
 		if _, found := processCommands[module]; found {
+			return module, ownershipCommand
+		}
+		if _, found := engineeringCommands[module]; found {
 			return module, ownershipCommand
 		}
 		return module, ownershipUnregistered

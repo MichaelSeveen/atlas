@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "environment": "production-reference",
+  "synthetic_data": true,
+  "banner": "PRODUCTION REFERENCE — SYNTHETIC DATA ONLY — NOT A REAL SERVICE",
+  "mock_mode": false,
+  "migration_state": "not-applicable-until-s05",
+  "allowed_origins": ["https://web.production-reference.atlas.invalid"],
+  "surfaces": {
+    "api": "https://api.production-reference.atlas.invalid",
+    "web": "https://web.production-reference.atlas.invalid",
+    "identity": "https://identity.production-reference.atlas.invalid"
+  },
+  "services": [
+    {"name": "postgres", "address": "postgres.production-reference.atlas.invalid:5432", "synthetic": true},
+    {"name": "redis", "address": "redis.production-reference.atlas.invalid:6379", "synthetic": true},
+    {"name": "broker", "address": "broker.production-reference.atlas.invalid:4222", "synthetic": true},
+    {"name": "object-storage", "address": "objects.production-reference.atlas.invalid:9000", "synthetic": true},
+    {"name": "telemetry", "address": "telemetry.production-reference.atlas.invalid:4317", "synthetic": true},
+    {"name": "identity-provider", "address": "identity.production-reference.atlas.invalid:8080", "synthetic": true}
+  ],
+  "credential_refs": {
+    "signing": "secret://atlas/production-reference/signing",
+    "encryption": "secret://atlas/production-reference/encryption",
+    "database": "secret://atlas/production-reference/database",
+    "identity": "secret://atlas/production-reference/identity",
+    "merchant": "secret://atlas/production-reference/merchant",
+    "broker": "secret://atlas/production-reference/broker",
+    "object-storage": "secret://atlas/production-reference/object-storage"
+  },
+  "feature_flags": [
+    {"key": "foundation.synthetic-shells", "owner": "platform", "expires": "2027-07-21", "default": true, "risk": "low", "rollback": "Disable the shell entry affordance; keep the synthetic banner visible."}
+  ]
+}

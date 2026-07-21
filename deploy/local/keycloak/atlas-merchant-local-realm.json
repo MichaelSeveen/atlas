@@ -1,0 +1,18 @@
+{
+  "realm": "atlas-merchant-local",
+  "enabled": true,
+  "displayName": "Atlas Merchant — Synthetic Local",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "users": [
+    {
+      "id": "00000000-0000-4000-8000-000000000201",
+      "username": "synthetic-merchant-operator",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "merchant-operator@synthetic.invalid",
+      "attributes": {"synthetic_data": ["true"]}
+    }
+  ]
+}

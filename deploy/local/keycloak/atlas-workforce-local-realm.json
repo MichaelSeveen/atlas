@@ -1,0 +1,18 @@
+{
+  "realm": "atlas-workforce-local",
+  "enabled": true,
+  "displayName": "Atlas Workforce — Synthetic Local",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "users": [
+    {
+      "id": "00000000-0000-4000-8000-000000000301",
+      "username": "synthetic-workforce-operator",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "workforce-operator@synthetic.invalid",
+      "attributes": {"synthetic_data": ["true"]}
+    }
+  ]
+}

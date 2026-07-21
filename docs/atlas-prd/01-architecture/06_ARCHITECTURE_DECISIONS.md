@@ -13,21 +13,22 @@ Architecture decisions are not hidden in code or social posts. Each major choice
 | 0005 | No cardholder data | preserve project focus and avoid false PCI posture |
 | 0006 | Integer minor-unit money | prevent floating-point financial errors and clarify currency semantics |
 | 0007 | Deterministic provider simulators | reproduce edge cases without real financial integration |
+| 0008 | Reversible synthetic local/reference platform | exercise complete boundaries without selecting production dependencies |
+| 0009 | React route shells with Bun | preserve one frontend choice and safe actor-shell boundaries without Node.js/pnpm project tooling |
 
-See `06-governance/adr/`.
+See `06-governance/adrs/`.
 
 ## ADRs required before implementation decisions
 
 - transaction isolation and lock order for ledger posting;
-- broker selection and delivery semantics;
-- identity provider and customer/workforce realm separation;
+- production broker selection and delivery semantics;
+- production identity-provider deployment and realm operating model;
 - field-level encryption and search strategy;
 - audit tamper-evidence design;
 - object storage retention/immutability;
 - row-level security as defense in depth;
 - deployment platform and secret management;
 - generated API client strategy;
-- frontend application separation or route-shell model;
 - reconciliation rule versioning;
 - database partitioning threshold;
 - analytics/read-replica boundary;

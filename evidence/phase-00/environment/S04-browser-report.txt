@@ -1,0 +1,17 @@
+evidence_id=EVD-P00-S04-BROWSER-001
+source_revision=UNCOMMITTED_WORKTREE(base=c327135)
+browser=Microsoft Edge through external Playwright CLI wrapper
+page=http://127.0.0.1:13000/customer
+title=Atlas synthetic foundation
+banner=LOCAL — SYNTHETIC DATA ONLY
+customer_shell=VISIBLE
+console_errors=0
+logout_destination=/signed-out
+browser_back_destination=/signed-out
+local_storage_items=0
+session_storage_items=0
+cookies=0
+named_skipped_test_06=PASS
+screenshot=S04-customer-shell.png
+screenshot_sha256=f002adebbabfbcbb1fc59ab291ab763c2b0dc9189c21d7826f541d2be8ed1af6
+sanitization=synthetic labels only; no identity token, credential, financial state, or product data rendered

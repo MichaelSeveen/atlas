@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "environment": "local",
+  "synthetic_data": true,
+  "banner": "LOCAL — SYNTHETIC DATA ONLY",
+  "mock_mode": false,
+  "migration_state": "not-applicable-until-s05",
+  "allowed_origins": ["http://127.0.0.1:13000"],
+  "surfaces": {
+    "api": "http://127.0.0.1:18080",
+    "web": "http://127.0.0.1:13000",
+    "identity": "http://127.0.0.1:18081"
+  },
+  "services": [
+    {"name": "postgres", "address": "postgres:5432", "synthetic": true},
+    {"name": "redis", "address": "redis:6379", "synthetic": true},
+    {"name": "broker", "address": "nats:4222", "synthetic": true},
+    {"name": "object-storage", "address": "minio:9000", "synthetic": true},
+    {"name": "telemetry", "address": "otel-collector:4317", "synthetic": true},
+    {"name": "identity-provider", "address": "keycloak:8080", "synthetic": true}
+  ],
+  "credential_refs": {
+    "signing": "secret://atlas/local/signing",
+    "encryption": "secret://atlas/local/encryption",
+    "database": "secret://atlas/local/database",
+    "identity": "secret://atlas/local/identity",
+    "merchant": "secret://atlas/local/merchant",
+    "broker": "secret://atlas/local/broker",
+    "object-storage": "secret://atlas/local/object-storage"
+  },
+  "feature_flags": [
+    {
+      "key": "foundation.synthetic-shells",
+      "owner": "platform",
+      "expires": "2027-07-21",
+      "default": true,
+      "risk": "low",
+      "rollback": "Disable the shell entry affordance; keep the synthetic banner visible."
+    }
+  ]
+}

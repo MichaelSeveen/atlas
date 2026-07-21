@@ -89,4 +89,5 @@ Every completed requirement needs stable IDs, tests/review, evidence, an owner, 
 
 - [Implementation status](IMPLEMENTATION_STATUS.md)
 - [Phase 00 audit and execution plan](PHASE-00-PLAN.md)
+- [Synthetic local environment and S04 commands](LOCAL_ENVIRONMENT.md)
 - [Agent operating guide](../../AGENTS.md)

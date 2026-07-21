@@ -1,0 +1,11 @@
+evidence_id=EVD-P00-S04-RECOVERY-001
+source_revision=UNCOMMITTED_WORKTREE(base=c327135)
+failure_injection=provider-in-place-compose-restart
+observed=in-place restart raced dependency ordering and left API/worker/simulator stopped
+control_change=supported Restart action now performs volume-preserving ordered down/up
+recovery=all ten containers recreated from preserved named volumes
+post_recovery_live=200
+post_recovery_ready=200
+post_recovery_smoke=PASS
+s04_controlled_restart=PASS
+limitation=provider-specific in-place restart remains unsupported and is not used by the runbook command

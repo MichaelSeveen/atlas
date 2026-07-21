@@ -8,9 +8,9 @@ Atlas is a security-first, multi-currency wallet and financial-operations portfo
 
 ## Toolchain policy
 
-- Go `1.25.7`, with module path `github.com/MichaelSeveen/atlas`, is the only active build toolchain.
-- React + TypeScript is the sole selected frontend framework; `apps/web/` is intentionally only an ownership placeholder in S01.
-- No frontend runtime, package manager, dependency manifest, or build tool is selected or pinned yet. That decision is deferred until frontend implementation is authorized.
+- Go `1.25.7`, with module path `github.com/MichaelSeveen/atlas`, is the backend toolchain.
+- React `19.2.7` + TypeScript is the sole frontend framework; Bun `1.3.0` is its pinned package manager, test runner, bundler, and server runtime.
+- `bun.lock` is the only frontend lockfile. The repository has no Node.js runtime or pnpm project tooling.
 
 The Go pin and update procedure are documented in [Toolchain policy](docs/engineering/TOOLCHAIN_POLICY.md). The module path is derived from the configured GitHub origin and must change with it in one reviewed mechanical change before public packages or contracts depend on a different identity.
 
@@ -45,6 +45,19 @@ pwsh -NoProfile -File ./scripts/test-s03-contract-canary.ps1
 ```
 
 S03 makes the API process serve only `GET /health/live`, `GET /health/ready`, and `GET /version`. The executable is live but deliberately not ready until later slices provide real dependency and migration probes. HTTP limits, exact-origin CORS, safe problems, validated request/correlation/trace context, and a closed trace/metric seed are documented in [the HTTP foundation](docs/engineering/HTTP_FOUNDATION.md). No database, product endpoint, authentication, runtime telemetry exporter, worker job, simulator scenario, or UI was added.
+
+## S04 commands
+
+```powershell
+pwsh -NoProfile -File ./scripts/s04.ps1 -Action Up
+pwsh -NoProfile -File ./scripts/s04.ps1 -Action Smoke
+pwsh -NoProfile -File ./scripts/s04.ps1 -Action Restart
+pwsh -NoProfile -File ./scripts/verify-s04.ps1 -Live
+pwsh -NoProfile -File ./scripts/s04.ps1 -Action Down
+pwsh -NoProfile -File ./scripts/s04.ps1 -Action Reset -Confirmation 'RESET ATLAS LOCAL'
+```
+
+S04 adds the complete synthetic local/reference topology, four closed environment configurations, guarded reset, deterministic identity/scenario fixtures, and customer/merchant/workforce React route shells. It remains feature-free: no product endpoint, database schema, financial behavior, broker stream, identity exchange, or wallet UI exists. See [the local environment guide](docs/engineering/LOCAL_ENVIRONMENT.md).
 
 ## Repository boundaries
 

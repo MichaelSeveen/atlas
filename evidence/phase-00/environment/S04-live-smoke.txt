@@ -1,0 +1,15 @@
+evidence_id=EVD-P00-S04-LIVE-001
+source_revision=UNCOMMITTED_WORKTREE(base=c327135)
+environment=atlas-local synthetic-only
+api_live=200
+api_ready=200
+api_version=200
+web_shells=customer,merchant,workforce
+identity_realm=atlas-customer-local
+broker_jetstream=READY
+object_storage=READY
+processes=postgres,redis,nats,minio,otel-collector,keycloak,api,worker,simulator,web
+runtime_limits=memory-and-pids-applied
+application_processes=non-root-read-only
+s04_live_smoke=PASS
+sanitization=no credential values, runtime environment, container environment, or user data retained

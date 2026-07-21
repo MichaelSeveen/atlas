@@ -53,8 +53,8 @@ try {
     Invoke-NativeChecked -Command 'go' -Arguments @('test', './internal/platform/identifier', '-run=^$', '-fuzz=^FuzzParse$', '-fuzztime=100x')
     Invoke-NativeChecked -Command 'pwsh' -Arguments @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'test-s02-mutation.ps1'))
 
-    Write-Output 'toolchain_policy=GO_ONLY'
-    Write-Output 'platform_packages=actor,clock,correlation,domainerror,identifier,money'
+    Write-Output 's02_implementation_scope=GO_ONLY'
+    Write-Output 's02_platform_packages=actor,clock,correlation,domainerror,identifier,money'
     Write-Output 'static_canaries=FLOAT_MONEY,TIME_NOW,DOT_TIME_IMPORT'
     Write-Output 'fuzz_campaigns=FuzzParseMinorUnits,FuzzCheckedAddition,FuzzParse'
     Write-Output "source_revision=$sourceRevision"

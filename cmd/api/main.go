@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/MichaelSeveen/atlas/cmd/api/internal/server"
+	"github.com/MichaelSeveen/atlas/internal/platform/environment"
 )
 
 var (
@@ -34,17 +35,18 @@ func run() error {
 		return errors.New("invalid build metadata")
 	}
 
+	readiness, cors, err := environmentOptions(os.Getenv("ATLAS_ENV_CONFIG"))
+	if err != nil {
+		return err
+	}
 	app, err := server.New(server.Options{
 		Build: server.BuildInfo{
 			SourceRevision:  sourceRevision,
 			ContractVersion: contractVersion,
 			BuildTime:       builtAt,
 		},
-		Readiness: server.ReadinessFunc(func(context.Context) server.ReadinessState {
-			// S04 will supply real dependency and migration probes. Until then the
-			// process is live but deliberately not ready for traffic.
-			return server.ReadinessState{}
-		}),
+		Readiness: readiness,
+		CORS:      cors,
 	})
 	if err != nil {
 		return err
@@ -74,4 +76,25 @@ func run() error {
 		return nil
 	}
 	return err
+}
+
+func environmentOptions(path string) (server.ReadinessChecker, server.CORSConfig, error) {
+	if path == "" {
+		return server.ReadinessFunc(func(context.Context) server.ReadinessState {
+			// A standalone process remains deliberately not ready. The S04 local
+			// environment supplies a validated configuration and dependency probes.
+			return server.ReadinessState{}
+		}), server.CORSConfig{}, nil
+	}
+	config, err := environment.Load(path, time.Now().UTC())
+	if err != nil {
+		return nil, server.CORSConfig{}, errors.New("invalid environment configuration")
+	}
+	probes := environment.NewProbeSet(config)
+	return server.ReadinessFunc(func(ctx context.Context) server.ReadinessState {
+		return server.ReadinessState{
+			DependenciesReady: probes.Ready(ctx),
+			MigrationsCurrent: config.MigrationsCurrent(),
+		}
+	}), server.CORSConfig{AllowedOrigins: config.AllowedOrigins}, nil
 }

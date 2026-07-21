@@ -2,6 +2,8 @@ package server
 
 import (
 	"errors"
+	"io"
+	"log"
 	"net/http"
 	"time"
 )
@@ -48,5 +50,9 @@ func NewHTTPServer(handler http.Handler, config HTTPConfig) (*http.Server, error
 		WriteTimeout:      config.WriteTimeout,
 		IdleTimeout:       config.IdleTimeout,
 		MaxHeaderBytes:    config.MaxHeaderBytes,
+		// net/http's legacy error logger can include raw connection details and
+		// is not compatible with the closed foundation schema. Terminal server
+		// failures return from ListenAndServe and use the structured failure path.
+		ErrorLog: log.New(io.Discard, "", 0),
 	}, nil
 }

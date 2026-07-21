@@ -91,4 +91,8 @@ Every completed requirement needs stable IDs, tests/review, evidence, an owner, 
 - [Phase 00 audit and execution plan](PHASE-00-PLAN.md)
 - [Synthetic local environment and S04 commands](LOCAL_ENVIRONMENT.md)
 - [Database foundation and S05 commands](DATABASE_FOUNDATION.md)
+- [S06 Phase 00 threat model](../security/PHASE-00-THREAT-MODEL.md)
+- [S06 data/log field inventory](../security/PHASE-00-DATA-LOG-INVENTORY.md)
+- [S06 secret and key-management baseline](../security/SECRET_AND_KEY_MANAGEMENT.md)
+- [S06 observability/security evidence](../../evidence/phase-00/observability-security/S06-observability-security-report.md)
 - [Agent operating guide](../../AGENTS.md)

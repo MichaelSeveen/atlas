@@ -17,6 +17,7 @@ $composeFile = Join-Path $repositoryRoot 'deploy/local/compose.yaml'
 $configDirectory = Join-Path $repositoryRoot 'deploy/environments'
 $stateRoot = Join-Path $repositoryRoot '.tmp/environments'
 $runtimeFile = Join-Path $stateRoot 'local/runtime.env'
+. (Join-Path $PSScriptRoot 'compose.ps1')
 
 function Invoke-NativeChecked {
     param([string]$Command, [string[]]$Arguments = @())
@@ -34,20 +35,25 @@ function Initialize-DatabaseEnvironment {
 
 function Invoke-Compose {
     param([string[]]$Arguments)
-    Invoke-NativeChecked -Command $ContainerRuntime -Arguments (@('compose', '--env-file', $runtimeFile, '--file', $composeFile) + $Arguments)
+    Invoke-AtlasCompose -ContainerRuntime $ContainerRuntime -RuntimeFile $runtimeFile -ComposeFile $composeFile -Arguments $Arguments
 }
 
 function Wait-Postgres {
     param([string]$Service = 'postgres')
     $deadline = [DateTimeOffset]::UtcNow.AddMinutes(2)
-    $composeArguments = @('compose', '--env-file', $runtimeFile, '--file', $composeFile)
+    $composeArguments = @()
     if ($Service -eq 'postgres-restore') {
         $composeArguments += @('--profile', 'recovery')
     }
     $composeArguments += @('exec', '-T', $Service, 'pg_isready', '-h', '127.0.0.1', '-p', '5432')
     do {
-        & $ContainerRuntime @composeArguments *> $null
-        if ($LASTEXITCODE -eq 0) { return }
+        try {
+            Invoke-AtlasCompose -ContainerRuntime $ContainerRuntime -RuntimeFile $runtimeFile -ComposeFile $composeFile -Arguments $composeArguments *> $null
+            return
+        }
+        catch {
+            # The service is still starting; retry within the bounded deadline.
+        }
         Start-Sleep -Seconds 2
     } while ([DateTimeOffset]::UtcNow -lt $deadline)
     throw "$Service did not become ready before the bounded deadline"

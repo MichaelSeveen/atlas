@@ -13,8 +13,12 @@ ARG BUILD_TIME=1970-01-01T00:00:00Z
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath \
     -ldflags="-s -w -X main.sourceRevision=${SOURCE_REVISION} -X main.contractVersion=${CONTRACT_VERSION} -X main.buildTime=${BUILD_TIME}" \
     -o /out/api ./cmd/api
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/worker ./cmd/worker
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/simulator ./cmd/simulator
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath \
+    -ldflags="-s -w -X main.sourceRevision=${SOURCE_REVISION} -X main.buildTime=${BUILD_TIME}" \
+    -o /out/worker ./cmd/worker
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath \
+    -ldflags="-s -w -X main.sourceRevision=${SOURCE_REVISION} -X main.buildTime=${BUILD_TIME}" \
+    -o /out/simulator ./cmd/simulator
 
 FROM docker.io/library/alpine:3.23.3
 RUN addgroup -S -g 10001 atlas && adduser -S -D -H -u 10001 -G atlas atlas

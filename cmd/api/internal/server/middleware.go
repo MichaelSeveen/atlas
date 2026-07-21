@@ -5,6 +5,12 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/MichaelSeveen/atlas/internal/platform/logging"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	metricapi "go.opentelemetry.io/otel/metric"
+	traceapi "go.opentelemetry.io/otel/trace"
 )
 
 func (a *App) Handler() http.Handler {
@@ -56,18 +62,35 @@ func (a *App) requestMetadata(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		started := a.clock.Now()
 		correlationContext, generationErr := a.requestIDs(request)
-		traceHeader := ""
-		if values := request.Header.Values("traceparent"); len(values) == 1 {
-			traceHeader = values[0]
+		route := telemetryRoute(request.URL.Path)
+		method := telemetryMethod(request.Method)
+		traceContext := a.fallbackTrace()
+		var span traceapi.Span
+		if a.tracer != nil {
+			parent := extractParent(request.Context(), request.Header, a.propagator)
+			spanContext, startedSpan := a.tracer.Start(parent, method+" "+route,
+				traceapi.WithSpanKind(traceapi.SpanKindServer),
+				traceapi.WithTimestamp(started),
+				traceapi.WithAttributes(
+					attribute.String("atlas.request_id", correlationContext.RequestID().String()),
+					attribute.String("atlas.correlation_id", correlationContext.CorrelationID().String()),
+					attribute.String("http.request.method", method),
+					attribute.String("http.route", route),
+				),
+			)
+			request = request.WithContext(spanContext)
+			span = startedSpan
+			if propagated := spanTraceContext(span); propagated.valid() {
+				traceContext = propagated
+			}
 		}
-		trace := a.startTrace(traceHeader)
-		state := requestContext{correlation: correlationContext, trace: trace}
+		state := requestContext{correlation: correlationContext, trace: traceContext}
 		request = request.WithContext(withRequestContext(request.Context(), state))
 
 		response.Header().Set("X-Request-Id", correlationContext.RequestID().String())
 		response.Header().Set("X-Correlation-Id", correlationContext.CorrelationID().String())
-		if trace.valid() {
-			response.Header().Set("traceparent", trace.header())
+		if traceContext.valid() {
+			response.Header().Set("traceparent", traceContext.header())
 		}
 
 		capture := &responseCapture{ResponseWriter: response}
@@ -80,31 +103,31 @@ func (a *App) requestMetadata(next http.Handler) http.Handler {
 			capture.status = http.StatusOK
 		}
 		ended := a.clock.Now()
-		route := telemetryRoute(request.URL.Path)
 		duration := ended.Sub(started)
 		if duration < 0 {
 			duration = 0
 		}
-		safeObserve(a.metrics, RequestObservation{
-			Method:     request.Method,
-			Route:      route,
-			StatusCode: capture.status,
-			Duration:   duration,
+		outcome := statusOutcome(capture.status)
+		attributes := requestAttributes(method, route, outcome, capture.status)
+		safeAdd(a.requestCounter, request.Context(), 1, metricapi.WithAttributes(attributes...))
+		safeRecord(a.requestDuration, request.Context(), duration.Seconds(), metricapi.WithAttributes(attributes...))
+		severity := logging.SeverityInfo
+		if capture.status >= 500 {
+			severity = logging.SeverityError
+		}
+		safeLog(a.logs, logging.Record{
+			Timestamp: ended, Event: logging.EventHTTPRequestCompleted, Severity: severity,
+			Module: "api", Outcome: outcome,
+			RequestID: correlationContext.RequestID().String(), CorrelationID: correlationContext.CorrelationID().String(),
+			TraceID: traceContext.TraceID, Method: method, Route: route, StatusCode: capture.status,
+			SourceRevision: a.build.SourceRevision,
 		})
-		if trace.valid() {
-			safeRecord(a.traces, Span{
-				Name:          request.Method + " " + route,
-				TraceID:       trace.TraceID,
-				SpanID:        trace.SpanID,
-				ParentSpanID:  trace.ParentSpanID,
-				RequestID:     correlationContext.RequestID().String(),
-				CorrelationID: correlationContext.CorrelationID().String(),
-				Route:         route,
-				Outcome:       statusOutcome(capture.status),
-				StatusCode:    capture.status,
-				StartedAt:     started,
-				EndedAt:       ended,
-			})
+		if span != nil {
+			span.SetAttributes(attributes...)
+			if capture.status >= 500 {
+				span.SetStatus(codes.Error, outcome)
+			}
+			span.End(traceapi.WithTimestamp(ended))
 		}
 	})
 }
@@ -116,6 +139,15 @@ func telemetryRoute(path string) string {
 		}
 	}
 	return "unmatched"
+}
+
+func telemetryMethod(method string) string {
+	switch method {
+	case http.MethodGet, http.MethodOptions:
+		return method
+	default:
+		return "OTHER"
+	}
 }
 
 func statusOutcome(status int) string {

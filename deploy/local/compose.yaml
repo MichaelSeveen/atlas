@@ -144,7 +144,7 @@ services:
 
   api:
     <<: *app-security
-    image: localhost/atlas-api:s05
+    image: localhost/atlas-backend:s06
     build:
       context: ../..
       dockerfile: deploy/local/Containerfile.backend
@@ -174,10 +174,7 @@ services:
 
   worker:
     <<: *app-security
-    image: localhost/atlas-worker:s05
-    build:
-      context: ../..
-      dockerfile: deploy/local/Containerfile.backend
+    image: localhost/atlas-backend:s06
     entrypoint: ["/atlas/worker"]
     environment:
       ATLAS_ENV_CONFIG: /config/environment.json
@@ -192,10 +189,7 @@ services:
 
   simulator:
     <<: *app-security
-    image: localhost/atlas-simulator:s05
-    build:
-      context: ../..
-      dockerfile: deploy/local/Containerfile.backend
+    image: localhost/atlas-backend:s06
     entrypoint: ["/atlas/simulator"]
     environment:
       ATLAS_ENV_CONFIG: /config/environment.json

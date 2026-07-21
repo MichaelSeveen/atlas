@@ -13,6 +13,10 @@ import (
 	"github.com/MichaelSeveen/atlas/internal/platform/clock"
 	"github.com/MichaelSeveen/atlas/internal/platform/correlation"
 	"github.com/MichaelSeveen/atlas/internal/platform/identifier"
+	"github.com/MichaelSeveen/atlas/internal/platform/logging"
+	metricapi "go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/propagation"
+	traceapi "go.opentelemetry.io/otel/trace"
 )
 
 const ContractVersion = "2026-07-20"
@@ -52,8 +56,10 @@ type Options struct {
 	Clock            clock.Clock
 	NewID            IDGenerator
 	Entropy          io.Reader
-	Traces           TraceRecorder
-	Metrics          MetricsRecorder
+	Tracer           traceapi.Tracer
+	Meter            metricapi.Meter
+	Propagator       propagation.TextMapPropagator
+	Logs             logging.Recorder
 	CORS             CORSConfig
 	MaxBodyBytes     int64
 	ReadinessTimeout time.Duration
@@ -66,8 +72,11 @@ type App struct {
 	newID            IDGenerator
 	entropy          io.Reader
 	entropyMu        sync.Mutex
-	traces           TraceRecorder
-	metrics          MetricsRecorder
+	tracer           traceapi.Tracer
+	propagator       propagation.TextMapPropagator
+	logs             logging.Recorder
+	requestCounter   metricapi.Int64Counter
+	requestDuration  metricapi.Float64Histogram
 	cors             corsPolicy
 	maxBodyBytes     int64
 	readinessTimeout time.Duration
@@ -98,11 +107,11 @@ func New(options Options) (*App, error) {
 	if options.Entropy == nil {
 		options.Entropy = rand.Reader
 	}
-	if options.Traces == nil {
-		options.Traces = discardTraceRecorder{}
+	if options.Propagator == nil {
+		options.Propagator = propagation.TraceContext{}
 	}
-	if options.Metrics == nil {
-		options.Metrics = discardMetricsRecorder{}
+	if options.Logs == nil {
+		options.Logs = logging.Discard{}
 	}
 	if options.MaxBodyBytes == 0 {
 		options.MaxBodyBytes = 1 << 20
@@ -133,6 +142,20 @@ func New(options Options) (*App, error) {
 	if err != nil {
 		return nil, errors.New("emergency request context is invalid")
 	}
+	var requestCounter metricapi.Int64Counter
+	var requestDuration metricapi.Float64Histogram
+	if options.Meter != nil {
+		requestCounter, err = options.Meter.Int64Counter("http.server.request.count",
+			metricapi.WithDescription("Completed foundation HTTP requests."), metricapi.WithUnit("{request}"))
+		if err != nil {
+			return nil, errors.New("create request counter")
+		}
+		requestDuration, err = options.Meter.Float64Histogram("http.server.request.duration",
+			metricapi.WithDescription("Foundation HTTP request duration."), metricapi.WithUnit("s"))
+		if err != nil {
+			return nil, errors.New("create request duration")
+		}
+	}
 
 	return &App{
 		build:            options.Build,
@@ -140,8 +163,11 @@ func New(options Options) (*App, error) {
 		clock:            options.Clock,
 		newID:            options.NewID,
 		entropy:          options.Entropy,
-		traces:           options.Traces,
-		metrics:          options.Metrics,
+		tracer:           options.Tracer,
+		propagator:       options.Propagator,
+		logs:             options.Logs,
+		requestCounter:   requestCounter,
+		requestDuration:  requestDuration,
 		cors:             cors,
 		maxBodyBytes:     options.MaxBodyBytes,
 		readinessTimeout: options.ReadinessTimeout,

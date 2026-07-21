@@ -20,10 +20,11 @@ This repository is currently in **Phase 00 — Secure engineering foundation**. 
 - S03 verification: `pwsh -NoProfile -File ./scripts/verify-s03.ps1`.
 - S04 verification: `pwsh -NoProfile -File ./scripts/verify-s04.ps1`; add `-Live` with the synthetic stack running.
 - S05 verification: `pwsh -NoProfile -File ./scripts/verify-s05.ps1`; add `-Live` to run the real PostgreSQL/NATS role, migration, lock, backup, WAL, and isolated-restore checks.
+- S06 verification: `pwsh -NoProfile -File ./scripts/verify-s06.ps1`; add `-Live` for the exported golden trace, metric assertions, and collector-outage readiness exercise.
 - Backend checks: `go test ./...` and `go build ./cmd/api ./cmd/worker ./cmd/simulator`.
 - Boundary/policy checks: `go test ./internal/architecture -count=1`; seeded negatives cover forbidden imports, floating-point money, and direct domain `time.Now()`.
-- S04 composes local PostgreSQL, Redis, NATS, MinIO, the OTel Collector, Keycloak, API, worker, simulator, and web. S05 adds a repository-owned SQL migration manifest/runner, real PostgreSQL roles, pgx-backed migration readiness, and native physical backup/WAL/PITR drills. These remain synthetic local/reference controls only. No product schema, broker stream, identity exchange, runtime telemetry exporter, or financial behavior exists yet.
-- Git is initialized on `main` with origin `https://github.com/MichaelSeveen/atlas.git`. S04 implementation commit `39121a3` is locally post-commit verified; S05 is currently pre-commit at base `199b861` and has not been pushed.
+- S04 composes local PostgreSQL, Redis, NATS, MinIO, the OTel Collector, Keycloak, API, worker, simulator, and web. S05 adds repository-owned PostgreSQL migration/role/recovery controls. S06 exports bounded traces/metrics from the Go processes, emits source-redacted JSON logs, and keeps the collector outside authoritative readiness. These remain synthetic local/reference controls only. No product schema, broker stream, identity exchange, worker job, managed secret provider, or financial behavior exists yet.
+- Git is initialized on `main` with origin `https://github.com/MichaelSeveen/atlas.git`. S05 implementation commit `5ea77fc` is locally post-commit verified; S06 is currently pre-commit at base `7a08056`.
 
 ## Source-of-truth hierarchy
 

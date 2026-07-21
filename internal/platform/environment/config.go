@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/MichaelSeveen/atlas/internal/platform/secret"
 )
 
 const (
@@ -272,8 +274,8 @@ func (c Config) validateCredentialRefs() error {
 		if !found {
 			return fmt.Errorf("credential reference %s is absent", purpose)
 		}
-		want := "secret://atlas/" + string(c.Environment) + "/" + purpose
-		if value != want {
+		reference, err := secret.ParseReference(value)
+		if err != nil || reference.Environment() != string(c.Environment) || reference.Purpose() != purpose {
 			return fmt.Errorf("credential reference %s is not environment-scoped", purpose)
 		}
 	}

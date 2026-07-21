@@ -1,0 +1,124 @@
+{
+  "version": 1,
+  "cardinality_budget_per_metric": 64,
+  "metrics": [
+    {
+      "name": "http.server.request.count",
+      "kind": "counter",
+      "status": "emitted",
+      "owner": "platform-on-call",
+      "labels": {
+        "atlas.outcome": ["ok", "rejected", "error"],
+        "http.request.method": ["GET", "OPTIONS", "OTHER"],
+        "http.response.status_code": ["bounded-http-status"],
+        "http.route": ["/health/live", "/health/ready", "/version", "unmatched"]
+      }
+    },
+    {
+      "name": "http.server.request.duration",
+      "kind": "histogram",
+      "status": "emitted",
+      "owner": "platform-on-call",
+      "labels": {
+        "atlas.outcome": ["ok", "rejected", "error"],
+        "http.request.method": ["GET", "OPTIONS", "OTHER"],
+        "http.response.status_code": ["bounded-http-status"],
+        "http.route": ["/health/live", "/health/ready", "/version", "unmatched"]
+      }
+    },
+    {
+      "name": "atlas.database.readiness.count",
+      "kind": "counter",
+      "status": "emitted",
+      "owner": "database-on-call",
+      "labels": {"atlas.outcome": ["ready", "not_ready"]}
+    },
+    {
+      "name": "atlas.database.readiness.duration",
+      "kind": "histogram",
+      "status": "emitted",
+      "owner": "database-on-call",
+      "labels": {"atlas.outcome": ["ready", "not_ready"]}
+    },
+    {
+      "name": "atlas.database.pool.connections",
+      "kind": "gauge",
+      "status": "emitted",
+      "owner": "database-on-call",
+      "labels": {"state": ["acquired", "idle", "total", "maximum"]}
+    },
+    {
+      "name": "atlas.build.info",
+      "kind": "gauge",
+      "status": "emitted",
+      "owner": "release-on-call",
+      "labels": {
+        "build.time": ["one-value-per-process-revision"],
+        "source.revision": ["one-value-per-process-revision"]
+      }
+    },
+    {
+      "name": "atlas.queue.lag",
+      "kind": "gauge",
+      "status": "definition-only",
+      "owner": "worker-on-call",
+      "labels": {"worker_class": ["future-allowlist-required-before-emission"]}
+    },
+    {
+      "name": "atlas.worker.retry.count",
+      "kind": "counter",
+      "status": "definition-only",
+      "owner": "worker-on-call",
+      "labels": {
+        "atlas.outcome": ["future-allowlist-required-before-emission"],
+        "worker_class": ["future-allowlist-required-before-emission"]
+      }
+    }
+  ],
+  "alerts": [
+    {
+      "id": "S06-ALR-001",
+      "metric": "http.server.request.count",
+      "severity": "page",
+      "owner": "platform-on-call",
+      "condition": "five-minute 5xx ratio exceeds 5% with at least 20 requests",
+      "rationale": "Avoids paging on a single foundation probe while detecting sustained API failure.",
+      "runbook": "docs/runbooks/FAILED_DEPLOYMENT.md",
+      "test": "scripts/test-s06-alert-catalog-canary.ps1"
+    },
+    {
+      "id": "S06-ALR-002",
+      "metric": "atlas.database.readiness.count",
+      "severity": "page",
+      "owner": "database-on-call",
+      "condition": "three consecutive not_ready probes",
+      "rationale": "Readiness already fails closed; three probes reduce transient connection noise.",
+      "runbook": "docs/runbooks/DATABASE_UNAVAILABLE.md",
+      "test": "scripts/test-s06-alert-catalog-canary.ps1"
+    },
+    {
+      "id": "S06-ALR-003",
+      "metric": "atlas.build.info",
+      "severity": "ticket",
+      "owner": "platform-on-call",
+      "condition": "collector receives no build marker from an expected process for ten minutes",
+      "rationale": "Telemetry loss must be investigated without making the application unready.",
+      "runbook": "docs/runbooks/TELEMETRY_UNAVAILABLE.md",
+      "test": "scripts/test-s06-alert-catalog-canary.ps1"
+    }
+  ],
+  "dashboards": [
+    {
+      "name": "phase-00-foundation",
+      "owner": "platform-on-call",
+      "panels": [
+        "http.server.request.count",
+        "http.server.request.duration",
+        "atlas.database.readiness.count",
+        "atlas.database.readiness.duration",
+        "atlas.database.pool.connections",
+        "atlas.build.info"
+      ]
+    }
+  ]
+}

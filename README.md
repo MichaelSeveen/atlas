@@ -75,6 +75,16 @@ pwsh -NoProfile -File ./scripts/s05.ps1 -Action Down
 
 S05 adds only feature-free PostgreSQL migration, role, readiness, and recovery controls. Real role denials, empty/previous migration lanes, checksum canaries, bounded lock failure, physical backup, WAL archive, and an isolated point-in-time restore are reproducible. The local backup volume is not encrypted, so recovery mechanics pass while `FND-064` remains partial. See [the database foundation](docs/engineering/DATABASE_FOUNDATION.md).
 
+## S06 commands
+
+```powershell
+pwsh -NoProfile -File ./scripts/verify-s06.ps1
+pwsh -NoProfile -File ./scripts/verify-s06.ps1 -Live -ContainerRuntime podman
+pwsh -NoProfile -File ./scripts/s06.ps1 -Action Down -ContainerRuntime podman
+```
+
+S06 adds only the operating baseline: closed source-redacted JSON logs, bounded OTLP traces/metrics, an exported API/readiness/database golden trace, metric/alert catalog checks, an executable Phase 00 threat model, a provider-neutral versioned-secret boundary, and incident runbooks. Telemetry failure does not determine readiness. Queue/retry metrics remain definition-only because no job or broker flow exists, and no product behavior, identity exchange, managed secret provider, or wallet UI is added. See the [S06 evidence](evidence/phase-00/observability-security/S06-observability-security-report.md).
+
 ## Repository boundaries
 
 - `cmd/` owns process composition only.

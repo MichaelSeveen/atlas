@@ -25,12 +25,13 @@ func TestDatabaseConfigurationFailsClosed(t *testing.T) {
 }
 
 func TestSchemaProbeFailsClosedWithoutDatabase(t *testing.T) {
-	probe, err := NewSchemaProbe(Config{
+	probe, err := NewSchemaProbe(context.Background(), Config{
 		Host: "127.0.0.1", Port: 1, Database: "atlas_local", User: "atlas_api", Password: strings.Repeat("a", 32),
-	})
+	}, ProbeOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer probe.Close()
 	if probe.Ready(context.Background()) {
 		t.Fatal("unreachable schema was reported current")
 	}

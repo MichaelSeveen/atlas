@@ -14,7 +14,7 @@ The audit uses [project-wide gates](../atlas-prd/00-master/03_REQUIREMENTS_AND_Q
 
 ## Repository audit summary
 
-S01 through S05 are implemented as a feature-free engineering foundation. Git is valid on branch `main`; the configured GitHub origin supplies the Go module identity. The repository has pinned Go/pgx and React/Bun policies, three independent process entry points, roadmap ownership directories, typed cross-cutting Go primitives, static import/money/clock/class checks, a hardened API edge exposing only liveness/readiness/version, a complete synthetic local/reference topology, and real PostgreSQL migration/role/readiness/recovery controls. Seeded negative tests, bounded fuzz campaigns, mutation canaries, real role denials, a bounded long-lock failure, and an isolated PITR drill are revision-aware evidence. It still has no product behavior or schema, CI, runtime telemetry exporter, broker stream, identity exchange, or financial state. S05 evidence is pre-commit and its local backup storage is unencrypted. The PRD pack remains structurally valid after traceability updates, and the architecture test rejects reintroduced root duplicates.
+S01 through S05 are implemented as a feature-free engineering foundation. Git is valid on branch `main`; the configured GitHub origin supplies the Go module identity. The repository has pinned Go/pgx and React/Bun policies, three independent process entry points, roadmap ownership directories, typed cross-cutting Go primitives, static import/money/clock/class checks, a hardened API edge exposing only liveness/readiness/version, a complete synthetic local/reference topology, and real PostgreSQL migration/role/readiness/recovery controls. Seeded negative tests, bounded fuzz campaigns, mutation canaries, real role denials, a bounded long-lock failure, and an isolated PITR drill are revision-aware evidence. It still has no product behavior or schema, CI, runtime telemetry exporter, broker stream, identity exchange, or financial state. S05 is clean-worktree post-commit verified as `5ea77fc`; its local backup storage remains unencrypted. The PRD pack remains structurally valid after traceability updates, and the architecture test rejects reintroduced root duplicates.
 
 | Status | Count |
 |---|---:|
@@ -64,7 +64,7 @@ Slice references (`S01`–`S08`) identify the primary sequencing below. Threat I
 | `FND-055` | Absent | Required incident topics exist in security model; no runbooks | Write vulnerability disclosure and dependency emergency-update runbooks with intake, severity, containment, evidence, patch/rebuild/revoke, communication, and retrospective tests. Run a tabletop against a synthetic vulnerable dependency. | `THR-013`, `THR-020`, `THR-060` | S06/S07 |
 | `FND-060` | Satisfied | [ADR 0010](../atlas-prd/06-governance/adrs/0010-native-postgresql-migrations-and-recovery.md) and bootstrap create distinct migration, API, worker, reporting-read, expired break-glass, and backup identities with distinct generated credentials. A real allow/deny matrix proves the boundary. | Replace the local bootstrap identity and provision environment-managed credentials before deployment; extend grants only with owned product schemas. | `THR-007`, `THR-014`, `THR-018`, `THR-040`, `THR-054` | S05 complete |
 | `FND-061` | Satisfied | Real PostgreSQL attempts prove API/worker/reporting cannot create schemas/tables, alter/drop the probe, create disallowed temporary state, grant effective public access, or assume migration role. | Re-run for every future product-schema grant and database upgrade. | `THR-014`, `THR-040` | S05 complete; preserve |
-| `FND-062` | Satisfied | Closed `db/migrations/MANIFEST.sha256` binds every released SQL/metadata pair; validator rejects unmanifested/reordered/malformed inventory and the changed-SQL/deleted-metadata canaries are killed. Forward correction is documented. | S05 evidence is pre-commit; add clean post-commit proof and protected-CI enforcement before treating Git history as a release baseline. | `THR-014`, `THR-019`, `THR-060` | S05 pre-commit proof; enforce S07 |
+| `FND-062` | Satisfied | Closed `db/migrations/MANIFEST.sha256` binds every released SQL/metadata pair; validator rejects unmanifested/reordered/malformed inventory and the changed-SQL/deleted-metadata canaries are killed. Forward correction is documented and clean verification is bound to `5ea77fc`. | Wire the same check into protected CI before treating it as a hosted release gate. | `THR-014`, `THR-019`, `THR-060` | S05 complete; enforce S07 |
 | `FND-063` | Satisfied | Closed metadata requires lock/data/plan/space/forward-fix/rollback analysis and bounded timeouts. Representative foundation rows and a three-second exclusive lock prove the ALTER aborts in one second, rolls back, and leaves the database usable. | Add product-scale representative datasets, query plans, disk forecasts, and forward-fix rehearsals with each future schema. | `THR-014`, `THR-019`, `THR-051` | S05 foundation complete; preserve |
 | `FND-064` | Partial | Native `pg_basebackup`, streamed/archived WAL, `pg_verifybackup`, and an internal-only target-time restore prove two migration checksums and recover the pre-deletion marker while the active database retains the deletion. | Local volumes are unencrypted. No product schema/seed/object/key/outbox/inbox/idempotency/financial replay exists, and local six-second backup timing is not an RPO/RTO claim. Complete encrypted/keyed recovery and replay in S08. | `THR-019`, `THR-020`, `THR-027`, `THR-054` | S05 mechanics; S08 gate |
 
@@ -83,7 +83,7 @@ These are release-blocking even though the phase file does not assign them `FND-
 
 ## Ordered execution plan
 
-S01 is complete with evidence bound to initial scaffold revision `f72f5468c52a05a442fa0efbbe996fa16450a2bb`. S02 implementation is committed as `dc638d2`; the owner-authorized canonical-PRD cleanup is committed and post-commit verified as `240adbf`. S03 is post-commit verified as `b5fd25b`; S04 is post-commit verified as `39121a3`. S05 is implemented with pre-commit evidence at `UNCOMMITTED_WORKTREE(base=199b86113a9f0fcda323ae2775acf026b521067e)`; no S05 commit or push is claimed.
+S01 is complete with evidence bound to initial scaffold revision `f72f5468c52a05a442fa0efbbe996fa16450a2bb`. S02 implementation is committed as `dc638d2`; the owner-authorized canonical-PRD cleanup is committed and post-commit verified as `240adbf`. S03 is post-commit verified as `b5fd25b`; S04 is post-commit verified as `39121a3`; S05 is post-commit verified as `5ea77fc`. No remote push is claimed until it succeeds.
 
 | Order | Slice | Primary requirements | Hard prerequisite |
 |---:|---|---|---|
@@ -161,7 +161,7 @@ S01 is complete with evidence bound to initial scaffold revision `f72f5468c52a05
 
 ### S05 — Database roles, migration safety, and recovery foundation
 
-- **Status:** requirement-scoped implementation and pre-commit verification completed 2026-07-21 against base `199b86113a9f0fcda323ae2775acf026b521067e`; `FND-064` remains partial and post-commit/clean-host proof is outstanding.
+- **Status:** requirement-scoped implementation and clean post-commit verification completed 2026-07-21 at `5ea77fcf31b349b53fcd14e14ab81a4da5da840a`; `FND-064` remains partial and clean-host live proof is outstanding.
 - **Objective:** make PostgreSQL schema change, privilege separation, backup, and restore testable before financial tables exist.
 - **Requirement IDs:** `FND-021`, `FND-025`, `FND-060..064`.
 - **Expected files/modules:** migration/admin entry point; ordered migration/role grants; migration metadata template; released-checksum policy; empty/previous-schema fixtures; representative-data/lock tests; backup/PITR configuration; isolated restore scripts/runbooks; integration test harness with distinct role credentials.
@@ -258,14 +258,14 @@ S01 is complete with evidence bound to initial scaffold revision `f72f5468c52a05
 3. Customer, merchant, and workforce shells use function components only, render persistent synthetic banners, keep browser storage empty, and clear/deny protected state across logout and back navigation.
 4. [S04 post-commit evidence](../../evidence/phase-00/environment/S04-post-commit-verification.md) binds the committed implementation; the host Compose transport limitation remains explicit.
 
-**S05 — Database roles, migration safety, and recovery foundation** completed its requirement-scoped implementation with pre-commit evidence:
+**S05 — Database roles, migration safety, and recovery foundation** completed its requirement-scoped implementation with post-commit verification:
 
 1. [ADR 0010](../atlas-prd/06-governance/adrs/0010-native-postgresql-migrations-and-recovery.md) selects a repository-owned checksummed SQL runner, pgx readiness probe, distinct roles, and PostgreSQL-native physical recovery without a product schema.
 2. The released manifest validates two ordered migration/metadata pairs; changed-SQL and deleted-metadata canaries are killed.
 3. Current, empty, and previous-version migration lanes pass against real PostgreSQL. The real permission matrix proves allowed DML/read paths and denied DDL/grant/escalation paths, including an expired-by-default bounded break-glass drill.
 4. Named skipped test #9 holds a three-second exclusive lock; the migration aborts in one second, rolls back, and leaves the database usable.
 5. A verified six-second physical base backup plus archived WAL restores into an internal-only service at the pre-deletion target. The restored migration checksum and synthetic marker pass.
-6. [S05 evidence](../../evidence/phase-00/database/S05-database-report.md) is explicitly bound to `UNCOMMITTED_WORKTREE(base=199b86113a9f0fcda323ae2775acf026b521067e)`. Local volumes are unencrypted, so `FND-064`, post-commit verification, and the clean-host recovery gate remain outstanding.
+6. The original [S05 live evidence](../../evidence/phase-00/database/S05-database-report.md) preserves its pre-commit environment identity and limitations; [post-commit evidence](../../evidence/phase-00/database/S05-post-commit-verification.md) binds the clean static/build/test result to `5ea77fc`. Local volumes are unencrypted, so `FND-064` and the clean-host recovery gate remain outstanding.
 
 ## Specification findings requiring attention
 

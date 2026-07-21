@@ -2,14 +2,14 @@
 
 - **Status date:** 2026-07-21
 - **Current phase:** [Phase 00 — Secure engineering foundation](../atlas-prd/02-phases/PHASE-00_ENGINEERING_FOUNDATION.md)
-- **Current slice:** [S05 — database roles, migration safety, and recovery foundation](PHASE-00-PLAN.md#s05--database-roles-migration-safety-and-recovery-foundation) is implemented and pre-commit verified against `UNCOMMITTED_WORKTREE(base=199b86113a9f0fcda323ae2775acf026b521067e)`. Static and equivalent in-VM live commands pass; post-commit and clean-host wrapper proof remain outstanding.
+- **Current slice:** [S05 — database roles, migration safety, and recovery foundation](PHASE-00-PLAN.md#s05--database-roles-migration-safety-and-recovery-foundation) is implemented and post-commit verified as `5ea77fcf31b349b53fcd14e14ab81a4da5da840a`. Equivalent in-VM live commands pass; clean-host wrapper proof remains outstanding.
 - **Implementation state:** Feature-free engineering foundation with typed Go primitives, static policies, three operational API endpoints, a complete synthetic local dependency/process topology, strict environment configuration, deterministic fixture identities/scenario catalogue, three React route shells, and PostgreSQL migration/role/readiness/recovery controls. No product endpoint, financial workflow, product schema, worker job, executable provider scenario, broker stream, identity exchange, runtime telemetry export path, or wallet UI exists.
 
 ## Repository baseline
 
 | Area | Verified state |
 |---|---|
-| Version control | Valid Git repository on branch `main`; origin is `https://github.com/MichaelSeveen/atlas.git`. S04 implementation commit `39121a31765013ebdc51b3b0ac4e47c9bc8b1516` is locally post-commit verified. The local branch is ahead of origin; no push is claimed. |
+| Version control | Valid Git repository on branch `main`; origin is `https://github.com/MichaelSeveen/atlas.git`. S05 implementation commit `5ea77fcf31b349b53fcd14e14ab81a4da5da840a` is locally post-commit verified. The local branch is ahead of origin until the authorized push completes. |
 | Specification | Canonical PRD is `docs/atlas-prd/`: the 59-file validated baseline now has three accepted implementation ADRs (62 versioned files including the manifest), while the baseline report retains 399 requirements, 60 threats, 154 adversarial tests, OpenAPI 3.1.1 (33 paths/41 operations), and AsyncAPI 3.0.0 (9 channels/17 messages). S03–S05 edits preserve one canonical contract/spec root. |
 | Application code | Go module `github.com/MichaelSeveen/atlas`; `cmd/api` serves only liveness, readiness, and version with typed dependency and real migration-state probes, while worker/simulator remain feature-free. `cmd/dbctl` validates the released migration inventory. React owns three feature-free route shells. Nine narrow platform packages, architecture/layout/toolchain policies, and focused HTTP/environment/database/migration/contract tests exist. `pgx/v5` is the sole external Go application dependency. No product behavior, product schema, or generated product client exists. |
 | Tooling | Go 1.25.7, pgx/v5 5.10.0, Bun 1.3.0, and React 19.2.7 are pinned; `bun.lock` is frozen. Repository-owned S01–S05 verification covers module/static/toolchain checks, bounded fuzz, mutation, configuration, seed, reset, live/browser, migration, role, lock, and recovery canaries. CI, CODEOWNERS enforcement, SBOM/provenance, scanners, signing, and immutable image-digest promotion remain absent. |
@@ -48,7 +48,7 @@
 - `FND-025` — empty and previous-version throwaway databases reach the current schema, repeated application is idempotent, cleanup is bounded, and a long-lock migration aborts safely.
 - `FND-060` — distinct migration, API, worker, reporting-read, and disabled break-glass identities use distinct generated credentials; the real permission matrix proves their allowed and denied paths.
 - `FND-061` — API, worker, and reporting roles cannot create, alter, or drop schema objects, grant effective public access, assume the migration role, or create disallowed temporary state.
-- `FND-062` — a closed released SHA-256 manifest covers SQL and risk metadata; changed and deleted released-file canaries are killed. Final post-commit evidence is still required before release claims.
+- `FND-062` — a closed released SHA-256 manifest covers SQL and risk metadata; changed and deleted released-file canaries are killed and clean post-commit verification binds the result to `5ea77fc`.
 - `FND-063` — every migration has closed lock/timeout/data/plan/space/forward-fix/rollback metadata, and the representative foundation lock canary proves bounded abort and transaction recovery.
 
 ## Active requirement IDs
@@ -61,7 +61,7 @@
 - `FND-054` remains partial because Go, pgx, Bun, and React are pinned and reproducibly installed, while dependency/license/scanner, base-image-digest, CI-action, SBOM, and emergency-update proof remain S07 work.
 - `FND-064` is partial: a verified physical base backup, WAL archive, isolated target-time restore, migration checksum, and pre-deletion marker pass, but the local backup volume is unencrypted and no product object/key/inbox/outbox/idempotency or financial replay state exists.
 
-S05 is requirement-scoped implemented and pre-commit verified against base `199b86113a9f0fcda323ae2775acf026b521067e`, with the stated FND-064 and host limitations. No S06 requirement is claimed complete.
+S05 is requirement-scoped implemented and post-commit verified as `5ea77fcf31b349b53fcd14e14ab81a4da5da840a`, with the stated FND-064 and host limitations. No S06 requirement is claimed complete.
 
 ## Decisions and blockers
 
@@ -98,6 +98,7 @@ These are missing implementation decisions, not contradictory product semantics.
 - [Current S04 synthetic environment report](../../evidence/phase-00/environment/S04-environment-report.md)
 - [S04 post-commit verification](../../evidence/phase-00/environment/S04-post-commit-verification.md)
 - [Current S05 database report](../../evidence/phase-00/database/S05-database-report.md)
+- [S05 post-commit verification](../../evidence/phase-00/database/S05-post-commit-verification.md)
 - [Canonical PRD cleanup report](../../evidence/phase-00/architecture/PRD-canonicalization-report.md)
 - [Module boundary model](MODULE_BOUNDARIES.md)
 - [Platform primitives and static policy](PLATFORM_PRIMITIVES.md)
@@ -110,6 +111,6 @@ These are missing implementation decisions, not contradictory product semantics.
 
 S04 implementation commit `39121a31765013ebdc51b3b0ac4e47c9bc8b1516` (tree `bf150ddc7a60f7b66ca362c4e4aee6e91831f8c0`) passed the full repository-owned S04 verifier from a clean worktree on 2026-07-21. Its API image reported that exact revision. The [post-commit verification](../../evidence/phase-00/environment/S04-post-commit-verification.md) binds the result; the detailed [pre-commit environment report](../../evidence/phase-00/environment/S04-environment-report.md) remains preserved.
 
-S05 currently has only pre-commit evidence: `UNCOMMITTED_WORKTREE(base=199b86113a9f0fcda323ae2775acf026b521067e)`. Static verification and the equivalent in-VM live database/recovery procedures pass, but no implementation commit/tree or push is claimed. The current working tree also includes the owner-requested S04 React/Bun typing corrections.
+S05 implementation commit `5ea77fcf31b349b53fcd14e14ab81a4da5da840a` (tree `258cd9bae960f06edf4825f527c42419753c5540`) passed the full repository-owned static S05 verifier from a clean worktree on 2026-07-21. The [post-commit verification](../../evidence/phase-00/database/S05-post-commit-verification.md) binds that result; the detailed pre-commit database/live/recovery report remains preserved with its Podman host and unencrypted-volume limitations.
 
-S03 remains post-commit verified at implementation commit `b5fd25bac7844cfe929e28869d7c12f26e91b200` (tree `dc62b1448e4d0d8499e4c3a7b31d3224915cf00b`). No S05 commit has been created or pushed in this slice.
+S03 remains post-commit verified at implementation commit `b5fd25bac7844cfe929e28869d7c12f26e91b200` (tree `dc62b1448e4d0d8499e4c3a7b31d3224915cf00b`). The S05 evidence-binding commit and remote push are recorded only after they succeed.

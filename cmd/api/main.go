@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/MichaelSeveen/atlas/cmd/api/internal/server"
+	"github.com/MichaelSeveen/atlas/internal/platform/database"
 	"github.com/MichaelSeveen/atlas/internal/platform/environment"
 )
 
@@ -91,10 +92,18 @@ func environmentOptions(path string) (server.ReadinessChecker, server.CORSConfig
 		return nil, server.CORSConfig{}, errors.New("invalid environment configuration")
 	}
 	probes := environment.NewProbeSet(config)
+	databaseConfig, err := database.ConfigFromEnvironment()
+	if err != nil {
+		return nil, server.CORSConfig{}, errors.New("invalid database readiness configuration")
+	}
+	schemaProbe, err := database.NewSchemaProbe(databaseConfig)
+	if err != nil {
+		return nil, server.CORSConfig{}, errors.New("invalid database readiness configuration")
+	}
 	return server.ReadinessFunc(func(ctx context.Context) server.ReadinessState {
 		return server.ReadinessState{
 			DependenciesReady: probes.Ready(ctx),
-			MigrationsCurrent: config.MigrationsCurrent(),
+			MigrationsCurrent: schemaProbe.Ready(ctx),
 		}
 	}), server.CORSConfig{AllowedOrigins: config.AllowedOrigins}, nil
 }

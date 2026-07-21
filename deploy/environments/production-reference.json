@@ -4,7 +4,7 @@
   "synthetic_data": true,
   "banner": "PRODUCTION REFERENCE — SYNTHETIC DATA ONLY — NOT A REAL SERVICE",
   "mock_mode": false,
-  "migration_state": "not-applicable-until-s05",
+  "migration_state": "foundation-v2-required",
   "allowed_origins": ["https://web.production-reference.atlas.invalid"],
   "surfaces": {
     "api": "https://api.production-reference.atlas.invalid",

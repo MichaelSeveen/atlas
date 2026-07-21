@@ -40,6 +40,7 @@ try {
     Invoke-NativeChecked -Command 'go' -Arguments @('test', './...', '-count=1')
     Invoke-NativeChecked -Command 'go' -Arguments @('test', './internal/platform/environment', '-run', 'TestMostAgentsSkip05|TestLocalConfigurationRejectsEndpointOutsideFixedComposeTopology|TestPrepareIsIdempotentAndResetRequiresExactEnvironmentConfirmation|TestCredentialFingerprintsAreUniqueAcrossPreparedEnvironments|TestFeatureFlagEvaluationIsConcurrentAndDefaultsOnSourceOutage', '-count=1', '-v')
     Invoke-NativeChecked -Command 'bun' -Arguments @('install', '--cwd', 'apps/web', '--frozen-lockfile')
+    Invoke-NativeChecked -Command 'bun' -Arguments @('run', '--cwd', 'apps/web', 'typecheck')
     Invoke-NativeChecked -Command 'bun' -Arguments @('run', '--cwd', 'apps/web', 'test')
     Invoke-NativeChecked -Command 'bun' -Arguments @('run', '--cwd', 'apps/web', 'build')
     Invoke-NativeChecked -Command 'go' -Arguments @('run', './cmd/envctl', 'validate', '--config-dir', 'deploy/environments')

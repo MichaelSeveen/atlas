@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -186,12 +187,17 @@ func TestRepositoryLayout(t *testing.T) {
 		"apps/web/package.json",
 		"cmd/api/main.go",
 		"cmd/api/internal/server/server.go",
+		"cmd/dbctl/main.go",
 		"cmd/envctl/main.go",
 		"cmd/simulator/main.go",
 		"cmd/worker/main.go",
 		"contracts/asyncapi",
 		"contracts/openapi",
 		"contracts/provider-fixtures",
+		"db/README.md",
+		"db/migrations/MANIFEST.sha256",
+		"db/roles/bootstrap.sql",
+		"db/recovery/restore-entrypoint.sh",
 		"deploy/local",
 		"deploy/local/compose.yaml",
 		"deploy/environments/local.json",
@@ -280,9 +286,10 @@ func TestFrontendToolchainPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 	var manifest struct {
-		PackageManager string            `json:"packageManager"`
-		Scripts        map[string]string `json:"scripts"`
-		Dependencies   map[string]string `json:"dependencies"`
+		PackageManager  string            `json:"packageManager"`
+		Scripts         map[string]string `json:"scripts"`
+		Dependencies    map[string]string `json:"dependencies"`
+		DevDependencies map[string]string `json:"devDependencies"`
 	}
 	if err := json.Unmarshal(content, &manifest); err != nil {
 		t.Fatal(err)
@@ -294,6 +301,19 @@ func TestFrontendToolchainPolicy(t *testing.T) {
 		if manifest.Dependencies[dependency] != version {
 			t.Errorf("frontend dependency %s must be exactly %s", dependency, version)
 		}
+	}
+	for dependency, version := range map[string]string{
+		"@types/bun":       "1.3.0",
+		"@types/react":     "19.2.17",
+		"@types/react-dom": "19.2.3",
+		"typescript":       "5.9.3",
+	} {
+		if manifest.DevDependencies[dependency] != version {
+			t.Errorf("frontend development dependency %s must be exactly %s", dependency, version)
+		}
+	}
+	if manifest.Scripts["typecheck"] != "tsc --noEmit" {
+		t.Errorf("frontend typecheck must be exactly %q, got %q", "tsc --noEmit", manifest.Scripts["typecheck"])
 	}
 	for name, command := range manifest.Scripts {
 		for _, forbidden := range []string{"node ", "npm ", "pnpm ", "yarn "} {
@@ -310,6 +330,95 @@ func TestFrontendToolchainPolicy(t *testing.T) {
 			t.Errorf("forbidden competing frontend artifact %q exists or cannot be checked: %v", relative, err)
 		}
 	}
+
+	tsconfigPath := filepath.Join(root, "apps", "web", "tsconfig.json")
+	tsconfigContent, err := os.ReadFile(tsconfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tsconfig struct {
+		CompilerOptions struct {
+			Types []string `json:"types"`
+		} `json:"compilerOptions"`
+	}
+	if err := json.Unmarshal(tsconfigContent, &tsconfig); err != nil {
+		t.Fatal(err)
+	}
+	hasBunTypes := false
+	for _, typeLibrary := range tsconfig.CompilerOptions.Types {
+		switch strings.ToLower(typeLibrary) {
+		case "bun":
+			hasBunTypes = true
+		case "node":
+			t.Error("frontend TypeScript configuration must not load Node.js types")
+		}
+	}
+	if !hasBunTypes {
+		t.Error("frontend TypeScript configuration must explicitly load Bun types")
+	}
+}
+
+func TestFrontendUsesFunctionComponentsOnly(t *testing.T) {
+	root := repositoryRoot(t)
+	violations, err := frontendClassDeclarations(root)
+	if err != nil {
+		t.Fatalf("scan frontend source: %v", err)
+	}
+	if len(violations) > 0 {
+		t.Fatalf("frontend source must use function components only; class declarations found in: %s", strings.Join(violations, ", "))
+	}
+
+	fixtureRoot := t.TempDir()
+	fixturePath := filepath.Join(fixtureRoot, "apps", "web", "src", "unsafe.tsx")
+	if err := os.MkdirAll(filepath.Dir(fixturePath), 0o755); err != nil {
+		t.Fatalf("create frontend policy fixture: %v", err)
+	}
+	fixture := `import React from "react";
+
+class UnsafeBoundary extends React.Component {}
+`
+	if err := os.WriteFile(fixturePath, []byte(fixture), 0o600); err != nil {
+		t.Fatalf("write frontend policy fixture: %v", err)
+	}
+	violations, err = frontendClassDeclarations(fixtureRoot)
+	if err != nil {
+		t.Fatalf("scan frontend policy fixture: %v", err)
+	}
+	if len(violations) != 1 || violations[0] != "apps/web/src/unsafe.tsx" {
+		t.Fatalf("expected seeded class component to be rejected, got %v", violations)
+	}
+}
+
+func frontendClassDeclarations(root string) ([]string, error) {
+	classDeclaration := regexp.MustCompile(`\bclass\s+[A-Za-z_$][A-Za-z0-9_$]*`)
+	sourceRoot := filepath.Join(root, "apps", "web", "src")
+	violations := make([]string, 0)
+	err := filepath.WalkDir(sourceRoot, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		extension := strings.ToLower(filepath.Ext(path))
+		if extension != ".ts" && extension != ".tsx" {
+			return nil
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if !classDeclaration.Match(content) {
+			return nil
+		}
+		relative, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		violations = append(violations, filepath.ToSlash(relative))
+		return nil
+	})
+	return violations, err
 }
 
 func TestNoRootPRDDuplicates(t *testing.T) {

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "name": "foundation_control_schema",
+  "released": true,
+  "lock_timeout_ms": 500,
+  "statement_timeout_ms": 5000,
+  "lock_risk": "Creates a new empty foundation schema and control tables; it does not lock an existing product table.",
+  "representative_data": "Runs against an empty database and a version-zero snapshot because no product schema exists before S05.",
+  "query_plan_review": "No data-reading or data-rewriting statement exists; query-plan review is not applicable.",
+  "space_risk": "Two empty control tables and their primary-key indexes only.",
+  "forward_fix": "Add a new ordered migration; never edit this released migration.",
+  "rollback": "Before release only, drop the empty atlas_foundation schema. After release, use a reviewed forward fix."
+}

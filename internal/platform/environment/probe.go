@@ -49,5 +49,5 @@ func (p ProbeSet) Ready(ctx context.Context) bool {
 }
 
 func (c Config) MigrationsCurrent() bool {
-	return c.MigrationState == "not-applicable-until-s05"
+	return c.MigrationState == RequiredMigrationState
 }

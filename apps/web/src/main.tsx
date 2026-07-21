@@ -1,5 +1,5 @@
-import React, {useEffect, useState} from "react";
-import {createRoot} from "react-dom/client";
+import {useEffect, useState, type ReactNode} from "react";
+import {createRoot, type Root} from "react-dom/client";
 import {cacheSyntheticValue, clearSensitiveClientState, isProtectedShell} from "./session";
 
 type RuntimeConfig = {
@@ -8,29 +8,6 @@ type RuntimeConfig = {
   syntheticData: boolean;
   mockMode: boolean;
 };
-
-type ErrorBoundaryState = {failed: boolean};
-
-class RouteErrorBoundary extends React.Component<React.PropsWithChildren, ErrorBoundaryState> {
-  state: ErrorBoundaryState = {failed: false};
-
-  static getDerivedStateFromError(): ErrorBoundaryState {
-    return {failed: true};
-  }
-
-  render(): React.ReactNode {
-    if (this.state.failed) {
-      return (
-        <section className="panel" role="alert">
-          <h2>Shell unavailable</h2>
-          <p>The synthetic shell could not render. No command was submitted and no financial state exists.</p>
-          <a className="button" href="/">Return to the foundation home</a>
-        </section>
-      );
-    }
-    return this.props.children;
-  }
-}
 
 const shellLabels: Record<string, string> = {
   "/customer": "Customer shell",
@@ -53,9 +30,10 @@ function navigate(path: string): void {
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
-function App({config}: {config: RuntimeConfig}): React.ReactNode {
+function App({config}: {config: RuntimeConfig}): ReactNode {
   const path = usePath();
   const [sessionActive, setSessionActive] = useState(true);
+  const shell = shellLabels[path];
 
   useEffect(() => {
     const enforceSignedOutState = () => {
@@ -73,16 +51,17 @@ function App({config}: {config: RuntimeConfig}): React.ReactNode {
     };
   }, [sessionActive]);
 
+  useEffect(() => {
+    if (shell && sessionActive) {
+      cacheSyntheticValue("active-shell", shell);
+    }
+  }, [sessionActive, shell]);
+
   const logout = () => {
     clearSensitiveClientState();
     setSessionActive(false);
     navigate("/signed-out");
   };
-
-  const shell = shellLabels[path];
-  if (shell && sessionActive) {
-    cacheSyntheticValue("active-shell", shell);
-  }
 
   return (
     <>
@@ -109,18 +88,34 @@ function App({config}: {config: RuntimeConfig}): React.ReactNode {
             </a>
           ))}
         </nav>
-        <RouteErrorBoundary key={path}>
-          {path === "/" && <Overview />}
-          {shell && sessionActive && <ActorShell label={shell} onLogout={logout} />}
-          {path === "/signed-out" && <SignedOut />}
-          {path !== "/" && !shell && path !== "/signed-out" && <UnknownRoute />}
-        </RouteErrorBoundary>
+        {path === "/" && <Overview />}
+        {shell && sessionActive && <ActorShell label={shell} onLogout={logout} />}
+        {path === "/signed-out" && <SignedOut />}
+        {path !== "/" && !shell && path !== "/signed-out" && <UnknownRoute />}
       </main>
     </>
   );
 }
 
-function Overview(): React.ReactNode {
+function RouteFailure({config, path}: {config: RuntimeConfig; path: string}): ReactNode {
+  const route = shellLabels[path] ?? "Requested shell";
+  return (
+    <>
+      <div className="environment-banner" role="status" data-testid="environment-banner">
+        {config.banner}{config.mockMode ? " — MOCK MODE" : ""}
+      </div>
+      <main className="shell-frame">
+        <section className="panel" role="alert" data-testid="route-failure">
+          <h2>Shell unavailable</h2>
+          <p>{route} could not render. No command was submitted and no financial state exists.</p>
+          <a className="button" href="/">Return to the foundation home</a>
+        </section>
+      </main>
+    </>
+  );
+}
+
+function Overview(): ReactNode {
   return (
     <section className="panel">
       <h2>Environment shell verification</h2>
@@ -130,7 +125,7 @@ function Overview(): React.ReactNode {
   );
 }
 
-function ActorShell({label, onLogout}: {label: string; onLogout: () => void}): React.ReactNode {
+function ActorShell({label, onLogout}: {label: string; onLogout: () => void}): ReactNode {
   return (
     <section className="panel" data-testid="actor-shell">
       <h2>{label}</h2>
@@ -143,7 +138,7 @@ function ActorShell({label, onLogout}: {label: string; onLogout: () => void}): R
   );
 }
 
-function SignedOut(): React.ReactNode {
+function SignedOut(): ReactNode {
   return (
     <section className="panel" data-testid="signed-out">
       <h2>Client state cleared</h2>
@@ -152,7 +147,7 @@ function SignedOut(): React.ReactNode {
   );
 }
 
-function UnknownRoute(): React.ReactNode {
+function UnknownRoute(): ReactNode {
   return (
     <section className="panel" role="alert">
       <h2>Route unavailable</h2>
@@ -174,7 +169,22 @@ async function start(): Promise<void> {
   if (!root) {
     throw new Error("application root unavailable");
   }
-  createRoot(root).render(<App config={config} />);
+  let applicationRoot: Root | undefined;
+  let fallbackScheduled = false;
+  const showSafeRouteFailure = () => {
+    if (fallbackScheduled) {
+      return;
+    }
+    fallbackScheduled = true;
+    clearSensitiveClientState();
+    const failedPath = window.location.pathname;
+    queueMicrotask(() => {
+      applicationRoot?.render(<RouteFailure config={config} path={failedPath} />);
+    });
+  };
+
+  applicationRoot = createRoot(root, {onUncaughtError: showSafeRouteFailure });
+  applicationRoot.render(<App config={config} />);
 }
 
 void start();

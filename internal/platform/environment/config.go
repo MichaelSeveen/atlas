@@ -15,7 +15,10 @@ import (
 	"time"
 )
 
-const ConfigVersion = 1
+const (
+	ConfigVersion          = 1
+	RequiredMigrationState = "foundation-v2-required"
+)
 
 type Name string
 
@@ -137,7 +140,7 @@ func (c Config) Validate(now time.Time) error {
 	if (c.Environment == Staging || c.Environment == ProductionReference) && c.MockMode {
 		return errors.New("mock mode is forbidden outside local and test")
 	}
-	if c.MigrationState != "not-applicable-until-s05" {
+	if c.MigrationState != RequiredMigrationState {
 		return errors.New("unexpected migration-state policy")
 	}
 	if err := c.validateOrigins(); err != nil {

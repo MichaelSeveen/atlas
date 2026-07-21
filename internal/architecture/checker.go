@@ -60,6 +60,7 @@ var processCommands = map[string]struct{}{
 }
 
 var engineeringCommands = map[string]struct{}{
+	"dbctl":  {},
 	"envctl": {},
 }
 

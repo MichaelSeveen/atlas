@@ -1,0 +1,18 @@
+created_utc=2026-07-21T09:57:00Z
+source_revision=UNCOMMITTED_WORKTREE(base=199b86113a9f0fcda323ae2775acf026b521067e)
+go_build=PASS
+go_vet=PASS
+go_test_all=PASS
+migration_count=2
+current_version=2
+current_checksum=94fdc5112a045e595ee0a6300b8e7cc50b64e09a60a562336011f176283c1dc6
+migration_manifest=PASS
+migration_checksum_mutation=KILLED
+migration_metadata_deletion=KILLED
+s05_powershell_parse=PASS
+bun_frozen_install=PASS
+bun_typecheck=PASS
+bun_test=PASS tests=2
+bun_build=PASS
+s05_named_skipped_tests=8,9
+s05_static_verification=PASS

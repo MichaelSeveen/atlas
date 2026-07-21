@@ -4,7 +4,7 @@
   "synthetic_data": true,
   "banner": "LOCAL — SYNTHETIC DATA ONLY",
   "mock_mode": false,
-  "migration_state": "not-applicable-until-s05",
+  "migration_state": "foundation-v2-required",
   "allowed_origins": ["http://127.0.0.1:13000"],
   "surfaces": {
     "api": "http://127.0.0.1:18080",

@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "name": "recovery_probe",
+  "released": true,
+  "lock_timeout_ms": 500,
+  "statement_timeout_ms": 5000,
+  "lock_risk": "Creates one new empty foundation table and revokes inherited write grants; it does not alter an existing product table.",
+  "representative_data": "Runs after migration 000001 with a bounded synthetic permission-probe row set.",
+  "query_plan_review": "No data-reading or data-rewriting statement exists; query-plan review is not applicable.",
+  "space_risk": "One empty control table and one primary-key index only.",
+  "forward_fix": "Add a new ordered migration if recovery-probe structure changes; never rewrite version 2.",
+  "rollback": "After release, preserve the table and correct behavior with a forward migration."
+}

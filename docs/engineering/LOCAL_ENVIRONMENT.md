@@ -1,6 +1,6 @@
 # Atlas synthetic local environment
 
-S04 supplies a feature-free, synthetic-only environment for Phase 00. It starts PostgreSQL, Redis, NATS JetStream, MinIO, an OpenTelemetry Collector, Keycloak, the API, worker, simulator, and React web shell. It does not create product schemas, process financial commands, integrate a real identity/provider service, or seed balances.
+S04 supplies a feature-free, synthetic-only environment for Phase 00. It starts PostgreSQL, Redis, NATS JetStream, MinIO, an OpenTelemetry Collector, Keycloak, the API, worker, simulator, and React web shell. S05 adds only the `atlas_foundation` migration/permission/recovery control schema and real database probes. It does not create product schemas, process financial commands, integrate a real identity/provider service, or seed balances.
 
 ## Pinned tools and services
 
@@ -12,7 +12,7 @@ The local stack uses exact image tags for PostgreSQL 18.4 Alpine, Redis 8.2.7 Al
 
 - Go 1.25.7 and Bun 1.3.0.
 - Podman 5.x or Docker with a Compose v2-compatible provider.
-- At least 6 GiB memory available to the container runtime and ports 13000, 14222, 15432, 16379, 18080, 18081, 18222, 19000, and 19001 free on loopback.
+- At least 6 GiB memory available to the container runtime and ports 13000, 14222, 15432, 16379, 18080, 18081, 18222, 19000, and 19001 free on loopback. Port 25432 must also be free during the isolated recovery drill.
 
 All published ports bind to `127.0.0.1`. The generated runtime credential file is mode-restricted, lives below ignored `.tmp/environments/local`, contains random synthetic-local values, and is never evidence. Configuration and evidence expose only secret references or fingerprints. Podman is the default; pass `-ContainerRuntime docker` to the same commands on a Docker Compose host.
 
@@ -54,3 +54,5 @@ pwsh -NoProfile -File ./scripts/verify-s04.ps1 -Live
 ```
 
 The first command covers S01–S04 build, layout, Go/React tests, configuration, seed, reset, and seeded failure canaries. `-Live` additionally requires an already-running stack and checks every exposed foundation surface. Use the dependency-specific runbooks under `docs/runbooks/`; topology details never appear in public health responses.
+
+S05 database and recovery commands are documented separately in [the database foundation](DATABASE_FOUNDATION.md). They preserve the S04 stack and never restore over the active PostgreSQL volume.

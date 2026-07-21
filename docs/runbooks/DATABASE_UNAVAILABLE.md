@@ -2,7 +2,7 @@
 
 ## Scope
 
-This Phase 00 runbook defines the safe readiness posture before a database adapter exists. It does not claim a database, migration tool, alert, dashboard, or automated recovery is implemented.
+This Phase 00 runbook defines the safe readiness posture for the S05 PostgreSQL adapter and migration-state probe. It does not claim product data, an alert/dashboard, automated failover, or production recovery is implemented.
 
 ## Expected external behavior
 
@@ -17,11 +17,11 @@ This Phase 00 runbook defines the safe readiness posture before a database adapt
 2. Confirm liveness separately. A liveness failure is a process incident, not a database diagnosis.
 3. Confirm the deployed source and contract revisions using `/version`.
 4. Use environment-private diagnostics to distinguish connectivity, credential/role, capacity, TLS, migration lag, or migration-state-read failure. Never paste credentials, connection strings, SQL payloads, customer data, or internal topology into tickets or public evidence.
-5. If migrations are behind, stop rollout and follow the approved migration forward-fix/rollback procedure once S05 provides it. Do not mark the service ready manually.
+5. If migrations are behind or the checksum differs, stop rollout and follow `MIGRATION_FAILURE.md`. Do not mark the service ready manually and do not edit released history.
 
 ## Recovery verification
 
-Restore readiness only after the injected checker proves both required dependency availability and expected migration state. Then verify, in order:
+Restore readiness only after the real application-role checker proves both required dependency availability and migration version 2 with its exact released checksum. Then verify, in order:
 
 1. readiness changes to `200`;
 2. liveness remained healthy unless the process was intentionally restarted;
@@ -34,4 +34,4 @@ S03 defines safe trace/metric recorder boundaries but ships no exporter. Failure
 
 ## Escalation and evidence
 
-Until S04/S05 assigns environment and database owners, the platform owner owns this foundation response. Preserve UTC timestamps, source/configuration revision, safe request/correlation IDs, readiness transitions, actions, and outcome. Sanitize before attaching evidence.
+The platform owner owns this foundation response. Preserve UTC timestamps, source/configuration revision, safe request/correlation IDs, readiness transitions, actions, and outcome. Sanitize before attaching evidence. Use `BACKUP_CORRUPTION.md` only for physical-backup, WAL, or isolated-restore failures.

@@ -10,6 +10,7 @@ This repository is currently in **Phase 00 — Secure engineering foundation**. 
 
 - Backend: Go only. The module is `github.com/MichaelSeveen/atlas`, derived from the configured GitHub origin, with language baseline Go 1.25.0 and toolchain Go 1.25.7. Separate feature-free `api`, `worker`, and `simulator` entry points exist. The API exposes only the three S03 operational routes; worker and simulator remain inert.
 - Frontend: React 19.2.7 + TypeScript only, built/tested/served by Bun 1.3.0 with `bun.lock` as the sole lockfile. Do not add Node.js, pnpm, npm, Yarn, Vue, or a competing frontend toolchain. The three S04 route shells are synthetic foundation UI only.
+- React source uses function components and hooks only. Class declarations are forbidden under `apps/web/src` and enforced by `TestFrontendUsesFunctionComponentsOnly`; do not introduce React class components for error handling or any other reason.
 - Authoritative store: PostgreSQL. Redis is ephemeral only. Async fan-out uses a transactional outbox and an at-least-once broker only when required.
 - Contracts: source-controlled OpenAPI 3.1.1 and AsyncAPI 3.0.0.
 - Telemetry: OpenTelemetry-compatible traces, metrics, and structured logs.
@@ -18,10 +19,11 @@ This repository is currently in **Phase 00 — Secure engineering foundation**. 
 - S02 verification: `pwsh -NoProfile -File ./scripts/verify-s02.ps1`.
 - S03 verification: `pwsh -NoProfile -File ./scripts/verify-s03.ps1`.
 - S04 verification: `pwsh -NoProfile -File ./scripts/verify-s04.ps1`; add `-Live` with the synthetic stack running.
+- S05 verification: `pwsh -NoProfile -File ./scripts/verify-s05.ps1`; add `-Live` to run the real PostgreSQL/NATS role, migration, lock, backup, WAL, and isolated-restore checks.
 - Backend checks: `go test ./...` and `go build ./cmd/api ./cmd/worker ./cmd/simulator`.
 - Boundary/policy checks: `go test ./internal/architecture -count=1`; seeded negatives cover forbidden imports, floating-point money, and direct domain `time.Now()`.
-- S04 composes local PostgreSQL, Redis, NATS, MinIO, the OTel Collector, Keycloak, API, worker, simulator, and web. These are synthetic local/reference dependencies only. No product schema, migration tool, broker stream, identity exchange, runtime telemetry exporter, or financial behavior exists yet.
-- Git is initialized on `main` with origin `https://github.com/MichaelSeveen/atlas.git`. S03 implementation commit `b5fd25b` is locally post-commit verified; it has not been pushed in this task.
+- S04 composes local PostgreSQL, Redis, NATS, MinIO, the OTel Collector, Keycloak, API, worker, simulator, and web. S05 adds a repository-owned SQL migration manifest/runner, real PostgreSQL roles, pgx-backed migration readiness, and native physical backup/WAL/PITR drills. These remain synthetic local/reference controls only. No product schema, broker stream, identity exchange, runtime telemetry exporter, or financial behavior exists yet.
+- Git is initialized on `main` with origin `https://github.com/MichaelSeveen/atlas.git`. S04 implementation commit `39121a3` is locally post-commit verified; S05 is currently pre-commit at base `199b861` and has not been pushed.
 
 ## Source-of-truth hierarchy
 

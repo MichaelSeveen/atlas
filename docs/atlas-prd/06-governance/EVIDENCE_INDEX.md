@@ -39,6 +39,7 @@ Every artifact has a sidecar metadata file or embedded header containing:
 |---|---|---|---|---|---|---|---|---|---|
 | EVD-0001 | Phase 03 | ledger verification | LED-012; CLM-001; THR-001 | `evidence/...` | commit | pass | command/runbook | date | ... |
 | EVD-P00-S04-001 | Phase 00 | synthetic environment | FND-004; FND-010..013; FND-030..033; FND-054 | `evidence/phase-00/environment/S04-environment-report.md`; `S04-post-commit-verification.md` | `39121a31765013ebdc51b3b0ac4e47c9bc8b1516` | pass with explicit partials | `scripts/verify-s04.ps1 -Live` | 2026-07-21 | exact clean-machine wrapper, executable seeds, and staging/production credentials remain outstanding |
+| EVD-P00-S05-001 | Phase 00 | database migration, roles, and recovery | FND-021; FND-025; FND-060..064 | `evidence/phase-00/database/S05-database-report.md`; `S05-static-verification.txt`; `S05-live-database.txt`; `S05-recovery.txt` | `UNCOMMITTED_WORKTREE(base=199b86113a9f0fcda323ae2775acf026b521067e)` | pass for S05 mechanics; FND-064 partial | `scripts/verify-s05.ps1 -Live` | 2026-07-21 | pre-commit; Windows host Compose transport workaround; backup/WAL volumes unencrypted; no product replay state |
 
 ## Minimum phase evidence
 

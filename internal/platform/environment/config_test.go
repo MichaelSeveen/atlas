@@ -163,8 +163,52 @@ func TestCredentialFingerprintsAreUniqueAcrossPreparedEnvironments(t *testing.T)
 			fingerprints[fingerprint] = string(name) + "/" + key
 		}
 	}
-	if len(fingerprints) != 10 {
+	if len(fingerprints) != 22 {
 		t.Fatalf("unexpected credential fingerprint inventory: %d", len(fingerprints))
+	}
+}
+
+func TestPrepareUpgradesLegacyS04RuntimeCredentialsWithoutRotatingThem(t *testing.T) {
+	root := repositoryRoot(t)
+	stateRoot := filepath.Join(t.TempDir(), "atlas-environments")
+	target := filepath.Join(stateRoot, string(Local))
+	if err := os.MkdirAll(target, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	legacyPassword := "legacy-bootstrap-password"
+	legacy := strings.Join([]string{
+		"ATLAS_ENVIRONMENT=local",
+		"ATLAS_KEYCLOAK_ADMIN=atlas_local_admin",
+		"ATLAS_KEYCLOAK_ADMIN_PASSWORD=legacy-keycloak-password",
+		"ATLAS_MINIO_ROOT_PASSWORD=legacy-minio-password",
+		"ATLAS_MINIO_ROOT_USER=atlas_local_objects",
+		"ATLAS_NATS_TOKEN=legacy-nats-token",
+		"ATLAS_POSTGRES_DB=atlas_local",
+		"ATLAS_POSTGRES_PASSWORD=" + legacyPassword,
+		"ATLAS_POSTGRES_USER=atlas_local_api",
+		"ATLAS_REDIS_PASSWORD=legacy-redis-password",
+	}, "\n") + "\n"
+	runtimePath := filepath.Join(target, runtimeEnvironmentFile)
+	if err := os.WriteFile(runtimePath, []byte(legacy), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := Prepare(Local, filepath.Join(root, "deploy", "environments"), stateRoot, validationTime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(prepared)
+	if err != nil {
+		t.Fatal(err)
+	}
+	values, err := parseRuntimeEnvironment(content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if values["ATLAS_POSTGRES_PASSWORD"] != legacyPassword {
+		t.Fatal("S04 bootstrap credential was rotated during the S05 state upgrade")
+	}
+	if err := validateRuntimeValues(values); err != nil {
+		t.Fatal(err)
 	}
 }
 

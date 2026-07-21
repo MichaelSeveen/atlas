@@ -15,14 +15,33 @@ x-app-security: &app-security
 services:
   postgres:
     image: docker.io/library/postgres:18.4-alpine
+    entrypoint: ["/database/recovery/postgres-entrypoint.sh"]
     environment:
       POSTGRES_DB: ${ATLAS_POSTGRES_DB:?required}
       POSTGRES_USER: ${ATLAS_POSTGRES_USER:?required}
       POSTGRES_PASSWORD: ${ATLAS_POSTGRES_PASSWORD:?required}
       POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --auth-local=scram-sha-256
-    command: ["postgres", "-c", "password_encryption=scram-sha-256", "-c", "log_connections=off", "-c", "log_disconnections=off"]
+      ATLAS_POSTGRES_DB: ${ATLAS_POSTGRES_DB:?required}
+      ATLAS_POSTGRES_USER: ${ATLAS_POSTGRES_USER:?required}
+      ATLAS_POSTGRES_PASSWORD: ${ATLAS_POSTGRES_PASSWORD:?required}
+      ATLAS_POSTGRES_API_USER: ${ATLAS_POSTGRES_API_USER:?required}
+      ATLAS_POSTGRES_API_PASSWORD: ${ATLAS_POSTGRES_API_PASSWORD:?required}
+      ATLAS_POSTGRES_BACKUP_USER: ${ATLAS_POSTGRES_BACKUP_USER:?required}
+      ATLAS_POSTGRES_BACKUP_PASSWORD: ${ATLAS_POSTGRES_BACKUP_PASSWORD:?required}
+      ATLAS_POSTGRES_BREAK_GLASS_USER: ${ATLAS_POSTGRES_BREAK_GLASS_USER:?required}
+      ATLAS_POSTGRES_BREAK_GLASS_PASSWORD: ${ATLAS_POSTGRES_BREAK_GLASS_PASSWORD:?required}
+      ATLAS_POSTGRES_MIGRATION_USER: ${ATLAS_POSTGRES_MIGRATION_USER:?required}
+      ATLAS_POSTGRES_MIGRATION_PASSWORD: ${ATLAS_POSTGRES_MIGRATION_PASSWORD:?required}
+      ATLAS_POSTGRES_REPORTING_USER: ${ATLAS_POSTGRES_REPORTING_USER:?required}
+      ATLAS_POSTGRES_REPORTING_PASSWORD: ${ATLAS_POSTGRES_REPORTING_PASSWORD:?required}
+      ATLAS_POSTGRES_WORKER_USER: ${ATLAS_POSTGRES_WORKER_USER:?required}
+      ATLAS_POSTGRES_WORKER_PASSWORD: ${ATLAS_POSTGRES_WORKER_PASSWORD:?required}
+    command: ["postgres", "-c", "password_encryption=scram-sha-256", "-c", "log_connections=off", "-c", "log_disconnections=off", "-c", "wal_level=replica", "-c", "archive_mode=on", "-c", "archive_timeout=60s", "-c", "archive_command=test ! -f /wal-archive/%f && cp %p /wal-archive/%f"]
     volumes:
       - atlas-postgres:/var/lib/postgresql
+      - atlas-postgres-backups:/backups
+      - atlas-postgres-wal:/wal-archive
+      - ../../db:/database:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 3s
@@ -125,7 +144,7 @@ services:
 
   api:
     <<: *app-security
-    image: localhost/atlas-api:s04
+    image: localhost/atlas-api:s05
     build:
       context: ../..
       dockerfile: deploy/local/Containerfile.backend
@@ -137,6 +156,11 @@ services:
     environment:
       ATLAS_ENV_CONFIG: /config/environment.json
       ATLAS_HTTP_ADDR: 0.0.0.0:8080
+      ATLAS_POSTGRES_HOST: postgres
+      ATLAS_POSTGRES_PORT: "5432"
+      ATLAS_POSTGRES_DB: ${ATLAS_POSTGRES_DB:?required}
+      ATLAS_POSTGRES_API_USER: ${ATLAS_POSTGRES_API_USER:?required}
+      ATLAS_POSTGRES_API_PASSWORD: ${ATLAS_POSTGRES_API_PASSWORD:?required}
     volumes:
       - ../environments/local.json:/config/environment.json:ro
     depends_on: [postgres, redis, nats, minio, otel-collector, keycloak]
@@ -150,20 +174,25 @@ services:
 
   worker:
     <<: *app-security
-    image: localhost/atlas-worker:s04
+    image: localhost/atlas-worker:s05
     build:
       context: ../..
       dockerfile: deploy/local/Containerfile.backend
     entrypoint: ["/atlas/worker"]
     environment:
       ATLAS_ENV_CONFIG: /config/environment.json
+      ATLAS_POSTGRES_HOST: postgres
+      ATLAS_POSTGRES_PORT: "5432"
+      ATLAS_POSTGRES_DB: ${ATLAS_POSTGRES_DB:?required}
+      ATLAS_POSTGRES_WORKER_USER: ${ATLAS_POSTGRES_WORKER_USER:?required}
+      ATLAS_POSTGRES_WORKER_PASSWORD: ${ATLAS_POSTGRES_WORKER_PASSWORD:?required}
     volumes:
       - ../environments/local.json:/config/environment.json:ro
     depends_on: [postgres, redis, nats, minio, otel-collector, keycloak]
 
   simulator:
     <<: *app-security
-    image: localhost/atlas-simulator:s04
+    image: localhost/atlas-simulator:s05
     build:
       context: ../..
       dockerfile: deploy/local/Containerfile.backend
@@ -193,12 +222,44 @@ services:
       timeout: 3s
       retries: 30
 
+  postgres-restore:
+    image: docker.io/library/postgres:18.4-alpine
+    profiles: [recovery]
+    entrypoint: ["/recovery/restore-entrypoint.sh"]
+    environment:
+      PGDATA: /var/lib/postgresql/restore-data
+      ATLAS_POSTGRES_DB: ${ATLAS_POSTGRES_DB:?required}
+      ATLAS_POSTGRES_MIGRATION_USER: ${ATLAS_POSTGRES_MIGRATION_USER:?required}
+      ATLAS_POSTGRES_MIGRATION_PASSWORD: ${ATLAS_POSTGRES_MIGRATION_PASSWORD:?required}
+    volumes:
+      - ../../db/recovery:/recovery:ro
+      - atlas-postgres-backups:/backups:ro
+      - atlas-postgres-wal:/wal-archive:ro
+      - atlas-postgres-restore:/var/lib/postgresql/restore-data
+    ports:
+      - "127.0.0.1:25432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432"]
+      interval: 2s
+      timeout: 2s
+      retries: 60
+    restart: "no"
+    mem_limit: 320m
+    pids_limit: 128
+    networks: [atlas-recovery]
+
 networks:
   atlas-internal:
     driver: bridge
+  atlas-recovery:
+    driver: bridge
+    internal: true
 
 volumes:
   atlas-postgres:
+  atlas-postgres-backups:
+  atlas-postgres-wal:
+  atlas-postgres-restore:
   atlas-nats:
   atlas-minio:
   atlas-keycloak:

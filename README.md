@@ -11,6 +11,7 @@ Atlas is a security-first, multi-currency wallet and financial-operations portfo
 - Go `1.25.7`, with module path `github.com/MichaelSeveen/atlas`, is the backend toolchain.
 - React `19.2.7` + TypeScript is the sole frontend framework; Bun `1.3.0` is its pinned package manager, test runner, bundler, and server runtime.
 - `bun.lock` is the only frontend lockfile. The repository has no Node.js runtime or pnpm project tooling.
+- React source uses function components and hooks only; the architecture suite rejects every class declaration under `apps/web/src`.
 
 The Go pin and update procedure are documented in [Toolchain policy](docs/engineering/TOOLCHAIN_POLICY.md). The module path is derived from the configured GitHub origin and must change with it in one reviewed mechanical change before public packages or contracts depend on a different identity.
 
@@ -52,12 +53,27 @@ S03 makes the API process serve only `GET /health/live`, `GET /health/ready`, an
 pwsh -NoProfile -File ./scripts/s04.ps1 -Action Up
 pwsh -NoProfile -File ./scripts/s04.ps1 -Action Smoke
 pwsh -NoProfile -File ./scripts/s04.ps1 -Action Restart
+bun run --cwd apps/web typecheck
 pwsh -NoProfile -File ./scripts/verify-s04.ps1 -Live
 pwsh -NoProfile -File ./scripts/s04.ps1 -Action Down
 pwsh -NoProfile -File ./scripts/s04.ps1 -Action Reset -Confirmation 'RESET ATLAS LOCAL'
 ```
 
 S04 adds the complete synthetic local/reference topology, four closed environment configurations, guarded reset, deterministic identity/scenario fixtures, and customer/merchant/workforce React route shells. It remains feature-free: no product endpoint, database schema, financial behavior, broker stream, identity exchange, or wallet UI exists. See [the local environment guide](docs/engineering/LOCAL_ENVIRONMENT.md).
+
+## S05 commands
+
+```powershell
+pwsh -NoProfile -File ./scripts/s05.ps1 -Action Up
+pwsh -NoProfile -File ./scripts/s05.ps1 -Action Migrate
+pwsh -NoProfile -File ./scripts/s05.ps1 -Action Verify
+pwsh -NoProfile -File ./scripts/s05.ps1 -Action BackupRestore
+pwsh -NoProfile -File ./scripts/verify-s05.ps1
+pwsh -NoProfile -File ./scripts/verify-s05.ps1 -Live
+pwsh -NoProfile -File ./scripts/s05.ps1 -Action Down
+```
+
+S05 adds only feature-free PostgreSQL migration, role, readiness, and recovery controls. Real role denials, empty/previous migration lanes, checksum canaries, bounded lock failure, physical backup, WAL archive, and an isolated point-in-time restore are reproducible. The local backup volume is not encrypted, so recovery mechanics pass while `FND-064` remains partial. See [the database foundation](docs/engineering/DATABASE_FOUNDATION.md).
 
 ## Repository boundaries
 

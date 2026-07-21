@@ -29,4 +29,4 @@ Rejected direction:
 
 The checker parses Go imports using the standard library. `TestBoundaryCheckerRejectsForbiddenImport` creates an isolated source fixture that imports `github.com/MichaelSeveen/atlas/internal/ledger/persistence` from the transfer context and proves the checker reports it. `TestBoundaryCheckerRejectsUnregisteredModule` proves an undeclared `internal/debugtools` package cannot bypass the registry. Neither test adds violating source to the working tree.
 
-Database write ownership cannot be proved before PostgreSQL roles and schemas exist; that remains S05 under `FND-060` and is not claimed by S01.
+S05 proves the foundation-level database identity boundary: application roles cannot alter schema or assume the migration role. No product table exists yet, so bounded-context table ownership must still be introduced and tested by each owning product phase rather than inferred from this control schema.

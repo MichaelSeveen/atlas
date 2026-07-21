@@ -2,14 +2,14 @@
 
 - **Status date:** 2026-07-21
 - **Current phase:** [Phase 00 — Secure engineering foundation](../atlas-prd/02-phases/PHASE-00_ENGINEERING_FOUNDATION.md)
-- **Current slice:** [S04 — reproducible synthetic local/reference environment](PHASE-00-PLAN.md#s04--reproducible-synthetic-localreference-environment) is implemented and pre-commit verified in `UNCOMMITTED_WORKTREE(base=c327135)`. Clean-machine execution of the exact wrapper remains a recorded limitation; S05 is not started.
+- **Current slice:** [S04 — reproducible synthetic local/reference environment](PHASE-00-PLAN.md#s04--reproducible-synthetic-localreference-environment) is committed and post-commit verified as `39121a31765013ebdc51b3b0ac4e47c9bc8b1516`. Clean-machine execution of the exact wrapper remains a recorded limitation; S05 is not started.
 - **Implementation state:** Feature-free engineering foundation with typed Go primitives, static policies, three operational API endpoints, a complete synthetic local dependency/process topology, strict environment configuration, deterministic fixture identities/scenario catalogue, and three React route shells. No product endpoint, financial workflow, schema, worker job, executable provider scenario, broker stream, identity exchange, runtime telemetry export path, or wallet UI exists.
 
 ## Repository baseline
 
 | Area | Verified state |
 |---|---|
-| Version control | Valid Git repository on branch `main`; origin is `https://github.com/MichaelSeveen/atlas.git`. S03 implementation commit `b5fd25bac7844cfe929e28869d7c12f26e91b200` is locally post-commit verified. The local branch is ahead of origin; no push is claimed. |
+| Version control | Valid Git repository on branch `main`; origin is `https://github.com/MichaelSeveen/atlas.git`. S04 implementation commit `39121a31765013ebdc51b3b0ac4e47c9bc8b1516` is locally post-commit verified. The local branch is ahead of origin; no push is claimed. |
 | Specification | Canonical PRD is `docs/atlas-prd/`: the 59-file validated baseline now has two accepted S04 ADRs (61 versioned files including the manifest), while the baseline report retains 399 requirements, 60 threats, 154 adversarial tests, OpenAPI 3.1.1 (33 paths/41 operations), and AsyncAPI 3.0.0 (9 channels/17 messages). S03/S04 edits preserve one canonical contract/spec root. |
 | Application code | Go module `github.com/MichaelSeveen/atlas`; `cmd/api` serves only liveness, readiness, and version with typed dependency probes, while worker/simulator implement only config validation and bounded process lifecycle. React owns three feature-free route shells. Seven narrow platform packages, architecture/layout/toolchain policies, and focused HTTP/environment/contract tests exist. No product behavior, schemas, external Go dependency, or generated product client. |
 | Tooling | Go 1.25.7 and Bun 1.3.0/React 19.2.7 pins, frozen `bun.lock`, repository-owned S01–S04 verification, module/static/toolchain checks, bounded fuzz, mutation, configuration, seed, reset, live, and browser canaries. CI, CODEOWNERS enforcement, SBOM/provenance, scanners, signing, and immutable image-digest promotion remain absent. |
@@ -54,7 +54,7 @@
 - `FND-043` is partial: a deterministic in-memory golden trace proves linked API-server and readiness spans with bounded fields, but there is no web/database/outbox/worker/simulator path or runtime exporter.
 - `FND-054` remains partial because Go is pinned and verified while the frontend build toolchain and application dependency/image/CI-action verification remain future work.
 
-S04 is requirement-scoped implemented in the current worktree with the stated partials and host limitation. S05 has not started.
+S04 is requirement-scoped implemented at `39121a31765013ebdc51b3b0ac4e47c9bc8b1516` with the stated partials and host limitation. S05 has not started.
 
 ## Decisions and blockers
 
@@ -87,6 +87,7 @@ These are missing implementation decisions, not contradictory product semantics.
 - [Current S02 primitives report](../../evidence/phase-00/primitives/S02-primitives-report.md)
 - [Current S03 HTTP foundation report](../../evidence/phase-00/http/S03-http-foundation-report.md)
 - [Current S04 synthetic environment report](../../evidence/phase-00/environment/S04-environment-report.md)
+- [S04 post-commit verification](../../evidence/phase-00/environment/S04-post-commit-verification.md)
 - [Canonical PRD cleanup report](../../evidence/phase-00/architecture/PRD-canonicalization-report.md)
 - [Module boundary model](MODULE_BOUNDARIES.md)
 - [Platform primitives and static policy](PLATFORM_PRIMITIVES.md)
@@ -96,6 +97,6 @@ These are missing implementation decisions, not contradictory product semantics.
 
 ## Last verified source revision
 
-S04 currently passes from `UNCOMMITTED_WORKTREE(base=c327135)` and therefore has a pre-commit limitation. Its [environment report](../../evidence/phase-00/environment/S04-environment-report.md) records static/live/browser/restart results and the current host-provider limitation. A post-commit rerun must bind the result to the S04 implementation revision before this section can claim revision-aware verification.
+S04 implementation commit `39121a31765013ebdc51b3b0ac4e47c9bc8b1516` (tree `bf150ddc7a60f7b66ca362c4e4aee6e91831f8c0`) passed the full repository-owned S04 verifier from a clean worktree on 2026-07-21. Its API image reported that exact revision. The [post-commit verification](../../evidence/phase-00/environment/S04-post-commit-verification.md) binds the result; the detailed [pre-commit environment report](../../evidence/phase-00/environment/S04-environment-report.md) remains preserved.
 
-S03 remains post-commit verified at implementation commit `b5fd25bac7844cfe929e28869d7c12f26e91b200` (tree `dc62b1448e4d0d8499e4c3a7b31d3224915cf00b`). Neither the two S03 commits nor the pending S04 work have been pushed in this task.
+S03 remains post-commit verified at implementation commit `b5fd25bac7844cfe929e28869d7c12f26e91b200` (tree `dc62b1448e4d0d8499e4c3a7b31d3224915cf00b`). No S03/S04 commit has been pushed in this task.

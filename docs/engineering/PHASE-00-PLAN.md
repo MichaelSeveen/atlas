@@ -145,7 +145,7 @@ S01 is complete with evidence bound to initial scaffold revision `f72f5468c52a05
 
 ### S04 — Reproducible synthetic local/reference environment
 
-- **Status:** implemented and pre-commit verified 2026-07-21 against `UNCOMMITTED_WORKTREE(base=c327135)`; exact clean-machine wrapper proof remains an explicit S08 limitation.
+- **Status:** implementation commit `39121a31765013ebdc51b3b0ac4e47c9bc8b1516` is post-commit verified 2026-07-21; exact clean-machine wrapper proof remains an explicit S08 limitation.
 - **Objective:** provision the complete synthetic platform and frontend shells with one reversible command and deterministic configuration/data.
 - **Requirement IDs:** `FND-010..013`, `FND-030..033`; preserve `FND-004`; cover the unnumbered frontend foundation.
 - **Expected files/modules:** local/test/staging/production-reference config schema; Podman/Docker-compatible compose definitions; PostgreSQL, Redis, selected broker, object storage, OTel collector, selected IdP, API/worker/simulator/web services; deterministic seeds/scenarios; guarded reset; React customer/merchant/workforce shells; generated/verified request client; environment banners.

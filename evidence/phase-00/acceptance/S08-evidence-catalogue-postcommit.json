@@ -62,7 +62,7 @@
     {
       "evidence_id": "EVD-P00-S08-PROCEDURE",
       "path": "docs/engineering/PHASE-00-ACCEPTANCE.md",
-      "sha256": "88cd838f671fbc71ee57f435bd285cb55559b583a44af887a2e6b8c0be7c3483",
+      "sha256": "2610e8fd3745ee7b9408fcff2ee4af80b38c374f27eb379eeedc34627455d67e",
       "result": "Versioned full/static/live/clean-clone acceptance procedure"
     },
     {

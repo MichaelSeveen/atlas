@@ -38,7 +38,7 @@ None.
 - `FND-023` Build immutable images tagged by source revision and digest.
 - `FND-024` Sign release artifacts and attach build provenance.
 - `FND-025` Run database migration checks against empty and previous-release schemas.
-- `FND-026` Require code-owner review for ledger, authorization, migrations, cryptography, CI, and deployment paths.
+- `FND-026` Require code-owner review for ledger, authorization, migrations, cryptography, CI, and deployment paths. In explicitly synthetic solo-maintainer mode, an accepted ADR may defer independent approval only while protected pull requests, required automated gates, sensitive-change declarations, fresh-context self-review, and prohibition/revalidation triggers are enforced; this is an accepted deviation, not independent-review evidence.
 - `FND-027` Detect OpenAPI/AsyncAPI breaking changes.
 
 ### Environments

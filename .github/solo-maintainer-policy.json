@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "mode": "solo-maintainer-synthetic-portfolio",
+  "owner": "MichaelSeveen",
+  "requirement_id": "FND-026",
+  "risk_id": "RSK-031",
+  "independent_review_status": "unavailable-not-claimed",
+  "sensitive_paths": [
+    ".github/",
+    "db/migrations/",
+    "deploy/",
+    "docs/atlas-prd/03-contracts/",
+    "internal/authorization/",
+    "internal/identity/",
+    "internal/ledger/",
+    "internal/platform/secret/",
+    "scripts/verify-s07.ps1",
+    "scripts/verify-s08.ps1",
+    "tools/supply-chain.lock.json"
+  ],
+  "required_attestations": [
+    "requirements-and-threats-reviewed",
+    "financial-and-authorization-boundaries-reviewed",
+    "failure-concurrency-and-recovery-reviewed",
+    "sensitive-data-and-public-claims-reviewed",
+    "tests-and-revision-evidence-reviewed",
+    "fresh-context-self-review-completed"
+  ],
+  "prohibited_while_active": [
+    "real-money",
+    "real-customer-or-identity-data",
+    "production-credentials",
+    "production-financial-or-identity-providers",
+    "production-ready-or-independently-reviewed-claim"
+  ],
+  "independent_review_revalidation_triggers": [
+    "first-non-synthetic-deployment",
+    "first-real-money-or-personal-data",
+    "first-real-financial-or-identity-provider",
+    "second-qualified-maintainer",
+    "production-readiness-claim"
+  ],
+  "recommended_cooling_off_hours_for_sensitive_financial_semantics": 24
+}

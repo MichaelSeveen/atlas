@@ -13,9 +13,12 @@ if ($LASTEXITCODE -ne 0 -or $revision -notmatch '^[0-9a-f]{40}$') { throw 'Clean
 
 $cloneParent = Join-Path $repositoryRoot '.tmp/s08-clean-clone'
 $cloneRoot = Join-Path $cloneParent ([Guid]::NewGuid().ToString('N'))
+$sourceURI = ([Uri]::new(([IO.Path]::GetFullPath($repositoryRoot).TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar))).AbsoluteUri
 New-Item -ItemType Directory -Path $cloneParent -Force | Out-Null
 try {
-    & git clone --quiet --no-local --no-checkout -- $repositoryRoot $cloneRoot
+    # A file URI forces Git's upload-pack path on Windows and avoids drive-letter
+    # paths being misread as an SSH-style remote.
+    & git clone --quiet --no-checkout -- $sourceURI $cloneRoot
     if ($LASTEXITCODE -ne 0) { throw 'Create isolated clean clone failed.' }
     & git -C $cloneRoot checkout --quiet --detach $revision
     if ($LASTEXITCODE -ne 0) { throw 'Check out exact clean-clone revision failed.' }

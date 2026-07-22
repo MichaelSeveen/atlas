@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "evidence_id": "EVD-P00-S08-001",
-  "created_at": "2026-07-22T18:57:21Z",
+  "created_at": "2026-07-22T19:05:57Z",
   "source_revision": "08762a3e1333043d021264a875b8e5e222e9c34c",
   "sanitization": "Sanitized repository derivatives only: no credentials, tokens, connection strings, customer data, identity data, product payloads, or raw scanner databases.",
   "artifacts": [
@@ -80,7 +80,7 @@
     {
       "evidence_id": "EVD-P00-S08-LIMITATIONS-POSTCOMMIT",
       "path": "evidence/phase-00/acceptance/S08-known-limitations-postcommit.md",
-      "sha256": "855aa64f92de3cd37516376488c7452236f21c7933ab0fed05bec827f0496969",
+      "sha256": "9c6843f2c7407a53dc05f63d9ea6d325fae15fd71327731bcc4a384dda295eba",
       "result": "Current external and product-deferred gates after clean-clone verification"
     },
     {
@@ -88,6 +88,12 @@
       "path": "evidence/phase-00/acceptance/S08-hosted-pr-verification.md",
       "sha256": "e9517a5fea1fa0cb278559e4caf5590c113084866d94487679c80041426c51f9",
       "result": "PASS for five hosted PR jobs and the Linux constrained-pool race test; enforcement/review/release gates remain open"
+    },
+    {
+      "evidence_id": "EVD-P00-S08-004",
+      "path": "evidence/phase-00/acceptance/S08-solo-maintainer-governance.md",
+      "sha256": "8f4b040afdd90feb247c74e96c2f4f1e931c80d4a1361ac3fe7a1288533e5c0c",
+      "result": "PASS for sensitive declaration, five hosted jobs, and active no-bypass main rules; independent review unavailable and not claimed"
     }
   ]
 }

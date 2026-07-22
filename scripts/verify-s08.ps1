@@ -54,8 +54,13 @@ try {
             Write-Output 's08_live_stack_trace_restore=PASS'
         }
         finally {
-            & (Join-Path $PSScriptRoot 's06.ps1') -Action Down -ContainerRuntime $ContainerRuntime
-            if (-not $?) { throw 'S08 could not tear down the isolated local foundation.' }
+            $downOutput = @(& (Join-Path $PSScriptRoot 's06.ps1') -Action Down -ContainerRuntime $ContainerRuntime)
+            $downSucceeded = $?
+            $downOutput | Write-Output
+            if (-not $downSucceeded) { throw 'S08 could not tear down the isolated local foundation.' }
+            if (($downOutput | Out-String) -notmatch 's04_web_shutdown=PASS') {
+                throw 'S08 did not observe a clean bounded web shutdown.'
+            }
         }
     }
     else {

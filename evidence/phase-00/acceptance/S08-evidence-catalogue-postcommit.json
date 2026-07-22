@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "evidence_id": "EVD-P00-S08-001",
-  "created_at": "2026-07-22T17:13:23Z",
+  "created_at": "2026-07-22T17:52:19Z",
   "source_revision": "6b09b4abfec050d6cdceb98af01f12bf0cab03af",
   "sanitization": "Sanitized repository derivatives only: no credentials, tokens, connection strings, customer data, identity data, product payloads, or raw scanner databases.",
   "artifacts": [
@@ -80,8 +80,14 @@
     {
       "evidence_id": "EVD-P00-S08-LIMITATIONS-POSTCOMMIT",
       "path": "evidence/phase-00/acceptance/S08-known-limitations-postcommit.md",
-      "sha256": "48ab2b756f33931dd5b72fbf500dfec40eb0618fe2a2f5f497e241a9965ff3c2",
+      "sha256": "855aa64f92de3cd37516376488c7452236f21c7933ab0fed05bec827f0496969",
       "result": "Current external and product-deferred gates after clean-clone verification"
+    },
+    {
+      "evidence_id": "EVD-P00-S08-003",
+      "path": "evidence/phase-00/acceptance/S08-hosted-pr-verification.md",
+      "sha256": "e9517a5fea1fa0cb278559e4caf5590c113084866d94487679c80041426c51f9",
+      "result": "PASS for five hosted PR jobs and the Linux constrained-pool race test; enforcement/review/release gates remain open"
     }
   ]
 }

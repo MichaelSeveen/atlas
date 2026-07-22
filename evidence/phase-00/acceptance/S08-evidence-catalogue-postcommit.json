@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "evidence_id": "EVD-P00-S08-001",
-  "created_at": "2026-07-22T19:05:57Z",
-  "source_revision": "08762a3e1333043d021264a875b8e5e222e9c34c",
+  "created_at": "2026-07-22T20:18:37Z",
+  "source_revision": "eae43b62f3e0e3f95a09bff46f1ac73217dde5c3",
   "sanitization": "Sanitized repository derivatives only: no credentials, tokens, connection strings, customer data, identity data, product payloads, or raw scanner databases.",
   "artifacts": [
     {
@@ -62,7 +62,7 @@
     {
       "evidence_id": "EVD-P00-S08-PROCEDURE",
       "path": "docs/engineering/PHASE-00-ACCEPTANCE.md",
-      "sha256": "2610e8fd3745ee7b9408fcff2ee4af80b38c374f27eb379eeedc34627455d67e",
+      "sha256": "8535aee5e405073f739aecd38e8f2c4f7941b3a4b2e7101248aaefc64a579638",
       "result": "Versioned full/static/live/clean-clone acceptance procedure"
     },
     {
@@ -80,7 +80,7 @@
     {
       "evidence_id": "EVD-P00-S08-LIMITATIONS-POSTCOMMIT",
       "path": "evidence/phase-00/acceptance/S08-known-limitations-postcommit.md",
-      "sha256": "9c6843f2c7407a53dc05f63d9ea6d325fae15fd71327731bcc4a384dda295eba",
+      "sha256": "11d38cf8a83f2a8fda66f44dc8cb6e760575bd8e16814ca3422524d56a396a0a",
       "result": "Current external and product-deferred gates after clean-clone verification"
     },
     {
@@ -94,6 +94,12 @@
       "path": "evidence/phase-00/acceptance/S08-solo-maintainer-governance.md",
       "sha256": "8f4b040afdd90feb247c74e96c2f4f1e931c80d4a1361ac3fe7a1288533e5c0c",
       "result": "PASS for sensitive declaration, five hosted jobs, and active no-bypass main rules; independent review unavailable and not claimed"
+    },
+    {
+      "evidence_id": "EVD-P00-S08-005",
+      "path": "evidence/phase-00/acceptance/S08-hosted-release-closure-preflight.md",
+      "sha256": "770bd8d151016d2c6cda1e4f6a51d83300b700c764bf917012118b1e6db5b233",
+      "result": "PASS for local live/recovery, bounded web shutdown, and fail-before-publish release policy; hosted release not run"
     }
   ]
 }

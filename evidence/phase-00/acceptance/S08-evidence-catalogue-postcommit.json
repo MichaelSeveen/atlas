@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "evidence_id": "EVD-P00-S08-001",
-  "created_at": "2026-07-22T20:59:17Z",
-  "source_revision": "7b1e28ed8e52bc44d593b6114372c28782c8468a",
+  "created_at": "2026-07-22T21:51:48Z",
+  "source_revision": "baf2e67777de935e985162df14d51f9a2ebaac96",
   "sanitization": "Sanitized repository derivatives only: no credentials, tokens, connection strings, customer data, identity data, product payloads, or raw scanner databases.",
   "artifacts": [
     {
@@ -100,6 +100,18 @@
       "path": "evidence/phase-00/acceptance/S08-hosted-release-closure-preflight.md",
       "sha256": "463393154368d738d010640d735ed312bcd72684d07dc9f239ae104639b82403",
       "result": "PASS for exact committed full local S08, bounded web shutdown, and fail-before-publish release policy; hosted release not run"
+    },
+    {
+      "evidence_id": "EVD-P00-S08-006",
+      "path": "evidence/phase-00/acceptance/S08-hosted-release-attempt-1.md",
+      "sha256": "e4b1f1b26a37108ba344277784d2e981ccba447af1c09c278f904ef99ac30c79",
+      "result": "FAIL_CLOSED after hosted acceptance and before every registry or publication mutation"
+    },
+    {
+      "evidence_id": "EVD-P00-S08-LIMITATIONS-ATTEMPT-1",
+      "path": "evidence/phase-00/acceptance/S08-known-limitations-release-attempt-1.md",
+      "sha256": "46f536bac5f5f450cbcf698ad7c77aaddd0a955a30c38806ec61938a38956ddd",
+      "result": "Current open release, review, encryption, replay, and telemetry limitations after attempt 1"
     }
   ]
 }

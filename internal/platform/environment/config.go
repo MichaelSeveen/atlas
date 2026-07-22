@@ -87,6 +87,7 @@ var localServiceHosts = map[string]string{
 }
 
 func Load(path string, now time.Time) (Config, error) {
+	// #nosec G304 -- envctl supplies a repository-owned configuration path, not remote input.
 	file, err := os.Open(path)
 	if err != nil {
 		return Config{}, fmt.Errorf("open environment configuration: %w", err)

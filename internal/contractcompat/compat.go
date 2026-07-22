@@ -77,6 +77,7 @@ func Compare(baselinePath, candidatePath string) error {
 }
 
 func load(path string) (document, error) {
+	// #nosec G304 -- contractctl accepts only local repository contract paths in this trust boundary.
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err

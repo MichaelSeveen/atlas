@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -164,6 +165,36 @@ func TestS07WebRuntimeDependenciesAndCanaryArePinned(t *testing.T) {
 	for _, assertion := range []string{"'/usr/local/bin/bun'", "$bunVersion -ne '1.3.0'"} {
 		if !strings.Contains(string(supplyCheck), assertion) {
 			t.Errorf("web runtime execution canary is missing %s", assertion)
+		}
+	}
+}
+
+func TestS07ContainerInvokedShellScriptsAreExecutableInGit(t *testing.T) {
+	root := repositoryRoot(t)
+	paths := []string{
+		"db/recovery/postgres-entrypoint.sh",
+		"db/recovery/restore-entrypoint.sh",
+		"db/tools/apply-migrations.sh",
+	}
+	arguments := append([]string{"-C", root, "ls-files", "--stage", "--"}, paths...)
+	output, err := exec.Command("git", arguments...).CombinedOutput()
+	if err != nil {
+		t.Fatalf("inspect Git executable modes: %v: %s", err, output)
+	}
+	observed := make(map[string]string, len(paths))
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		metadata, path, found := strings.Cut(line, "\t")
+		if !found {
+			continue
+		}
+		fields := strings.Fields(metadata)
+		if len(fields) > 0 {
+			observed[strings.TrimSpace(path)] = fields[0]
+		}
+	}
+	for _, path := range paths {
+		if observed[path] != "100755" {
+			t.Errorf("container-invoked shell script %s must be Git mode 100755, got %q", path, observed[path])
 		}
 	}
 }

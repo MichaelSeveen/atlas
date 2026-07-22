@@ -37,6 +37,7 @@ type SeedManifest struct {
 }
 
 func LoadSeedManifest(path string) (SeedManifest, string, error) {
+	// #nosec G304 -- envctl supplies the repository-owned synthetic seed manifest path.
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return SeedManifest{}, "", fmt.Errorf("read seed manifest: %w", err)

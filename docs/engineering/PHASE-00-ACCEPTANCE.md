@@ -22,7 +22,7 @@ pwsh -NoProfile -File ./scripts/verify-s08.ps1 -Live -History -SupplyChain -Cont
 
 After S08 is committed and the worktree is clean, add `-CleanClone`. The clean-clone lane checks out the exact current revision into a disposable ignored directory and reruns static S08 acceptance. This is a clean-tree reproduction on the same host; it is not independent clean-machine evidence.
 
-The release workflow runs the same full command with Docker and `-CleanClone` on its fresh hosted runner. It is ref-guarded to protected `main` or a `v*` tag, and the preflight precedes registry authentication or any artifact publication. Do not treat that wiring as hosted proof until an explicitly authorized release run succeeds and its digests, signatures, attestations, and sanitized logs are retained.
+The release workflow runs the same full command with Docker and `-CleanClone` on its fresh hosted runner. It is ref-guarded to protected `main` or a `v*` tag, and the preflight precedes registry authentication or any artifact publication. Authorized run `29964442782` supplied the hosted proof; later workflow, runtime, image, or dependency changes must produce a new run rather than inheriting that evidence.
 
 The procedure always tears down the live foundation in a `finally` path. Restore uses the internal-only `postgres-restore` service and never targets the active PostgreSQL namespace.
 
@@ -39,7 +39,7 @@ The procedure always tears down the live foundation in a `finally` path. Restore
 | #7 live contract examples | PASS | S07 canonical OpenAPI examples against the real feature-free API handler |
 | #8 long migration lock | PASS | S05 `ADV-REL-008` bounded abort and rollback proof |
 | #9 isolated restore | PASS | S05 physical backup, WAL archive, internal restore, migration checksum, and pre-deletion marker |
-| #10 constrained-pool race | PARTIAL until the S08 branch runs in hosted Linux | Local S08 passed 24 concurrent real PostgreSQL readiness checks with a one-connection pool. This CGO-disabled host cannot supply `-race`; the updated PR integration lane requires it. |
+| #10 constrained-pool race | PASS | Local S08 passed 24 concurrent real PostgreSQL readiness checks with a one-connection pool; hosted Linux run `29943586545` supplied the required `-race` proof. |
 
 ## Applicable adversarial review
 
@@ -55,4 +55,6 @@ Expected absences are acceptance findings, not passing simulations.
 
 `scripts/test-s08-evidence-integrity.ps1` validates the closed S01–S08 catalogue against exact SHA-256 digests and the current source identity. It then mutates a disposable artifact and a disposable source revision and requires both to fail. The catalogue contains only sanitized repository evidence; runtime credentials, raw scanner databases, GitHub tokens, customer data, and connection strings are excluded.
 
-Phase 00 is complete only when every requirement-specific gap is either satisfied or resolved by an accepted, scope-compatible deviation; the relevant traceability rows and evidence catalogue must identify the exact committed source. EVD-P00-S08-008 now proves the full acceptance command on a genuinely independent clean supported machine, active hosted branch rules, and digest-promoted signed/provenanced artifacts with retained SBOMs. ADR 0012 permits the explicitly recorded synthetic-only solo-maintainer deviation without pretending self-review is independent; genuine code-owner approval remains mandatory before any policy revalidation trigger. S08 hosted-release closure is complete, but the overall Phase 00 completion claim remains blocked by the six partial requirements listed in `IMPLEMENTATION_STATUS.md`.
+Phase 00 is complete for the synthetic feature-free foundation scope. Thirty-four requirements are satisfied at that scope; `FND-026` is an accepted deviation under ADR 0012, while `FND-040` and `FND-042` are accepted scope decisions under ADR 0013 because no event, consumer, queue, or worker-job path exists. This does not claim independent human review, managed credential custody, deployed alert routing, encrypted product recovery, production readiness, or any Phase 01 behavior.
+
+ADR 0013 resolves the former `FND-011`, `FND-031`, and `FND-064` partial classifications against the implemented closed topology and records mandatory revalidation triggers for all six formerly partial rows. `docs/engineering/phase-00-gate-policy.json` hashes the seed, environment, worker/simulator, metric, migration, and solo-governance boundaries and fails when those guarded surfaces expand without a same-change decision and evidence update. EVD-P00-S08-008 remains the independent hosted release proof; EVD-P00-GATE-001 records this final classification and its pre-commit/revision-bound verification sequence.

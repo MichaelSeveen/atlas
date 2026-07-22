@@ -62,14 +62,14 @@
     {
       "evidence_id": "EVD-P00-S08-PROCEDURE",
       "path": "docs/engineering/PHASE-00-ACCEPTANCE.md",
-      "sha256": "112ac339246c1507ab433d9ede5c888ef6ed1298fda179a60b6ccfa27c575bb5",
-      "result": "Versioned full/static/live/clean-clone acceptance procedure"
+      "sha256": "32cacc8f5c5803c5f48d10d35bcbcaa319586aa369d4e2fc0aa3dd07428e749c",
+      "result": "Versioned full/static/live/clean-clone acceptance procedure and scoped Phase 00 completion rule"
     },
     {
       "evidence_id": "EVD-P00-S08-LIMITATIONS",
       "path": "docs/engineering/PHASE-00-KNOWN-LIMITATIONS.md",
-      "sha256": "b7e556b5ccfca7aca95c6b36f746c95f81a296d24e728bba8ee09d6b1f6db202",
-      "result": "Open external and product-deferred gates recorded"
+      "sha256": "b0c82cd9d799c63198a01858e66bd67f863382a534d2ece76ddf564391a25e15",
+      "result": "Trigger-bound review, custody, recovery, telemetry, routing, and product limitations recorded"
     },
     {
       "evidence_id": "EVD-P00-S08-002",
@@ -136,6 +136,12 @@
       "path": "evidence/phase-00/acceptance/S08-known-limitations-hosted-release.md",
       "sha256": "5499922b39a19461a9c081e24648bf13e718f6d92c5701ea68d217667175b8a0",
       "result": "Current review, custody, encryption, product-replay, event-telemetry, and alert-routing limitations after successful hosted release"
+    },
+    {
+      "evidence_id": "EVD-P00-GATE-001",
+      "path": "evidence/phase-00/acceptance/Phase-00-gate-closure.md",
+      "sha256": "98db95bf79330150102ac63b030ca4da52fcf3c35e476296ad37a2c98db31d0c",
+      "result": "PASS for final six-row disposition and four seeded topology-policy failures; pre-commit revision limitation recorded"
     }
   ]
 }

@@ -40,7 +40,7 @@ Wrong or missing confirmation, staging, production-reference, and targets escapi
 
 `deploy/environments/` contains closed, typed local, test, staging, and production-reference documents. Unknown fields, wildcard origins, real/public endpoints, non-synthetic services, environment-shared credential references, expired/incomplete flags, mock mode outside local/test, and insecure production-reference surfaces are rejected.
 
-`deploy/seeds/foundation.json` has a fixed virtual time, two synthetic tenants, three synthetic users, two account identity fixtures with no financial state, and eight named provider scenario identifiers. S04 validates identity, ownership, closed fields, and checksum only. Loading application tables and executing provider behavior are deliberately deferred until schemas and provider contracts exist; therefore `FND-011` remains partial.
+`deploy/seeds/foundation.json` has a fixed virtual time, two synthetic tenants, three synthetic users, two account identity fixtures with no financial state, and eight named provider scenario identifiers. S04 validates identity, ownership, closed fields, and checksum only. Under ADR 0013 this is the complete deterministic seed catalogue for the feature-free Phase 00 topology, so `FND-011` is satisfied at that scope. The first product schema or executable provider scenario must revalidate the guard and add loading/execution evidence in the same change.
 
 ## React route shells
 

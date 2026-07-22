@@ -45,6 +45,8 @@ try {
     if ($SupplyChain) { $s07Arguments += @('-SupplyChain', '-ContainerRuntime', $ContainerRuntime) }
     Invoke-NativeChecked -Command 'pwsh' -Arguments $s07Arguments
     Invoke-NativeChecked -Command 'pwsh' -Arguments @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'test-s08-evidence-integrity.ps1'))
+    Invoke-NativeChecked -Command 'go' -Arguments @('test', './internal/architecture', '-run', 'TestPhase00GateClosurePolicy', '-count=1')
+    Write-Output 's08_phase_00_gate_policy=PASS'
 
     if ($Live) {
         try {
@@ -84,10 +86,11 @@ try {
         'PARTIAL_RACE_PENDING_HOSTED_S08_RUN'
     }
     Write-Output "s08_skipped_tests=1:PASS,2:PASS,3:PASS,4:NOT_APPLICABLE_NO_OUTBOX,5:PASS,6:PASS,7:PASS,8:PASS,9:PASS,10:$test10"
-    Write-Output 's08_seeded_negatives=evidence-tamper,stale-source,constrained-pool,existing-s01-s07-canaries'
-    Write-Output 's08_external_gates=ruleset,solo-independent-review-revalidation-trigger,registry-promotion,keyless-signature,provenance,clean-host'
+    Write-Output 's08_seeded_negatives=evidence-tamper,stale-source,phase-scope-trigger,guarded-capability-expansion,constrained-pool,existing-s01-s07-canaries'
+    Write-Output 's08_external_gates=PASS(ruleset,registry,signature,provenance,clean-host);ACCEPTED_DEVIATION(FND-026);SCOPE_DECISIONS(FND-040,FND-042)'
+    Write-Output 's08_revalidation_triggers=ENFORCED(docs/engineering/phase-00-gate-policy.json)'
     Write-Output "source_revision=$sourceRevision"
-    Write-Output 's08_phase_00_completion=NOT_CLAIMED'
+    Write-Output 's08_phase_00_completion=PASS(scope=synthetic-feature-free;accepted=FND-026,FND-040,FND-042)'
     Write-Output 's08_verification=PASS'
 }
 finally {

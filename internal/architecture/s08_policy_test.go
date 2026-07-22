@@ -103,14 +103,14 @@ func TestS08AcceptanceWiresFailureChecksAndHonestAbsences(t *testing.T) {
 			t.Errorf("acceptance procedure omits skipped test #%d", testNumber)
 		}
 	}
-	for _, required := range []string{"#4 claimed outbox", "NOT_APPLICABLE", "No outbox table", "#10 constrained-pool race", "Phase 00 completion claim remains blocked"} {
+	for _, required := range []string{"#4 claimed outbox", "NOT_APPLICABLE", "No outbox table", "#10 constrained-pool race", "Phase 00 is complete for the synthetic feature-free foundation scope", "FND-026", "FND-040", "FND-042"} {
 		if !strings.Contains(acceptance, required) {
 			t.Errorf("acceptance procedure omits %q", required)
 		}
 	}
 
 	verifier := readText(t, filepath.Join(root, "scripts", "verify-s08.ps1"))
-	for _, required := range []string{"verify-s07.ps1", "test-s08-evidence-integrity.ps1", "s06.ps1", "s05.ps1", "test-s08-constrained-pool.ps1", "test-s08-clean-clone.ps1", "finally", "s08_phase_00_completion=NOT_CLAIMED"} {
+	for _, required := range []string{"verify-s07.ps1", "test-s08-evidence-integrity.ps1", "TestPhase00GateClosurePolicy", "s06.ps1", "s05.ps1", "test-s08-constrained-pool.ps1", "test-s08-clean-clone.ps1", "finally", "s08_phase_00_completion=PASS(scope=synthetic-feature-free;accepted=FND-026,FND-040,FND-042)"} {
 		if !strings.Contains(verifier, required) {
 			t.Errorf("S08 verifier omits %q", required)
 		}

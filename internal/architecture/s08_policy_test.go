@@ -140,6 +140,20 @@ func TestReleasePublishesOnlyAfterFullLiveAcceptance(t *testing.T) {
 			t.Fatal("release policy accepted a seeded registry action before preflight")
 		}
 	})
+
+	t.Run("seeded missing attestation verifier token is rejected", func(t *testing.T) {
+		seeded := strings.Replace(workflow, "GH_TOKEN: ${{ github.token }}", "# seeded missing verifier token", 1)
+		if releaseWorkflowClosed(seeded) {
+			t.Fatal("release policy accepted an attestation verifier without the GitHub token binding")
+		}
+	})
+
+	t.Run("seeded missing SBOM attestation verification is rejected", func(t *testing.T) {
+		seeded := strings.Replace(workflow, "https://spdx.dev/Document/v2.3", "https://example.invalid/seeded-missing-spdx", 1)
+		if releaseWorkflowClosed(seeded) {
+			t.Fatal("release policy accepted incomplete attestation verification")
+		}
+	})
 }
 
 func TestS08CleanCloneKeepsItsGoModuleCacheRemovable(t *testing.T) {
@@ -191,6 +205,12 @@ func releaseWorkflowClosed(workflow string) bool {
 		"github.ref == 'refs/heads/main'",
 		"startsWith(github.ref, 'refs/tags/v')",
 		"verify-s08.ps1 -Live -History -SupplyChain -CleanClone -ContainerRuntime docker",
+		"GH_TOKEN: ${{ github.token }}",
+		"--signer-workflow",
+		"--source-digest",
+		"--source-ref",
+		"https://slsa.dev/provenance/v1",
+		"https://spdx.dev/Document/v2.3",
 	} {
 		if !strings.Contains(workflow, required) {
 			return false
@@ -199,7 +219,11 @@ func releaseWorkflowClosed(workflow string) bool {
 	preflight := strings.Index(workflow, "- name: Run release preflight")
 	authenticate := strings.Index(workflow, "- name: Authenticate to GHCR")
 	firstPush := strings.Index(workflow, "push: true")
-	return preflight >= 0 && authenticate > preflight && firstPush > authenticate
+	verification := strings.Index(workflow, "- name: Verify signatures and provenance identities")
+	verificationToken := strings.Index(workflow, "GH_TOKEN: ${{ github.token }}")
+	attestationVerify := strings.Index(workflow, "gh attestation verify")
+	return preflight >= 0 && authenticate > preflight && firstPush > authenticate &&
+		verification > firstPush && verificationToken > verification && attestationVerify > verificationToken
 }
 
 func readText(t *testing.T, path string) string {

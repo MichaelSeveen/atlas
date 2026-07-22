@@ -2,7 +2,7 @@
 
 - **Status date:** 2026-07-22
 - **Current phase:** [Phase 00 — Secure engineering foundation](../atlas-prd/02-phases/PHASE-00_ENGINEERING_FOUNDATION.md)
-- **Current slice:** [S08 — Phase 00 acceptance, restore, and evidence release](PHASE-00-PLAN.md#s08--phase-00-acceptance-restore-and-evidence-release) is in hosted-release remediation. Authorized run `29959302878` at `36fdaa630fad8686d60f5330efeb374dd0df5b6f` passed hosted race/Gosec, history/supply, live observability, backup/restore, constrained-pool, exit-zero Bun shutdown, and nested clean-clone S08, then failed closed while deleting Go's read-only disposable module cache. Every publication step was skipped. Correction `baf2e67777de935e985162df14d51f9a2ebaac96` keeps only that isolated cache removable and adds a seeded regression. No GHCR artifact, signature, or provenance exists, and Phase 00 completion is not claimed.
+- **Current slice:** [S08 — Phase 00 acceptance, restore, and evidence release](PHASE-00-PLAN.md#s08--phase-00-acceptance-restore-and-evidence-release) is in final hosted-release verification remediation. Run `29962201077` at `0ebf1b8ac5b5a72d28a8c911154664475756c3a9` completed full fresh-host S08, published two immutable GHCR images, and attached keyless signatures plus SLSA/SPDX attestations. Independent exact-source verification passes, but in-workflow `gh attestation verify` lacked `GH_TOKEN`; the job failed before explicit SBOM retention. Correction `4b34edda1ac89f64840841a1f82e0ddd4159882f` binds the token and exact SLSA/SPDX identities. FND-010 is satisfied; FND-023/FND-024 and Phase 00 completion remain partial pending a green corrected transcript and retained release SBOMs.
 - **Implementation state:** Feature-free engineering foundation with typed Go primitives, static policies, three operational API endpoints, a complete synthetic local dependency/process topology, strict environment configuration, deterministic fixture catalogues, three React route shells, PostgreSQL migration/role/readiness/recovery controls, closed-schema JSON logs, OTLP traces/metrics, a Phase 00 threat model, a provider-neutral secret/version boundary, and repository-owned CI/contract/supply-chain controls. No product endpoint, financial workflow, product schema, worker job, executable provider scenario, broker stream, identity exchange, managed production secret provider, or wallet UI exists.
 
 ## Repository baseline
@@ -21,13 +21,13 @@
 
 | Classification | Count | Requirement IDs |
 |---|---:|---|
-| Satisfied | 28 | `FND-001..006`, `FND-012`, `FND-013`, `FND-020..022`, `FND-025`, `FND-027`, `FND-030`, `FND-032`, `FND-033`, `FND-041`, `FND-043`, `FND-050..055`, `FND-060..063` |
-| Partially satisfied | 9 | `FND-010`, `FND-011`, `FND-023`, `FND-024`, `FND-026`, `FND-031`, `FND-040`, `FND-042`, `FND-064` |
+| Satisfied | 29 | `FND-001..006`, `FND-010`, `FND-012`, `FND-013`, `FND-020..022`, `FND-025`, `FND-027`, `FND-030`, `FND-032`, `FND-033`, `FND-041`, `FND-043`, `FND-050..055`, `FND-060..063` |
+| Partially satisfied | 8 | `FND-011`, `FND-023`, `FND-024`, `FND-026`, `FND-031`, `FND-040`, `FND-042`, `FND-064` |
 | Absent | 0 | None. |
 | Conflicting | 0 | None identified. |
 | Not yet assessed | 0 | All 37 Phase 00 requirement IDs were assessed. |
 
-”Satisfied” is requirement-scoped: S01–S08 foundation mechanics named below are verified at the stated depth. It does not imply independent human review, clean-machine acceptance, signed/provenanced release publication, product database ownership, application seeds, provider behavior, identity integration, managed secret custody, complete worker/event observability, later phases, or that the Phase 00 gate passes. See the [per-requirement audit](PHASE-00-PLAN.md#requirement-by-requirement-audit).
+”Satisfied” is requirement-scoped: S01–S08 foundation mechanics named below are verified at the stated depth. It does not imply independent human review, acceptance from a separately administered clean machine, a green end-to-end hosted release, product database ownership, application seeds, provider behavior, identity integration, managed secret custody, complete worker/event observability, later phases, or that the Phase 00 gate passes. See the [per-requirement audit](PHASE-00-PLAN.md#requirement-by-requirement-audit).
 
 ## Completed requirement IDs
 
@@ -37,6 +37,7 @@
 - `FND-004` — React + TypeScript is consistently selected in the PRD, with no competing frontend implementation.
 - `FND-005` — bounded integer money/currency, cryptographically random opaque IDs, injectable UTC clocks, explicit actor/correlation contexts, and data-minimizing domain errors pass table/property/fuzz and mutation proof.
 - `FND-006` — the architecture checker rejects seeded floating-money and direct domain wall-clock violations while permitting explicit safe controls.
+- `FND-010` — release run `29962201077` completed the full fresh-host Docker S08 command, including the constrained topology, readiness/smoke/trace/outage, real PostgreSQL/NATS, backup/restore, hosted race, exit-zero bounded teardown, and exact clean-clone cleanup.
 - `FND-012` — portfolio configuration is synthetic-only, loopback/reserved-host constrained, and rejects real/public endpoint, development-key, wildcard, and missing-synthetic canaries.
 - `FND-013` — reset is limited to local/test, validates target containment, prints its resolved target, and requires the exact environment confirmation.
 - `FND-020` — PR #19 run `29949126130` passed static/history/contracts, real PostgreSQL/NATS, both CodeQL languages, race/Gosec, supply-chain, and solo sensitive-declaration checks; active `main` ruleset `19577130` strictly requires the five hosted contexts with no bypass actors.
@@ -62,17 +63,16 @@
 
 ## Active requirement IDs
 
-- `FND-010` is partial: the complete constrained stack, readiness, smoke, recovery, hosted race, and exit-zero bounded Bun shutdown passed on fresh hosted Docker, but release attempt 1 exited during disposable clean-clone cleanup. A successful complete outer S08 command remains required.
 - `FND-011` is partial: deterministic synthetic identity/account labels and provider scenario IDs validate with fixed checksum and tenant ownership, but no application schema is loaded and no provider behavior executes.
-- `FND-023` is partial: committed backend/web image mechanics are source-labeled, digest-recorded, non-root, read-only, capability-dropped, and critical-CVE clean. Attempt 1 proved the pre-publish gate fails closed; no GHCR digest was published or promoted.
-- `FND-024` is partial: the ref-guarded release failed before every registry mutation exactly as designed. Keyless Cosign and GitHub build/SBOM attestations remain configured, but attempt 1 created no signature, provenance statement, or retained release SBOM.
+- `FND-023` is partial: run `29962201077` published backend index `sha256:87e215…d756` (20.97 MiB compressed) and web index `sha256:2e3ab8…d1bc` (41.23 MiB), both tagged by source `0ebf1b8`. Exact public manifest inspection passes, but the release job did not finish its verification/retention tail.
+- `FND-024` is partial: both digests have valid keyless Cosign signatures plus SLSA v1 and SPDX 2.3 attestations bound to `release.yml`, `refs/heads/main`, and source `0ebf1b8`; independent verification passes. Automated verification and retained release SBOM upload remain open after missing `GH_TOKEN` stopped attempt 2.
 - `FND-026` is partial under an accepted solo-maintainer deviation: ADR 0012, the closed policy, PR declaration, canaries, and ruleset `19577130` enforce the available compensating controls. Independent human review remains unavailable and is not claimed; it becomes blocking at any non-synthetic/data/provider/second-maintainer/production-readiness trigger.
 - `FND-031` is partial: four-environment credential references and generated local/test password/token fingerprints never overlap, but staging/production provisioning, rotation, restore, and secret-manager evidence do not exist.
 - `FND-040` is partial: validated request/correlation/W3C trace context is exported through the API, readiness, and database spans. Worker/simulator have only build/lifecycle telemetry because no request/event/job enters them; no event propagation exists.
 - `FND-042` is partial: emitted HTTP RED, database readiness/pool, and revision/build metrics have closed cardinality plus catalogued dashboards/alerts/runbooks. Queue lag and retry metrics are definition-only until a queue/job exists, and no deployed alert engine/routing proof exists.
 - `FND-064` is partial: a verified physical base backup, WAL archive, isolated target-time restore, migration checksum, and pre-deletion marker pass, but the local backup volume is unencrypted and no product object/key/inbox/outbox/idempotency or financial replay state exists.
 
-S08 static/live/history/supply acceptance is preserved in EVD-P00-S08-001, committed static/clean-clone acceptance passes in EVD-P00-S08-002, hosted race execution passes in EVD-P00-S08-003, solo-governance/ruleset proof passes in EVD-P00-S08-004, EVD-P00-S08-005 binds the local hosted-release closure preflight, and EVD-P00-S08-006 retains fail-closed release attempt 1 plus correction `baf2e67`. Successful registry, signature, and provenance proof remain absent; overall Phase 00 completion is not claimed.
+S08 static/live/history/supply acceptance is preserved in EVD-P00-S08-001 through EVD-P00-S08-005, EVD-P00-S08-006 retains fail-closed attempt 1, and EVD-P00-S08-007 binds full hosted acceptance plus partial publication and independently verified signatures/SLSA/SPDX attestations from attempt 2. A successful automated verification/retention transcript remains absent; overall Phase 00 completion is not claimed.
 
 ## Decisions and blockers
 

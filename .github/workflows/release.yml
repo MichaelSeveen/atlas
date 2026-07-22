@@ -123,14 +123,24 @@ jobs:
           push-to-registry: true
       - name: Verify signatures and provenance identities
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           $cosign = Join-Path $PWD '.tmp/s07-tools/bin/cosign'
           $identity = '^https://github.com/MichaelSeveen/atlas/.github/workflows/release.yml@refs/(heads/main|tags/.+)$'
+          $attestationPolicy = @(
+            '--repo', 'MichaelSeveen/atlas',
+            '--signer-workflow', 'MichaelSeveen/atlas/.github/workflows/release.yml',
+            '--source-digest', '${{ github.sha }}',
+            '--source-ref', '${{ github.ref }}'
+          )
           foreach ($artifact in @("${env:BACKEND_IMAGE}@${{ steps.backend.outputs.digest }}", "${env:WEB_IMAGE}@${{ steps.web.outputs.digest }}")) {
             & $cosign verify --certificate-identity-regexp $identity --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' $artifact
             if ($LASTEXITCODE -ne 0) { throw "signature verification failed for $artifact" }
-            gh attestation verify "oci://$artifact" --repo MichaelSeveen/atlas
+            gh attestation verify "oci://$artifact" @attestationPolicy --predicate-type 'https://slsa.dev/provenance/v1'
             if ($LASTEXITCODE -ne 0) { throw "provenance verification failed for $artifact" }
+            gh attestation verify "oci://$artifact" @attestationPolicy --predicate-type 'https://spdx.dev/Document/v2.3'
+            if ($LASTEXITCODE -ne 0) { throw "SBOM attestation verification failed for $artifact" }
           }
       - name: Retain release SBOMs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

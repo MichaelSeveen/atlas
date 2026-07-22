@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "evidence_id": "EVD-P00-S08-001",
-  "created_at": "2026-07-22T21:51:48Z",
-  "source_revision": "baf2e67777de935e985162df14d51f9a2ebaac96",
+  "created_at": "2026-07-22T22:31:32Z",
+  "source_revision": "4b34edda1ac89f64840841a1f82e0ddd4159882f",
   "sanitization": "Sanitized repository derivatives only: no credentials, tokens, connection strings, customer data, identity data, product payloads, or raw scanner databases.",
   "artifacts": [
     {
@@ -112,6 +112,18 @@
       "path": "evidence/phase-00/acceptance/S08-known-limitations-release-attempt-1.md",
       "sha256": "46f536bac5f5f450cbcf698ad7c77aaddd0a955a30c38806ec61938a38956ddd",
       "result": "Current open release, review, encryption, replay, and telemetry limitations after attempt 1"
+    },
+    {
+      "evidence_id": "EVD-P00-S08-007",
+      "path": "evidence/phase-00/acceptance/S08-hosted-release-attempt-2.md",
+      "sha256": "d13188cbb02003be54640d7e8bea6c7612249776e8552a69af7e2ab74ae30bac",
+      "result": "PARTIAL_PUBLISH with full hosted S08 and independently verified immutable signatures, SLSA, and SPDX attestations"
+    },
+    {
+      "evidence_id": "EVD-P00-S08-LIMITATIONS-ATTEMPT-2",
+      "path": "evidence/phase-00/acceptance/S08-known-limitations-release-attempt-2.md",
+      "sha256": "014e2891d05effd52a3491258f3806c30eac339f33047f328149ff40e58e4db5",
+      "result": "Current automated release-tail, review, encryption, replay, and telemetry limitations after attempt 2"
     }
   ]
 }

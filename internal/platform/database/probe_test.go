@@ -39,3 +39,16 @@ func TestSchemaProbeFailsClosedWithoutDatabase(t *testing.T) {
 		t.Fatal("nil schema probe was reported current")
 	}
 }
+
+func TestSchemaProbeRejectsUnsafePoolSize(t *testing.T) {
+	config := Config{
+		Host: "127.0.0.1", Port: 1, Database: "atlas_local", User: "atlas_api", Password: strings.Repeat("a", 32),
+	}
+	for _, size := range []int32{-1, 5} {
+		probe, err := NewSchemaProbe(context.Background(), config, ProbeOptions{MaxConnections: size})
+		if err == nil {
+			probe.Close()
+			t.Fatalf("unsafe readiness pool size %d was accepted", size)
+		}
+	}
+}

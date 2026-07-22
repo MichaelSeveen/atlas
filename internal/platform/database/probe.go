@@ -39,8 +39,9 @@ type SchemaProbe struct {
 }
 
 type ProbeOptions struct {
-	Tracer traceapi.Tracer
-	Meter  metricapi.Meter
+	Tracer         traceapi.Tracer
+	Meter          metricapi.Meter
+	MaxConnections int32
 }
 
 func ConfigFromEnvironment() (Config, error) {
@@ -75,6 +76,13 @@ func NewSchemaProbe(ctx context.Context, config Config, options ProbeOptions) (*
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
+	maxConnections := options.MaxConnections
+	if maxConnections == 0 {
+		maxConnections = 4
+	}
+	if maxConnections < 1 || maxConnections > 4 {
+		return nil, errors.New("database readiness pool size is invalid")
+	}
 	endpoint := &url.URL{
 		Scheme: "postgres", User: url.UserPassword(config.User, config.Password),
 		Host: net.JoinHostPort(config.Host, strconv.Itoa(int(config.Port))), Path: config.Database,
@@ -91,7 +99,7 @@ func NewSchemaProbe(ctx context.Context, config Config, options ProbeOptions) (*
 	poolConfig.ConnConfig.RuntimeParams["statement_timeout"] = "500"
 	poolConfig.ConnConfig.RuntimeParams["lock_timeout"] = "250"
 	poolConfig.MinConns = 0
-	poolConfig.MaxConns = 4
+	poolConfig.MaxConns = maxConnections
 	poolConfig.MaxConnIdleTime = 2 * time.Minute
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {

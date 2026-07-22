@@ -2,17 +2,17 @@
 
 - **Status date:** 2026-07-22
 - **Current phase:** [Phase 00 — Secure engineering foundation](../atlas-prd/02-phases/PHASE-00_ENGINEERING_FOUNDATION.md)
-- **Current slice:** [S07 — CI, contracts, and supply-chain integrity](PHASE-00-PLAN.md#s07--ci-contracts-and-supply-chain-integrity) is locally implemented and verified from `UNCOMMITTED_WORKTREE(base=3342b4ded1cd62fab1223372cd5129f272889878)`. CI/release workflows, contract compatibility, history scanning, four SBOM surfaces, image scanning/hardening, and immutable pin policies pass locally; hosted required checks, code-owner enforcement, keyless signatures, and provenance remain unverified until GitHub runs exist.
+- **Current slice:** [S08 — Phase 00 acceptance, restore, and evidence release](PHASE-00-PLAN.md#s08--phase-00-acceptance-restore-and-evidence-release) is implemented and locally verified from `UNCOMMITTED_WORKTREE(base=f6ad53553e739ea44718cc1336920a37c3fd05bc)`. Static acceptance, evidence tamper/staleness canaries, the synthetic live stack, golden trace, telemetry outage, real PostgreSQL/NATS lanes, isolated recovery, and one-connection concurrent readiness pass. S08 remains pre-commit; hosted S08 race, clean-clone/machine, protected rules, independent review, registry promotion, signing, and provenance remain open, so Phase 00 completion is not claimed.
 - **Implementation state:** Feature-free engineering foundation with typed Go primitives, static policies, three operational API endpoints, a complete synthetic local dependency/process topology, strict environment configuration, deterministic fixture catalogues, three React route shells, PostgreSQL migration/role/readiness/recovery controls, closed-schema JSON logs, OTLP traces/metrics, a Phase 00 threat model, a provider-neutral secret/version boundary, and repository-owned CI/contract/supply-chain controls. No product endpoint, financial workflow, product schema, worker job, executable provider scenario, broker stream, identity exchange, managed production secret provider, or wallet UI exists.
 
 ## Repository baseline
 
 | Area | Verified state |
 |---|---|
-| Version control | Valid Git repository on branch `main`; origin is `https://github.com/MichaelSeveen/atlas.git`. S05 is post-commit verified as `5ea77fcf31b349b53fcd14e14ab81a4da5da840a`; S06 is committed as `3342b4ded1cd62fab1223372cd5129f272889878`; S07 is an uncommitted worktree on that base. |
+| Version control | Valid Git repository with origin `https://github.com/MichaelSeveen/atlas.git`. S07 PR #1 passed all five hosted jobs at `747cc80f058d570851f64592c0eb3a9ca0e33adc` and merged to `main` as `f6ad53553e739ea44718cc1336920a37c3fd05bc`; S08 is an uncommitted branch worktree on that base. |
 | Specification | Canonical PRD is `docs/atlas-prd/`: the 59-file validated baseline now has four accepted implementation ADRs (63 versioned files including the manifest), while the baseline report retains 399 requirements, 60 threats, 154 adversarial tests, OpenAPI 3.1.1 (33 paths/41 operations), and AsyncAPI 3.0.0 (9 channels/17 messages). S03–S07 edits preserve one canonical contract/spec root. |
 | Application code | Go module `github.com/MichaelSeveen/atlas`; `cmd/api` serves only liveness, readiness, and version with typed dependency and real migration-state probes, while worker/simulator remain feature-free. `cmd/dbctl` validates the released migration inventory and `cmd/contractctl` lints/compares the canonical OpenAPI/AsyncAPI. React owns three feature-free route shells. Twelve narrow platform packages plus a feature-free contract-compatibility package, architecture/layout/toolchain policies, and focused foundation tests exist. External Go dependencies remain limited to pgx, official OpenTelemetry/OTLP modules, and the YAML parser used by the engineering contract checker. No product behavior, product schema, or generated product client exists. |
-| Tooling | Go 1.25.12 with language baseline 1.25.0, pgx/v5 5.10.0, OpenTelemetry Go 1.43.0, Bun 1.3.0, and React 19.2.7 are pinned; `bun.lock` is frozen. Repository-owned S01–S07 verification now includes contract breaks, action/image/tool pin mutations, full-history secret scanning, a deleted-history canary, Govulncheck, four SPDX SBOMs, critical-CVE/license gates, and hardened image execution. GitHub Linux still must supply the hosted race, Gosec, CodeQL, required-check, signature, and provenance evidence. |
+| Tooling | Go 1.25.12 with language baseline 1.25.0, pgx/v5 5.10.0, OpenTelemetry Go 1.43.0, Bun 1.3.0, and React 19.2.7 are pinned; `bun.lock` is frozen. Repository-owned S01–S08 verification includes contract/action/image/tool/evidence mutations, complete-history scanning, Govulncheck, four SPDX SBOMs, critical-CVE/license gates, hardened image execution, and constrained-pool integration. GitHub Linux supplied S07 race/Gosec/CodeQL evidence; the newly added S08 constrained-pool race lane has not run yet. |
 | Local environment | Compose-compatible PostgreSQL, Redis, NATS JetStream, MinIO, OTel Collector, Keycloak, API, worker, simulator, and web run in a constrained loopback-only synthetic namespace. API, worker, and simulator export bounded OTLP traces/metrics; collector availability is explicitly non-authoritative for readiness. Repository scripts now use the installed WSL `podman-compose` fallback on this host, while clean-machine one-command proof is still outstanding. |
 | Verified pins | Go 1.25.12/language 1.25.0; module `github.com/MichaelSeveen/atlas`; pgx/v5 5.10.0; OpenTelemetry Go/SDK/exporters 1.43.0; Bun 1.3.0; React/React DOM 19.2.7; immutable GitHub Action SHAs; hash-verified scanner archives; and tag-plus-digest external/base images. Release signature/provenance verification is configured but not yet hosted evidence. |
 | Sensitive/generated/binary scan | Gitleaks scans the complete 12-commit history with no finding; a disposable repository proves a deleted synthetic secret is still detected. No build binary, SBOM, scanner report, or OCI archive is retained outside ignored `.tmp/`; the eleven removed root PRD duplicates remain guarded against reappearance. |
@@ -27,7 +27,7 @@
 | Conflicting | 0 | None identified. |
 | Not yet assessed | 0 | All 37 Phase 00 requirement IDs were assessed. |
 
-”Satisfied” is requirement-scoped: S01–S07 foundation mechanics named below are verified. It does not imply clean-machine acceptance, hosted CI enforcement, signed/provenanced release publication, product database ownership, application seeds, provider behavior, identity integration, managed secret custody, complete worker/event observability, later slices, or that the Phase 00 gate passes. See the [per-requirement audit](PHASE-00-PLAN.md#requirement-by-requirement-audit).
+”Satisfied” is requirement-scoped: S01–S08 foundation mechanics named below are verified at the stated depth. It does not imply clean-machine acceptance, hosted CI enforcement, signed/provenanced release publication, product database ownership, application seeds, provider behavior, identity integration, managed secret custody, complete worker/event observability, later phases, or that the Phase 00 gate passes. See the [per-requirement audit](PHASE-00-PLAN.md#requirement-by-requirement-audit).
 
 ## Completed requirement IDs
 
@@ -63,8 +63,8 @@
 
 - `FND-010` is partial: the complete constrained stack, readiness, restart, teardown, and smoke pass through Compose, but this host needed a Podman WSL/systemd/provider repair and the exact clean-machine wrapper command is not yet independently proven.
 - `FND-011` is partial: deterministic synthetic identity/account labels and provider scenario IDs validate with fixed checksum and tenant ownership, but no application schema is loaded and no provider behavior executes.
-- `FND-020` is partial: PR/static, real PostgreSQL/NATS, CodeQL, and supply-chain workflows call the repository-owned checks, but no successful hosted run or protected required-check configuration is available yet; Windows cannot supply the required Linux race/Gosec/CodeQL evidence.
-- `FND-023` is partial: local backend/web images are source-labeled, digest-recorded, non-root, read-only, capability-dropped, and critical-CVE clean, while the dirty worktree prevents a final implementation revision and no registry digest has been published/promoted.
+- `FND-020` is partial: S07 PR run `29928153984` successfully executed static/history/contracts, real PostgreSQL/NATS, both CodeQL languages, race/Gosec, and supply-chain jobs against the merged PR head. GitHub reports no `main` ruleset, and the newly added S08 constrained-pool race lane has not run in hosted Linux, so required-check enforcement is still unproved.
+- `FND-023` is partial: committed S07 backend/web image mechanics are source-labeled, digest-recorded, non-root, read-only, capability-dropped, and critical-CVE clean, but no GHCR digest has been published and promoted through a release.
 - `FND-024` is partial: the release workflow fails closed and configures digest-only keyless Cosign signatures plus GitHub build/SBOM attestations and verification, but no hosted release artifact, signature, or provenance statement exists yet.
 - `FND-026` is partial: `CODEOWNERS` and static sensitive-path coverage pass, but repository files cannot prove GitHub ruleset enforcement, a code-owner approval, or bypass restrictions.
 - `FND-031` is partial: four-environment credential references and generated local/test password/token fingerprints never overlap, but staging/production provisioning, rotation, restore, and secret-manager evidence do not exist.
@@ -72,16 +72,16 @@
 - `FND-042` is partial: emitted HTTP RED, database readiness/pool, and revision/build metrics have closed cardinality plus catalogued dashboards/alerts/runbooks. Queue lag and retry metrics are definition-only until a queue/job exists, and no deployed alert engine/routing proof exists.
 - `FND-064` is partial: a verified physical base backup, WAL archive, isolated target-time restore, migration checksum, and pre-deletion marker pass, but the local backup volume is unencrypted and no product object/key/inbox/outbox/idempotency or financial replay state exists.
 
-S07 is locally implemented and verified from `UNCOMMITTED_WORKTREE(base=3342b4ded1cd62fab1223372cd5129f272889878)`. The stated FND-020/FND-023/FND-024/FND-026 hosted and pre-commit limitations remain; no S08 or overall Phase 00 completion is claimed.
+S08 static and live acceptance pass from `UNCOMMITTED_WORKTREE(base=f6ad53553e739ea44718cc1336920a37c3fd05bc)`. The evidence catalogue rejects content and source mutations. This is not post-commit, clean-clone, independent-machine, protected-ruleset, review, registry, signature, or provenance proof; overall Phase 00 completion is not claimed.
 
 ## Decisions and blockers
 
 | Decision/gap | Impact | Required resolution |
 |---|---|---|
 | Production broker, IdP deployment, object store, and secret manager are not selected | Local/reference products are accepted only by ADR 0008; production semantics, key rotation, backup, and promotion remain blocked. | Resolve with scoped ADRs before any reference release; do not treat local NATS/Keycloak/MinIO as a production selection. |
-| Hosted GitHub policy and release identity are unobserved | Versioned workflows and `CODEOWNERS` cannot prove required jobs, owner approval, ruleset bypass controls, keyless signing, or provenance publication. | Configure the `main` ruleset, run a PR and release from committed S07 source, and retain run/ruleset/signature/attestation identifiers in S08 evidence. |
+| Hosted GitHub policy and release identity remain incomplete | Five PR jobs passed and the source merged, but the rulesets API is empty, no independent owner approval exists, and no release has published registry/signature/provenance evidence. | After S08 commit, run its PR lane; configure and evidence the `main` ruleset and independent review; then run the fail-closed release and retain registry/signature/attestation identifiers. |
 | Generated product-client strategy is deferred | S07 enforces compatibility directly from the sole canonical contracts and introduces no client or product call. | Select a deterministic generated-client path before the first product API consumer; never create a second hand-edited contract. |
-| Clean-host container bootstrap is unproven | Repository-owned S04–S07 commands pass on this host through explicit WSL Podman fallbacks, but a clean supported Podman/Docker machine has not independently reproduced them. | Reprove the exact documented wrapper commands from a clean supported host in S08. |
+| Clean-host container bootstrap is unproven | Repository-owned S04–S08 commands pass on this host through explicit WSL Podman fallbacks; the clean-clone command requires committed S08 and is still same-host evidence. | Reprove the exact full S08 command from a separate clean supported host. |
 | Local backup/WAL volumes are not encrypted | S05 proves native backup/WAL/PITR mechanics but cannot satisfy the encrypted reference-environment and key-access facets of FND-064. | Select deployment/object/key controls and run the complete encrypted isolated restore/replay gate in S08. |
 
 These are missing implementation decisions, not contradictory product semantics. No accepted ADR conflict was found.
@@ -93,8 +93,9 @@ These are missing implementation decisions, not contradictory product semantics.
 - The sole mutable PRD contracts live under `docs/atlas-prd/03-contracts/`; implementation-owned publication/generation remains deferred and must not create a second hand-edited source.
 - S06 telemetry covers only the flows that exist: API/readiness/database plus process build/lifecycle. No web-to-event-to-worker trace, queue lag, retry counter, or product telemetry is claimed.
 - The local collector uses a detailed debug exporter solely for deterministic synthetic verification; no production telemetry backend, retention, alert engine, or routing is selected.
-- S07 local image/SBOM proof uses the existing Podman WSL fallback. Syft completed with valid artifacts but emitted non-fatal Windows temporary-directory cleanup warnings; the exact clean-host lane remains S08 work.
-- The Windows host has CGO disabled and Gosec 2.25.0 does not complete in a bounded local run. GitHub Linux is configured to run the race detector, full Gosec, and independent CodeQL; those lanes are not claimed until a hosted run passes.
+- S07 local image/SBOM proof uses the existing Podman WSL fallback. Syft completed with valid artifacts but emitted non-fatal Windows temporary-directory cleanup warnings; independent clean-host proof remains open.
+- The Windows host has CGO disabled and Gosec 2.25.0 does not complete in a bounded local run. GitHub Linux supplied S07 race/Gosec/CodeQL proof, but the new S08 constrained-pool race test still needs its hosted PR run.
+- S08 teardown completed and removed the isolated services/networks; Podman waited ten seconds for the stateless Bun web container and then used SIGKILL, so graceful web termination is not claimed.
 - S04 seed artifacts remain validated catalogues, not inserted application data. S05 creates only the feature-free `atlas_foundation` control schema; no product schema exists.
 - Project policy forbids React class components. Because React 19 has no function-component error-boundary API, the feature-free web shell now uses a route-aware root `onUncaughtError` fallback; strict subtree-local error containment is not claimed.
 - The PRD validation report proves planning-pack consistency only; it is not implementation, security, performance, recovery, or compliance evidence.
@@ -115,6 +116,10 @@ These are missing implementation decisions, not contradictory product semantics.
 - [S05 post-commit verification](../../evidence/phase-00/database/S05-post-commit-verification.md)
 - [Current S06 observability/security report](../../evidence/phase-00/observability-security/S06-observability-security-report.md)
 - [Current S07 CI/supply-chain report](../../evidence/phase-00/supply-chain/S07-ci-contract-supply-chain-report.md)
+- [S07 hosted PR verification](../../evidence/phase-00/supply-chain/S07-hosted-pr-verification.md)
+- [S08 acceptance report](../../evidence/phase-00/acceptance/S08-phase-00-acceptance-report.md)
+- [Phase 00 acceptance procedure](PHASE-00-ACCEPTANCE.md)
+- [Phase 00 known limitations](PHASE-00-KNOWN-LIMITATIONS.md)
 - [Canonical PRD cleanup report](../../evidence/phase-00/architecture/PRD-canonicalization-report.md)
 - [Module boundary model](MODULE_BOUNDARIES.md)
 - [Platform primitives and static policy](PLATFORM_PRIMITIVES.md)
@@ -132,4 +137,6 @@ S05 implementation commit `5ea77fcf31b349b53fcd14e14ab81a4da5da840a` (tree `258c
 
 S06 is committed as `3342b4ded1cd62fab1223372cd5129f272889878` (tree `36e8d4b1195ec3c8e8bf0bbfdef294f1df523005`). Its detailed live evidence remains the preserved pre-commit report based on `7a08056539de6d655086f7730d0cb8df3a9bb4c6`; no post-commit live rerun is claimed here.
 
-S07 local/default, history/security, contract-baseline, and supply-chain verification passes from `UNCOMMITTED_WORKTREE(base=3342b4ded1cd62fab1223372cd5129f272889878)`. The result identifies the base and generated artifact digests but cannot identify a final S07 commit/tree; hosted CI/ruleset/signature/provenance evidence remains absent.
+S07 PR head `747cc80f058d570851f64592c0eb3a9ca0e33adc` passed all five hosted jobs in run `29928153984` and merged to `main` as `f6ad53553e739ea44718cc1336920a37c3fd05bc`. Required rules, independent review, registry promotion, signature, and provenance remain absent.
+
+S08 static and live acceptance pass from `UNCOMMITTED_WORKTREE(base=f6ad53553e739ea44718cc1336920a37c3fd05bc)`. The full local live lane proved the synthetic stack, golden trace, collector outage, real migration/role/lock/NATS checks, 27-second backup, 62-second isolated restore, and one-connection concurrent readiness. It cannot identify a final S08 commit/tree, and local CGO-disabled execution cannot supply the required S08 race proof.

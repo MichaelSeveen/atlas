@@ -1,0 +1,22 @@
+title = "Atlas Gitleaks policy"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Natural-language S05 limitation phrases misclassified as generic API keys"
+regexTarget = "match"
+regexes = [
+  '''key material, outbox/inbox/idempotency''',
+  '''encryption-key access, outbox/inbox/idempotency''',
+  '''key access, outbox/inbox/idempotency''',
+]
+
+[[allowlists]]
+description = "Generated and ignored build artifacts are scanned through their source inputs"
+paths = [
+  '''(^|[\\/])\.git([\\/]|$)''',
+  '''(^|[\\/])\.tmp([\\/]|$)''',
+  '''apps[\\/]web[\\/]node_modules([\\/]|$)''',
+  '''apps[\\/]web[\\/]dist([\\/]|$)''',
+]

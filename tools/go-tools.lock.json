@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "reviewed_at": "2026-07-22",
+  "tools": {
+    "govulncheck": "golang.org/x/vuln/cmd/govulncheck@v1.1.4"
+  }
+}

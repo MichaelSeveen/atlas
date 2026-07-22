@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "reviewed_at": "2026-07-22",
+  "tools": {
+    "gitleaks": {
+      "version": "8.28.0",
+      "windows_amd64": {"url": "https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_windows_x64.zip", "sha256": "da6458e8864af553807de1c46a7a8eac0880bd6b99ba56288e87e86a45af884f"},
+      "linux_amd64": {"url": "https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz", "sha256": "a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb"}
+    },
+    "gosec": {
+      "version": "2.25.0",
+      "windows_amd64": {"url": "https://github.com/securego/gosec/releases/download/v2.25.0/gosec_2.25.0_windows_amd64.tar.gz", "sha256": "803651e927b6a15316a0d40170fa1139cf8525866c595d4d21bbf09ac68069df"},
+      "linux_amd64": {"url": "https://github.com/securego/gosec/releases/download/v2.25.0/gosec_2.25.0_linux_amd64.tar.gz", "sha256": "ca099f42e37bc8f98ae54c23238e2b81b973c6d6a60c25c34da03f0292af0f32"}
+    },
+    "syft": {
+      "version": "1.44.0",
+      "windows_amd64": {"url": "https://github.com/anchore/syft/releases/download/v1.44.0/syft_1.44.0_windows_amd64.zip", "sha256": "195e786eb84ec145854f20528992e86637c77d1968731dfe6ce850c90e28f47a"},
+      "linux_amd64": {"url": "https://github.com/anchore/syft/releases/download/v1.44.0/syft_1.44.0_linux_amd64.tar.gz", "sha256": "0e91737aee2b5baf1d255b959630194a302335d848ff97bb07921eb6205b5f5a"}
+    },
+    "grype": {
+      "version": "0.112.0",
+      "windows_amd64": {"url": "https://github.com/anchore/grype/releases/download/v0.112.0/grype_0.112.0_windows_amd64.zip", "sha256": "94ae49ced125fca7590fd35dfa96e36f68760cefff9a653c92fa8f6842777879"},
+      "linux_amd64": {"url": "https://github.com/anchore/grype/releases/download/v0.112.0/grype_0.112.0_linux_amd64.tar.gz", "sha256": "acb14a030010fe9bdb9594b4ae108d9d14ef2f926d936aa0916dc62c89c058ea"}
+    },
+    "cosign": {
+      "version": "3.0.6",
+      "windows_amd64": {"url": "https://github.com/sigstore/cosign/releases/download/v3.0.6/cosign-windows-amd64.exe", "sha256": "9b85a88ebff2d9dd30ff4984a6f61f2cedc232dd87d81fa7f2ff3c0ed96c241c"},
+      "linux_amd64": {"url": "https://github.com/sigstore/cosign/releases/download/v3.0.6/cosign-linux-amd64", "sha256": "c956e5dfcac53d52bcf058360d579472f0c1d2d9b69f55209e256fe7783f4c74"}
+    }
+  }
+}

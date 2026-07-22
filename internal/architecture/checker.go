@@ -49,8 +49,9 @@ var domainModules = map[string]struct{}{
 }
 
 var foundationModules = map[string]struct{}{
-	"architecture": {},
-	"platform":     {},
+	"architecture":   {},
+	"contractcompat": {},
+	"platform":       {},
 }
 
 var processCommands = map[string]struct{}{
@@ -60,8 +61,9 @@ var processCommands = map[string]struct{}{
 }
 
 var engineeringCommands = map[string]struct{}{
-	"dbctl":  {},
-	"envctl": {},
+	"contractctl": {},
+	"dbctl":       {},
+	"envctl":      {},
 }
 
 var forbiddenSharedModules = map[string]struct{}{

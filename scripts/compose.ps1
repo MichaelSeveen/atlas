@@ -42,3 +42,37 @@ function Invoke-AtlasCompose {
         throw "Podman WSL compose command failed with exit code ${LASTEXITCODE}: $($Arguments -join ' ')"
     }
 }
+
+function Invoke-AtlasContainer {
+    param(
+        [Parameter(Mandatory)][ValidateSet('podman', 'docker')][string]$ContainerRuntime,
+        [Parameter(Mandatory)][string]$RepositoryRoot,
+        [Parameter()][string[]]$Arguments = @()
+    )
+
+    if ($ContainerRuntime -eq 'docker' -or -not $IsWindows) {
+        & $ContainerRuntime @Arguments
+        if ($LASTEXITCODE -ne 0) {
+            throw "Container command failed with exit code ${LASTEXITCODE}: $ContainerRuntime $($Arguments -join ' ')"
+        }
+        return
+    }
+
+    if ($env:ATLAS_FORCE_PODMAN_WSL -ne 'true') {
+        & podman info --format '{{.Host.Arch}}' *> $null
+    }
+    if ($env:ATLAS_FORCE_PODMAN_WSL -ne 'true' -and $LASTEXITCODE -eq 0) {
+        & podman @Arguments
+        if ($LASTEXITCODE -ne 0) {
+            throw "Podman command failed with exit code ${LASTEXITCODE}: $($Arguments -join ' ')"
+        }
+        return
+    }
+
+    $wslRoot = ConvertTo-AtlasWslPath -Path $RepositoryRoot
+    $wslArguments = @('--cd', $wslRoot, '-d', 'podman-machine-default', '-u', 'root', '--', 'podman') + $Arguments
+    & wsl.exe @wslArguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "Podman WSL command failed with exit code ${LASTEXITCODE}: $($Arguments -join ' ')"
+    }
+}

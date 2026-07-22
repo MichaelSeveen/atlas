@@ -1,0 +1,139 @@
+name: atlas-release
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+
+concurrency:
+  group: atlas-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-images:
+    if: github.repository == 'MichaelSeveen/atlas'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      BACKEND_IMAGE: ghcr.io/michaelseveen/atlas-backend
+      WEB_IMAGE: ghcr.io/michaelseveen/atlas-web
+    steps:
+      - name: Check out immutable source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version-file: .go-version
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.0
+      - name: Resolve deterministic source metadata
+        id: source
+        shell: bash
+        run: echo "build_time=$(git show -s --format=%cI HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Run release preflight
+        shell: pwsh
+        run: ./scripts/verify-s07.ps1 -History -SupplyChain -ContainerRuntime docker
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+      - name: Authenticate to GHCR
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push backend by source revision
+        id: backend
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          file: deploy/local/Containerfile.backend
+          push: true
+          tags: ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+          build-args: |
+            SOURCE_REVISION=${{ github.sha }}
+            BUILD_TIME=${{ steps.source.outputs.build_time }}
+      - name: Build and push web by source revision
+        id: web
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: apps/web
+          file: apps/web/Containerfile
+          push: true
+          tags: ${{ env.WEB_IMAGE }}:${{ github.sha }}
+          build-args: SOURCE_REVISION=${{ github.sha }}
+      - name: Install hash-verified release tools and generate SPDX SBOMs
+        shell: pwsh
+        run: |
+          ./scripts/bootstrap-s07-tools.ps1
+          $tools = Join-Path $PWD '.tmp/s07-tools/bin'
+          New-Item -ItemType Directory -Force '.tmp/s07-reports' | Out-Null
+          & (Join-Path $tools 'syft') "registry:${env:BACKEND_IMAGE}@${{ steps.backend.outputs.digest }}" -o "spdx-json=.tmp/s07-reports/backend-image.spdx.json"
+          if ($LASTEXITCODE -ne 0) { throw 'backend SBOM failed' }
+          & (Join-Path $tools 'syft') "registry:${env:WEB_IMAGE}@${{ steps.web.outputs.digest }}" -o "spdx-json=.tmp/s07-reports/web-image.spdx.json"
+          if ($LASTEXITCODE -ne 0) { throw 'web SBOM failed' }
+      - name: Keyless-sign immutable image digests
+        shell: pwsh
+        env:
+          COSIGN_YES: "true"
+        run: |
+          $cosign = Join-Path $PWD '.tmp/s07-tools/bin/cosign'
+          & $cosign sign "${env:BACKEND_IMAGE}@${{ steps.backend.outputs.digest }}"
+          if ($LASTEXITCODE -ne 0) { throw 'backend signing failed; unsigned fallback is forbidden' }
+          & $cosign sign "${env:WEB_IMAGE}@${{ steps.web.outputs.digest }}"
+          if ($LASTEXITCODE -ne 0) { throw 'web signing failed; unsigned fallback is forbidden' }
+      - name: Attest backend build provenance
+        uses: actions/attest@c32b4b8b198b65d0bd9d63490e847ff7b53989d4 # v4.0.0
+        with:
+          subject-name: ${{ env.BACKEND_IMAGE }}
+          subject-digest: ${{ steps.backend.outputs.digest }}
+          push-to-registry: true
+      - name: Attest backend SPDX SBOM
+        uses: actions/attest@c32b4b8b198b65d0bd9d63490e847ff7b53989d4 # v4.0.0
+        with:
+          subject-name: ${{ env.BACKEND_IMAGE }}
+          subject-digest: ${{ steps.backend.outputs.digest }}
+          sbom-path: .tmp/s07-reports/backend-image.spdx.json
+          push-to-registry: true
+      - name: Attest web build provenance
+        uses: actions/attest@c32b4b8b198b65d0bd9d63490e847ff7b53989d4 # v4.0.0
+        with:
+          subject-name: ${{ env.WEB_IMAGE }}
+          subject-digest: ${{ steps.web.outputs.digest }}
+          push-to-registry: true
+      - name: Attest web SPDX SBOM
+        uses: actions/attest@c32b4b8b198b65d0bd9d63490e847ff7b53989d4 # v4.0.0
+        with:
+          subject-name: ${{ env.WEB_IMAGE }}
+          subject-digest: ${{ steps.web.outputs.digest }}
+          sbom-path: .tmp/s07-reports/web-image.spdx.json
+          push-to-registry: true
+      - name: Verify signatures and provenance identities
+        shell: pwsh
+        run: |
+          $cosign = Join-Path $PWD '.tmp/s07-tools/bin/cosign'
+          $identity = '^https://github.com/MichaelSeveen/atlas/.github/workflows/release.yml@refs/(heads/main|tags/.+)$'
+          foreach ($artifact in @("${env:BACKEND_IMAGE}@${{ steps.backend.outputs.digest }}", "${env:WEB_IMAGE}@${{ steps.web.outputs.digest }}")) {
+            & $cosign verify --certificate-identity-regexp $identity --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' $artifact
+            if ($LASTEXITCODE -ne 0) { throw "signature verification failed for $artifact" }
+            gh attestation verify "oci://$artifact" --repo MichaelSeveen/atlas
+            if ($LASTEXITCODE -ne 0) { throw "provenance verification failed for $artifact" }
+          }
+      - name: Retain release SBOMs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: atlas-sboms-${{ github.sha }}
+          path: .tmp/s07-reports/*.spdx.json
+          if-no-files-found: error
+          retention-days: 90

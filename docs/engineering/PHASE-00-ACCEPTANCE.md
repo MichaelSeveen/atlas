@@ -14,13 +14,15 @@ Static acceptance, including the earlier build/test/contract checks and evidence
 pwsh -NoProfile -File ./scripts/verify-s08.ps1
 ```
 
-Full local acceptance with history scanning, four SBOM surfaces, hardened images, the synthetic stack, the exported golden trace, collector outage, real PostgreSQL/NATS migration lanes, isolated backup/restore, and the constrained-pool test:
+Full local acceptance with history scanning, four SBOM surfaces, hardened images, the synthetic stack, the exported golden trace, collector outage, real PostgreSQL/NATS migration lanes, isolated backup/restore, the constrained-pool test, and a bounded exit-zero Bun shutdown:
 
 ```powershell
 pwsh -NoProfile -File ./scripts/verify-s08.ps1 -Live -History -SupplyChain -ContainerRuntime podman
 ```
 
 After S08 is committed and the worktree is clean, add `-CleanClone`. The clean-clone lane checks out the exact current revision into a disposable ignored directory and reruns static S08 acceptance. This is a clean-tree reproduction on the same host; it is not independent clean-machine evidence.
+
+The release workflow runs the same full command with Docker and `-CleanClone` on its fresh hosted runner. It is ref-guarded to protected `main` or a `v*` tag, and the preflight precedes registry authentication or any artifact publication. Do not treat that wiring as hosted proof until an explicitly authorized release run succeeds and its digests, signatures, attestations, and sanitized logs are retained.
 
 The procedure always tears down the live foundation in a `finally` path. Restore uses the internal-only `postgres-restore` service and never targets the active PostgreSQL namespace.
 

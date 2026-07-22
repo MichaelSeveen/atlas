@@ -14,6 +14,7 @@ if ($LASTEXITCODE -ne 0 -or $revision -notmatch '^[0-9a-f]{40}$') { throw 'Clean
 $cloneParent = Join-Path $repositoryRoot '.tmp/s08-clean-clone'
 $cloneRoot = Join-Path $cloneParent ([Guid]::NewGuid().ToString('N'))
 $sourceURI = ([Uri]::new(([IO.Path]::GetFullPath($repositoryRoot).TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar))).AbsoluteUri
+$originalGoFlags = [Environment]::GetEnvironmentVariable('GOFLAGS', 'Process')
 New-Item -ItemType Directory -Path $cloneParent -Force | Out-Null
 try {
     # A file URI forces Git's upload-pack path on Windows and avoids drive-letter
@@ -22,10 +23,20 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Create isolated clean clone failed.' }
     & git -C $cloneRoot checkout --quiet --detach $revision
     if ($LASTEXITCODE -ne 0) { throw 'Check out exact clean-clone revision failed.' }
+    # Go normally makes module-cache directories read-only. The cache is inside
+    # this disposable clone, so keep its directories writable for bounded cleanup.
+    $goFlags = @($originalGoFlags, '-modcacherw') | Where-Object { -not [String]::IsNullOrWhiteSpace($_) }
+    $env:GOFLAGS = ($goFlags -join ' ').Trim()
     & pwsh -NoProfile -File (Join-Path $cloneRoot 'scripts/verify-s08.ps1')
     if ($LASTEXITCODE -ne 0) { throw 'Clean-clone S08 static acceptance failed.' }
 }
 finally {
+    if ($null -eq $originalGoFlags) {
+        Remove-Item Env:GOFLAGS -ErrorAction SilentlyContinue
+    }
+    else {
+        $env:GOFLAGS = $originalGoFlags
+    }
     if (Test-Path -LiteralPath $cloneRoot) {
         $resolvedClone = [IO.Path]::GetFullPath($cloneRoot)
         $resolvedParent = [IO.Path]::GetFullPath($cloneParent).TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar

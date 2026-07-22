@@ -142,6 +142,43 @@ func TestReleasePublishesOnlyAfterFullLiveAcceptance(t *testing.T) {
 	})
 }
 
+func TestS08CleanCloneKeepsItsGoModuleCacheRemovable(t *testing.T) {
+	root := repositoryRoot(t)
+	script := readText(t, filepath.Join(root, "scripts", "test-s08-clean-clone.ps1"))
+	assertCleanCloneUsesWritableModuleCache(t, script)
+
+	t.Run("seeded read-only module cache is rejected", func(t *testing.T) {
+		seeded := strings.Replace(script, "'-modcacherw'", "'-modcache-readonly'", 1)
+		if cleanCloneUsesWritableModuleCache(seeded) {
+			t.Fatal("clean-clone policy accepted a seeded read-only Go module cache")
+		}
+	})
+}
+
+func assertCleanCloneUsesWritableModuleCache(t *testing.T, script string) {
+	t.Helper()
+	if !cleanCloneUsesWritableModuleCache(script) {
+		t.Fatal("clean-clone verification does not keep its isolated Go module cache removable")
+	}
+}
+
+func cleanCloneUsesWritableModuleCache(script string) bool {
+	for _, required := range []string{
+		"GetEnvironmentVariable('GOFLAGS', 'Process')",
+		"'-modcacherw'",
+		"$env:GOFLAGS",
+		"Remove-Item Env:GOFLAGS",
+	} {
+		if !strings.Contains(script, required) {
+			return false
+		}
+	}
+	flag := strings.Index(script, "'-modcacherw'")
+	nestedVerification := strings.Index(script, "scripts/verify-s08.ps1")
+	cleanup := strings.Index(script, "Remove-Item -LiteralPath $resolvedClone -Recurse -Force")
+	return flag >= 0 && nestedVerification > flag && cleanup > nestedVerification
+}
+
 func assertReleaseWorkflowClosed(t *testing.T, workflow string) {
 	t.Helper()
 	if !releaseWorkflowClosed(workflow) {

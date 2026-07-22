@@ -20,6 +20,7 @@ $composeFile = Join-Path $repositoryRoot 'deploy/local/compose.yaml'
 $configDirectory = Join-Path $repositoryRoot 'deploy/environments'
 $stateRoot = Join-Path $repositoryRoot '.tmp/environments'
 $runtimeFile = Join-Path $stateRoot 'local/runtime.env'
+. (Join-Path $PSScriptRoot 'compose.ps1')
 
 function Invoke-NativeChecked {
     param(
@@ -54,8 +55,7 @@ function Initialize-LocalEnvironment {
 
 function Invoke-Compose {
     param([string[]]$Arguments)
-
-    Invoke-NativeChecked -Command $ContainerRuntime -Arguments (@('compose', '--env-file', $runtimeFile, '--file', $composeFile) + $Arguments)
+    Invoke-AtlasCompose -ContainerRuntime $ContainerRuntime -RuntimeFile $runtimeFile -ComposeFile $composeFile -Arguments $Arguments
 }
 
 function Wait-ForFoundation {

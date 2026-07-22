@@ -1,0 +1,20 @@
+# Default review owner. Hosted enforcement additionally requires a protected
+# branch/ruleset with "Require review from Code Owners" enabled.
+* @MichaelSeveen
+
+# Canonical API/event contracts and compatibility controls.
+/docs/atlas-prd/03-contracts/ @MichaelSeveen
+/internal/contractcompat/ @MichaelSeveen
+/cmd/contractctl/ @MichaelSeveen
+
+# Financial, authorization, cryptographic, migration, CI, and deployment boundaries.
+/internal/ledger/ @MichaelSeveen
+/internal/authorization/ @MichaelSeveen
+/internal/identity/ @MichaelSeveen
+/internal/platform/secret/ @MichaelSeveen
+/db/migrations/ @MichaelSeveen
+/.github/ @MichaelSeveen
+/deploy/ @MichaelSeveen
+/apps/web/Containerfile @MichaelSeveen
+/scripts/verify-s07.ps1 @MichaelSeveen
+/tools/supply-chain.lock.json @MichaelSeveen

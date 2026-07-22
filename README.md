@@ -8,7 +8,7 @@ Atlas is a security-first, multi-currency wallet and financial-operations portfo
 
 ## Toolchain policy
 
-- Go `1.25.7`, with module path `github.com/MichaelSeveen/atlas`, is the backend toolchain.
+- Go `1.25.12`, with module path `github.com/MichaelSeveen/atlas`, is the backend toolchain.
 - React `19.2.7` + TypeScript is the sole frontend framework; Bun `1.3.0` is its pinned package manager, test runner, bundler, and server runtime.
 - `bun.lock` is the only frontend lockfile. The repository has no Node.js runtime or pnpm project tooling.
 - React source uses function components and hooks only; the architecture suite rejects every class declaration under `apps/web/src`.
@@ -74,6 +74,27 @@ pwsh -NoProfile -File ./scripts/s05.ps1 -Action Down
 ```
 
 S05 adds only feature-free PostgreSQL migration, role, readiness, and recovery controls. Real role denials, empty/previous migration lanes, checksum canaries, bounded lock failure, physical backup, WAL archive, and an isolated point-in-time restore are reproducible. The local backup volume is not encrypted, so recovery mechanics pass while `FND-064` remains partial. See [the database foundation](docs/engineering/DATABASE_FOUNDATION.md).
+
+## S06 commands
+
+```powershell
+pwsh -NoProfile -File ./scripts/verify-s06.ps1
+pwsh -NoProfile -File ./scripts/verify-s06.ps1 -Live -ContainerRuntime podman
+pwsh -NoProfile -File ./scripts/s06.ps1 -Action Down -ContainerRuntime podman
+```
+
+S06 adds only the operating baseline: closed source-redacted JSON logs, bounded OTLP traces/metrics, an exported API/readiness/database golden trace, metric/alert catalog checks, an executable Phase 00 threat model, a provider-neutral versioned-secret boundary, and incident runbooks. Telemetry failure does not determine readiness. Queue/retry metrics remain definition-only because no job or broker flow exists, and no product behavior, identity exchange, managed secret provider, or wallet UI is added. See the [S06 evidence](evidence/phase-00/observability-security/S06-observability-security-report.md).
+
+## S07 commands
+
+```powershell
+pwsh -NoProfile -File ./scripts/verify-s07.ps1
+pwsh -NoProfile -File ./scripts/verify-s07.ps1 -History
+pwsh -NoProfile -File ./scripts/test-s07-contract-compatibility.ps1 -BaseRef HEAD
+pwsh -NoProfile -File ./scripts/verify-s07.ps1 -SupplyChain -ContainerRuntime podman
+```
+
+S07 adds only CI, contract, and supply-chain controls: immutable action/image/tool pins, full-history secret scanning, Go/TypeScript security lanes, OpenAPI/AsyncAPI compatibility, four SPDX SBOM surfaces, critical-CVE/license gates, hardened images, CODEOWNERS, Dependabot, and a fail-closed keyless release workflow. Local mechanics pass from a pre-commit worktree; hosted required-check, ruleset, signing, and provenance proof still require committed GitHub runs. See the [S07 evidence](evidence/phase-00/supply-chain/S07-ci-contract-supply-chain-report.md).
 
 ## Repository boundaries
 

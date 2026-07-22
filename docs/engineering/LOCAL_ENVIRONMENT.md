@@ -4,13 +4,13 @@ S04 supplies a feature-free, synthetic-only environment for Phase 00. It starts 
 
 ## Pinned tools and services
 
-The repository builds Go with 1.25.7 and the React application with Bun 1.3.0. React and React DOM are pinned to 19.2.7 in `apps/web/package.json`; `bun.lock` is the only frontend lockfile. No Node.js runtime or pnpm project tooling is used.
+The repository builds Go with 1.25.12 and the React application with Bun 1.3.0. React and React DOM are pinned to 19.2.7 in `apps/web/package.json`; `bun.lock` is the only frontend lockfile. No Node.js runtime or pnpm project tooling is used.
 
 The local stack uses exact image tags for PostgreSQL 18.4 Alpine, Redis 8.2.7 Alpine, NATS 2.14.0 Alpine, MinIO `RELEASE.2025-07-23T15-54-02Z`, OpenTelemetry Collector 0.155.0, and Keycloak 26.7.0. S07 will add immutable-digest promotion, SBOMs, provenance, and vulnerability policy; S04 must not claim those controls.
 
 ## Prerequisites
 
-- Go 1.25.7 and Bun 1.3.0.
+- Go 1.25.12 and Bun 1.3.0.
 - Podman 5.x or Docker with a Compose v2-compatible provider.
 - At least 6 GiB memory available to the container runtime and ports 13000, 14222, 15432, 16379, 18080, 18081, 18222, 19000, and 19001 free on loopback. Port 25432 must also be free during the isolated recovery drill.
 

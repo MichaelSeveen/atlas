@@ -30,6 +30,7 @@ func Prepare(name Name, configDirectory, stateRoot string, now time.Time) (strin
 		return "", fmt.Errorf("create environment state: %w", err)
 	}
 	runtimePath := filepath.Join(target, runtimeEnvironmentFile)
+	// #nosec G304 -- containedEnvironmentTarget proves target remains below stateRoot.
 	if content, err := os.ReadFile(runtimePath); err == nil {
 		values, err := parseRuntimeEnvironment(content)
 		if err != nil {

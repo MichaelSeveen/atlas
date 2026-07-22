@@ -8,7 +8,7 @@ This repository is currently in **Phase 00 — Secure engineering foundation**. 
 
 ## Stack and commands discovered
 
-- Backend: Go only. The module is `github.com/MichaelSeveen/atlas`, derived from the configured GitHub origin, with language baseline Go 1.25.0 and toolchain Go 1.25.7. Separate feature-free `api`, `worker`, and `simulator` entry points exist. The API exposes only the three S03 operational routes; worker and simulator remain inert.
+- Backend: Go only. The module is `github.com/MichaelSeveen/atlas`, derived from the configured GitHub origin, with language baseline Go 1.25.0 and security-patched toolchain Go 1.25.12. Separate feature-free `api`, `worker`, and `simulator` entry points exist. The API exposes only the three S03 operational routes; worker and simulator remain inert.
 - Frontend: React 19.2.7 + TypeScript only, built/tested/served by Bun 1.3.0 with `bun.lock` as the sole lockfile. Do not add Node.js, pnpm, npm, Yarn, Vue, or a competing frontend toolchain. The three S04 route shells are synthetic foundation UI only.
 - React source uses function components and hooks only. Class declarations are forbidden under `apps/web/src` and enforced by `TestFrontendUsesFunctionComponentsOnly`; do not introduce React class components for error handling or any other reason.
 - Authoritative store: PostgreSQL. Redis is ephemeral only. Async fan-out uses a transactional outbox and an at-least-once broker only when required.
@@ -20,10 +20,12 @@ This repository is currently in **Phase 00 — Secure engineering foundation**. 
 - S03 verification: `pwsh -NoProfile -File ./scripts/verify-s03.ps1`.
 - S04 verification: `pwsh -NoProfile -File ./scripts/verify-s04.ps1`; add `-Live` with the synthetic stack running.
 - S05 verification: `pwsh -NoProfile -File ./scripts/verify-s05.ps1`; add `-Live` to run the real PostgreSQL/NATS role, migration, lock, backup, WAL, and isolated-restore checks.
+- S06 verification: `pwsh -NoProfile -File ./scripts/verify-s06.ps1`; add `-Live` for the exported golden trace, metric assertions, and collector-outage readiness exercise.
+- S07 verification: `pwsh -NoProfile -File ./scripts/verify-s07.ps1`; add `-History` for full-history secrets and Govulncheck, and `-SupplyChain -ContainerRuntime podman` for four SBOMs plus image CVE/license/hardening checks.
 - Backend checks: `go test ./...` and `go build ./cmd/api ./cmd/worker ./cmd/simulator`.
 - Boundary/policy checks: `go test ./internal/architecture -count=1`; seeded negatives cover forbidden imports, floating-point money, and direct domain `time.Now()`.
-- S04 composes local PostgreSQL, Redis, NATS, MinIO, the OTel Collector, Keycloak, API, worker, simulator, and web. S05 adds a repository-owned SQL migration manifest/runner, real PostgreSQL roles, pgx-backed migration readiness, and native physical backup/WAL/PITR drills. These remain synthetic local/reference controls only. No product schema, broker stream, identity exchange, runtime telemetry exporter, or financial behavior exists yet.
-- Git is initialized on `main` with origin `https://github.com/MichaelSeveen/atlas.git`. S04 implementation commit `39121a3` is locally post-commit verified; S05 is currently pre-commit at base `199b861` and has not been pushed.
+- S04 composes local PostgreSQL, Redis, NATS, MinIO, the OTel Collector, Keycloak, API, worker, simulator, and web. S05 adds repository-owned PostgreSQL migration/role/recovery controls. S06 exports bounded traces/metrics from the Go processes, emits source-redacted JSON logs, and keeps the collector outside authoritative readiness. S07 adds only CI, contract, SBOM, scanner, ownership, and release-integrity controls. These remain synthetic local/reference controls only. No product schema, broker stream, identity exchange, worker job, managed secret provider, or financial behavior exists yet.
+- Git is initialized on `main` with origin `https://github.com/MichaelSeveen/atlas.git`. S06 is committed as `3342b4d`; S07 is locally verified from an uncommitted worktree based on that revision, while hosted ruleset/signature/provenance proof remains outstanding.
 
 ## Source-of-truth hierarchy
 

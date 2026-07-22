@@ -17,6 +17,7 @@ $composeFile = Join-Path $repositoryRoot 'deploy/local/compose.yaml'
 $configDirectory = Join-Path $repositoryRoot 'deploy/environments'
 $stateRoot = Join-Path $repositoryRoot '.tmp/environments'
 $runtimeFile = Join-Path $stateRoot 'local/runtime.env'
+. (Join-Path $PSScriptRoot 'compose.ps1')
 
 function Invoke-NativeChecked {
     param([string]$Command, [string[]]$Arguments = @())
@@ -34,20 +35,25 @@ function Initialize-DatabaseEnvironment {
 
 function Invoke-Compose {
     param([string[]]$Arguments)
-    Invoke-NativeChecked -Command $ContainerRuntime -Arguments (@('compose', '--env-file', $runtimeFile, '--file', $composeFile) + $Arguments)
+    Invoke-AtlasCompose -ContainerRuntime $ContainerRuntime -RuntimeFile $runtimeFile -ComposeFile $composeFile -Arguments $Arguments
 }
 
 function Wait-Postgres {
     param([string]$Service = 'postgres')
     $deadline = [DateTimeOffset]::UtcNow.AddMinutes(2)
-    $composeArguments = @('compose', '--env-file', $runtimeFile, '--file', $composeFile)
+    $composeArguments = @()
     if ($Service -eq 'postgres-restore') {
         $composeArguments += @('--profile', 'recovery')
     }
     $composeArguments += @('exec', '-T', $Service, 'pg_isready', '-h', '127.0.0.1', '-p', '5432')
     do {
-        & $ContainerRuntime @composeArguments *> $null
-        if ($LASTEXITCODE -eq 0) { return }
+        try {
+            Invoke-AtlasCompose -ContainerRuntime $ContainerRuntime -RuntimeFile $runtimeFile -ComposeFile $composeFile -Arguments $composeArguments *> $null
+            return
+        }
+        catch {
+            # The service is still starting; retry within the bounded deadline.
+        }
         Start-Sleep -Seconds 2
     } while ([DateTimeOffset]::UtcNow -lt $deadline)
     throw "$Service did not become ready before the bounded deadline"
@@ -69,12 +75,24 @@ function Initialize-RolesAndMigrations {
 }
 
 function Test-RealBroker {
-    $server = Invoke-RestMethod -TimeoutSec 5 -Uri 'http://127.0.0.1:18222/varz'
-    $jetstream = Invoke-RestMethod -TimeoutSec 5 -Uri 'http://127.0.0.1:18222/jsz'
-    if ($null -eq $server.jetstream -or $null -eq $jetstream.memory -or $null -eq $jetstream.storage) {
-        throw 'real NATS JetStream integration dependency is unavailable'
-    }
-    Write-Output 'database_integration_broker=REAL_NATS_JETSTREAM'
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(60)
+    $lastFailure = 'monitor endpoint did not respond'
+    do {
+        try {
+            $server = Invoke-RestMethod -TimeoutSec 5 -Uri 'http://127.0.0.1:18222/varz'
+            $jetstream = Invoke-RestMethod -TimeoutSec 5 -Uri 'http://127.0.0.1:18222/jsz'
+            if ($null -ne $server.jetstream -and $null -ne $jetstream.memory -and $null -ne $jetstream.storage) {
+                Write-Output 'database_integration_broker=REAL_NATS_JETSTREAM'
+                return
+            }
+            $lastFailure = 'monitor response did not prove JetStream memory and storage state'
+        }
+        catch {
+            $lastFailure = $_.Exception.Message
+        }
+        Start-Sleep -Seconds 1
+    } while ([DateTimeOffset]::UtcNow -lt $deadline)
+    throw "real NATS JetStream integration dependency was unavailable before the bounded deadline: $lastFailure"
 }
 
 function Invoke-BackupRestore {

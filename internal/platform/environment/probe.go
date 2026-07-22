@@ -13,8 +13,17 @@ type ProbeSet struct {
 }
 
 func NewProbeSet(config Config) ProbeSet {
+	critical := make([]Service, 0, len(config.Services))
+	for _, service := range config.Services {
+		// Telemetry is intentionally non-authoritative. Export failure is an
+		// operational degradation, never an API-readiness dependency.
+		if service.Name == "telemetry" {
+			continue
+		}
+		critical = append(critical, service)
+	}
 	return ProbeSet{
-		services: append([]Service(nil), config.Services...),
+		services: critical,
 		dialer:   net.Dialer{Timeout: 500 * time.Millisecond},
 	}
 }

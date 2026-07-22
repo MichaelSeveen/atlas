@@ -1,0 +1,39 @@
+# CI, contract, and supply-chain boundary
+
+## Scope
+
+S07 is a feature-free Phase 00 control slice. It adds no endpoint, event, schema, identity exchange, broker stream, financial behavior, worker job, or wallet UI. The only mutable contracts remain `docs/atlas-prd/03-contracts/openapi.yaml` and `asyncapi.yaml`.
+
+## Lanes
+
+| Lane | Trigger | Required behavior |
+|---|---|---|
+| PR static | pull request and manual | build, vet, tests, targeted race, Bun frozen install/lint/test/build, contract lint/conformance/examples, migration manifest, complete-history secrets, Gosec, dependency vulnerability checks |
+| PR CodeQL | pull request | independent Go and TypeScript taint/static analysis with retained SARIF |
+| PR integration | pull request | real PostgreSQL/NATS and empty/previous migration lanes through S05 |
+| PR supply chain | pull request | four SPDX SBOMs, critical-vulnerability gate, denied-license gate, source-revision image tags/digests, non-root/read-only runtime proof |
+| Nightly | schedule/manual | S07 supply-chain plus S06 live trace/metric/collector-outage proof |
+| Release | tag/manual | GHCR images tagged by the full source revision, digest-only signing/attestation, SPDX attestation, signature and GitHub provenance verification |
+
+The versioned workflows are not proof that GitHub enforces them. `main` must have a branch ruleset requiring all PR jobs, at least one approval, dismissal of stale approvals, code-owner review, conversation resolution, and no direct bypass except a separately audited emergency path. Capture the ruleset identifier and successful PR run before marking hosted enforcement verified.
+
+## Contract policy
+
+`contractctl lint` checks exact OpenAPI/AsyncAPI versions, YAML parsing, non-empty roots, internal-only references, and reference resolution. `contractctl compare` rejects removed OpenAPI paths/methods/responses/schema fields and removed AsyncAPI channels/operations/messages/schema fields. PR comparison reads the base revision directly from Git and never stores another editable contract. Additive changes still require compatibility and owner review. Product operations described by the canonical planning contract are not implemented by this slice.
+
+## Artifact policy
+
+External images use tag-plus-digest references from `deploy/images.lock.json`. Local/CI builds use full Git SHA tags and OCI revision labels; dirty local proof is marked `UNCOMMITTED_WORKTREE(base=...)`. Release publication, SBOMs, signatures, provenance, and verification address `name@sha256:digest`, never a mutable tag. Grype blocks critical findings; other findings remain visible in the retained JSON report and require normal triage. AGPL/SSPL licenses fail the automated gate; all other new or unknown licenses remain review items.
+
+Keyless OIDC identity fails closed. Signing or attestation outage stops the release. There is no unsigned fallback and no long-lived project signing key. An attestation establishes artifact origin and build metadata, not a claim that the artifact is secure, vulnerability-free, or compliant.
+
+## Reproduce
+
+```powershell
+pwsh -NoProfile -File ./scripts/verify-s07.ps1
+pwsh -NoProfile -File ./scripts/verify-s07.ps1 -History
+pwsh -NoProfile -File ./scripts/verify-s07.ps1 -History -SupplyChain -ContainerRuntime podman
+pwsh -NoProfile -File ./scripts/test-s07-contract-compatibility.ps1 -BaseRef HEAD
+```
+
+`-History` downloads hash-verified scanners and runs the disposable deleted-history secret canary. `-SupplyChain` builds local images and writes disposable reports under `.tmp/s07-reports`; it does not publish or sign them.

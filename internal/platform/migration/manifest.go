@@ -92,6 +92,7 @@ func Load(directory string) ([]Migration, error) {
 			return nil, fmt.Errorf("migration versions must be contiguous from 1; got %d", version)
 		}
 		sqlPath := filepath.Join(directory, sqlEntry.filename)
+		// #nosec G304 -- the manifest filename passed filenamePattern and is checksum-bound below.
 		sqlContent, err := os.ReadFile(sqlPath)
 		if err != nil {
 			return nil, fmt.Errorf("read migration SQL: %w", err)
@@ -120,6 +121,7 @@ func Load(directory string) ([]Migration, error) {
 }
 
 func readManifest(path string) ([]manifestEntry, error) {
+	// #nosec G304 -- path is the fixed MANIFEST.sha256 below the operator-selected migration directory.
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open migration manifest: %w", err)
@@ -154,6 +156,7 @@ func verifyClosedInventory(directory string, entries []manifestEntry) error {
 	want := make(map[string]string, len(entries))
 	for _, entry := range entries {
 		want[entry.filename] = entry.checksum
+		// #nosec G304 -- readManifest rejects separators and requires a base filename.
 		content, err := os.ReadFile(filepath.Join(directory, entry.filename))
 		if err != nil {
 			return fmt.Errorf("read manifested migration file: %w", err)
@@ -188,6 +191,7 @@ func verifyClosedInventory(directory string, entries []manifestEntry) error {
 }
 
 func loadRiskMetadata(path string) (RiskMetadata, error) {
+	// #nosec G304 -- path uses the already-validated migration base filename and directory.
 	file, err := os.Open(path)
 	if err != nil {
 		return RiskMetadata{}, err

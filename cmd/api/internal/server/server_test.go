@@ -11,12 +11,17 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/MichaelSeveen/atlas/internal/platform/clock"
 	"github.com/MichaelSeveen/atlas/internal/platform/identifier"
+	"github.com/MichaelSeveen/atlas/internal/platform/logging"
+	"go.opentelemetry.io/otel/attribute"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	metricdata "go.opentelemetry.io/otel/sdk/metric/metricdata"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 const (
@@ -43,43 +48,9 @@ func (r *sequentialReader) Read(target []byte) (int, error) {
 	return len(target), nil
 }
 
-type traceCollector struct {
-	mu    sync.Mutex
-	spans []Span
-}
+type panickingLogger struct{}
 
-func (c *traceCollector) Record(span Span) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.spans = append(c.spans, span)
-}
-
-func (c *traceCollector) snapshot() []Span {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return append([]Span(nil), c.spans...)
-}
-
-type metricsCollector struct {
-	mu           sync.Mutex
-	observations []RequestObservation
-}
-
-type panickingRecorder struct{}
-
-func (panickingRecorder) Record(Span) {
-	panic("person@example.test")
-}
-
-func (panickingRecorder) ObserveRequest(RequestObservation) {
-	panic("person@example.test")
-}
-
-func (c *metricsCollector) ObserveRequest(observation RequestObservation) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.observations = append(c.observations, observation)
-}
+func (panickingLogger) Record(logging.Record) error { panic("person@example.test") }
 
 func staticID(prefix string) (identifier.ID, error) {
 	return identifier.Parse(prefix + "_00000000000000000001")
@@ -97,6 +68,9 @@ func newTestApp(t *testing.T, state ReadinessState, modify func(*Options)) *App 
 		Clock:     clock.NewFixed(testBuildTime),
 		NewID:     staticID,
 		Entropy:   &sequentialReader{next: 1},
+		Tracer: sdktrace.NewTracerProvider(
+			sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		).Tracer("atlas-server-test"),
 	}
 	if modify != nil {
 		modify(&options)
@@ -232,11 +206,16 @@ func TestMigrationLagFailsReadinessOnly(t *testing.T) {
 }
 
 func TestGoldenSyntheticTraceAndBoundedMetrics(t *testing.T) {
-	traces := &traceCollector{}
-	metrics := &metricsCollector{}
+	spans := tracetest.NewSpanRecorder()
+	tracerProvider := sdktrace.NewTracerProvider(
+		sdktrace.WithSpanProcessor(spans),
+		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.AlwaysSample())),
+	)
+	reader := sdkmetric.NewManualReader()
+	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 	app := newTestApp(t, ReadinessState{DependenciesReady: true, MigrationsCurrent: true}, func(options *Options) {
-		options.Traces = traces
-		options.Metrics = metrics
+		options.Tracer = tracerProvider.Tracer("atlas-golden-test")
+		options.Meter = meterProvider.Meter("atlas-golden-test")
 	})
 	request := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
 	request.Header.Set("X-Request-Id", validRequestID)
@@ -255,31 +234,84 @@ func TestGoldenSyntheticTraceAndBoundedMetrics(t *testing.T) {
 		t.Fatalf("trace continuity failed: %q", response.Header().Get("traceparent"))
 	}
 
-	spans := traces.snapshot()
-	if len(spans) != 2 {
-		t.Fatalf("spans = %d, want readiness child + server", len(spans))
+	endedSpans := spans.Ended()
+	if len(endedSpans) != 2 {
+		t.Fatalf("spans = %d, want readiness child + server", len(endedSpans))
 	}
-	child, serverSpan := spans[0], spans[1]
-	if child.Name != "readiness.check" || serverSpan.Name != "GET /health/ready" {
-		t.Fatalf("span names = %q, %q", child.Name, serverSpan.Name)
+	var child, serverSpan sdktrace.ReadOnlySpan
+	for _, span := range endedSpans {
+		switch span.Name() {
+		case "readiness.check":
+			child = span
+		case "GET /health/ready":
+			serverSpan = span
+		}
 	}
-	if child.TraceID != serverSpan.TraceID || child.ParentSpanID != serverSpan.SpanID || serverSpan.ParentSpanID != "00f067aa0ba902b7" {
-		t.Fatalf("trace linkage changed: child=%+v server=%+v", child, serverSpan)
+	if child == nil || serverSpan == nil {
+		t.Fatal("golden span names were not exported")
 	}
-	if child.SpanID == serverSpan.SpanID {
+	if child.SpanContext().TraceID() != serverSpan.SpanContext().TraceID() || child.Parent().SpanID() != serverSpan.SpanContext().SpanID() || serverSpan.Parent().SpanID().String() != "00f067aa0ba902b7" {
+		t.Fatalf("trace linkage changed: child=%s/%s server=%s/%s", child.SpanContext().TraceID(), child.Parent().SpanID(), serverSpan.SpanContext().SpanID(), serverSpan.Parent().SpanID())
+	}
+	if child.SpanContext().SpanID() == serverSpan.SpanContext().SpanID() {
 		t.Fatal("golden trace reused a span identifier")
 	}
-	serialized, _ := json.Marshal(spans)
-	if strings.Contains(string(serialized), "person@example.test") {
-		t.Fatal("trace contained an unsafe high-cardinality value")
+	for _, span := range endedSpans {
+		for _, item := range span.Attributes() {
+			if strings.Contains(item.Value.Emit(), "person@example.test") {
+				t.Fatal("trace contained an unsafe high-cardinality value")
+			}
+		}
 	}
 
-	if len(metrics.observations) != 1 {
-		t.Fatalf("metric observations = %d", len(metrics.observations))
+	var metrics metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &metrics); err != nil {
+		t.Fatal(err)
 	}
-	observed := metrics.observations[0]
-	if observed.Route != "/health/ready" || observed.Method != http.MethodGet || observed.StatusCode != http.StatusOK {
-		t.Fatalf("unexpected metric labels: %+v", observed)
+	observedNames := make(map[string]bool)
+	for _, scope := range metrics.ScopeMetrics {
+		for _, metric := range scope.Metrics {
+			if metric.Name == "http.server.request.count" || metric.Name == "http.server.request.duration" {
+				observedNames[metric.Name] = true
+				assertBoundedMetricAttributes(t, metric.Data)
+			}
+		}
+	}
+	if !observedNames["http.server.request.count"] || !observedNames["http.server.request.duration"] {
+		t.Fatalf("RED metrics missing: %v", observedNames)
+	}
+}
+
+func assertBoundedMetricAttributes(t *testing.T, data any) {
+	t.Helper()
+	sets := make([]attribute.Set, 0, 1)
+	switch typed := data.(type) {
+	case metricdata.Sum[int64]:
+		for _, point := range typed.DataPoints {
+			sets = append(sets, point.Attributes)
+		}
+	case metricdata.Histogram[float64]:
+		for _, point := range typed.DataPoints {
+			sets = append(sets, point.Attributes)
+		}
+	default:
+		t.Fatalf("unexpected RED aggregation %T", data)
+	}
+	if len(sets) != 1 {
+		t.Fatalf("metric points = %d, want 1", len(sets))
+	}
+	want := map[string]string{
+		"http.request.method": "GET", "http.route": "/health/ready", "atlas.outcome": "ok", "http.response.status_code": "200",
+	}
+	for _, item := range sets[0].ToSlice() {
+		value, allowed := want[string(item.Key)]
+		if !allowed || item.Value.Emit() != value {
+			t.Fatalf("unbounded or unexpected metric attribute: %s=%s", item.Key, item.Value.Emit())
+		}
+		delete(want, string(item.Key))
+	}
+	if len(want) != 0 {
+		t.Fatalf("metric attributes missing: %v", want)
 	}
 }
 
@@ -304,7 +336,7 @@ func TestInvalidRequestMetadataIsReplacedNotReflected(t *testing.T) {
 	}
 }
 
-func TestIdentifierAndTelemetryDegradationRemainSafe(t *testing.T) {
+func TestIdentifierAndLoggingDegradationRemainSafe(t *testing.T) {
 	calls := 0
 	generator := func(prefix string) (identifier.ID, error) {
 		calls++
@@ -315,8 +347,7 @@ func TestIdentifierAndTelemetryDegradationRemainSafe(t *testing.T) {
 	}
 	app := newTestApp(t, ReadinessState{DependenciesReady: true, MigrationsCurrent: true}, func(options *Options) {
 		options.NewID = generator
-		options.Traces = panickingRecorder{}
-		options.Metrics = panickingRecorder{}
+		options.Logs = panickingLogger{}
 	})
 	response := perform(app.Handler(), http.MethodGet, "/health/live", nil)
 	if response.Code != http.StatusServiceUnavailable {
@@ -328,8 +359,7 @@ func TestIdentifierAndTelemetryDegradationRemainSafe(t *testing.T) {
 	}
 
 	healthy := newTestApp(t, ReadinessState{DependenciesReady: true, MigrationsCurrent: true}, func(options *Options) {
-		options.Traces = panickingRecorder{}
-		options.Metrics = panickingRecorder{}
+		options.Logs = panickingLogger{}
 	})
 	healthyResponse := perform(healthy.Handler(), http.MethodGet, "/health/ready", nil)
 	if healthyResponse.Code != http.StatusOK {

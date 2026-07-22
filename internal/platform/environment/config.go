@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/MichaelSeveen/atlas/internal/platform/secret"
 )
 
 const (
@@ -85,6 +87,7 @@ var localServiceHosts = map[string]string{
 }
 
 func Load(path string, now time.Time) (Config, error) {
+	// #nosec G304 -- envctl supplies a repository-owned configuration path, not remote input.
 	file, err := os.Open(path)
 	if err != nil {
 		return Config{}, fmt.Errorf("open environment configuration: %w", err)
@@ -272,8 +275,8 @@ func (c Config) validateCredentialRefs() error {
 		if !found {
 			return fmt.Errorf("credential reference %s is absent", purpose)
 		}
-		want := "secret://atlas/" + string(c.Environment) + "/" + purpose
-		if value != want {
+		reference, err := secret.ParseReference(value)
+		if err != nil || reference.Environment() != string(c.Environment) || reference.Purpose() != purpose {
 			return fmt.Errorf("credential reference %s is not environment-scoped", purpose)
 		}
 	}

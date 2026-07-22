@@ -14,7 +14,7 @@ x-app-security: &app-security
 
 services:
   postgres:
-    image: docker.io/library/postgres:18.4-alpine
+    image: docker.io/library/postgres:18.4-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15
     entrypoint: ["/database/recovery/postgres-entrypoint.sh"]
     environment:
       POSTGRES_DB: ${ATLAS_POSTGRES_DB:?required}
@@ -55,7 +55,7 @@ services:
     networks: [atlas-internal]
 
   redis:
-    image: docker.io/library/redis:8.2.7-alpine
+    image: docker.io/library/redis:8.2.7-alpine@sha256:223b183cbc49f5ff48728e1fc52ccf101f05072decad2bd9867281a3c9bf75fd
     command: ["sh", "-c", "exec redis-server --appendonly no --save '' --requirepass \"$${ATLAS_REDIS_PASSWORD}\" --maxmemory 64mb --maxmemory-policy allkeys-lru"]
     environment:
       ATLAS_REDIS_PASSWORD: ${ATLAS_REDIS_PASSWORD:?required}
@@ -74,7 +74,7 @@ services:
     networks: [atlas-internal]
 
   nats:
-    image: docker.io/library/nats:2.14.0-alpine
+    image: docker.io/library/nats:2.14.0-alpine@sha256:4e4b6c6da8e5dd1c1972aef235279bb99a4554e3277969c25baf06fe75bf3a47
     command: ["-c", "/etc/nats/nats.conf"]
     environment:
       ATLAS_NATS_TOKEN: ${ATLAS_NATS_TOKEN:?required}
@@ -92,7 +92,7 @@ services:
     networks: [atlas-internal]
 
   minio:
-    image: quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z
+    image: quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z@sha256:d249d1fb6966de4d8ad26c04754b545205ff15a62e4fd19ebd0f26fa5baacbc0
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
       MINIO_ROOT_USER: ${ATLAS_MINIO_ROOT_USER:?required}
@@ -111,7 +111,7 @@ services:
     networks: [atlas-internal]
 
   otel-collector:
-    image: docker.io/otel/opentelemetry-collector:0.155.0
+    image: docker.io/otel/opentelemetry-collector:0.155.0@sha256:140cdb56eeea12ebc33bb4f7109fd4eef90391933f8d85b33384fcfe1cf040c4
     command: ["--config=/etc/otelcol/config.yaml"]
     volumes:
       - ./otel-collector.yaml:/etc/otelcol/config.yaml:ro
@@ -123,7 +123,7 @@ services:
     networks: [atlas-internal]
 
   keycloak:
-    image: quay.io/keycloak/keycloak:26.7.0
+    image: quay.io/keycloak/keycloak:26.7.0@sha256:1362a9d9f13ab325231ea133610cc905e12805804abc7acbef552dd613720aa6
     command: ["start-dev", "--import-realm", "--http-enabled=true", "--hostname-strict=false"]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${ATLAS_KEYCLOAK_ADMIN:?required}
@@ -144,7 +144,7 @@ services:
 
   api:
     <<: *app-security
-    image: localhost/atlas-api:s05
+    image: localhost/atlas-backend:s06
     build:
       context: ../..
       dockerfile: deploy/local/Containerfile.backend
@@ -174,10 +174,7 @@ services:
 
   worker:
     <<: *app-security
-    image: localhost/atlas-worker:s05
-    build:
-      context: ../..
-      dockerfile: deploy/local/Containerfile.backend
+    image: localhost/atlas-backend:s06
     entrypoint: ["/atlas/worker"]
     environment:
       ATLAS_ENV_CONFIG: /config/environment.json
@@ -192,10 +189,7 @@ services:
 
   simulator:
     <<: *app-security
-    image: localhost/atlas-simulator:s05
-    build:
-      context: ../..
-      dockerfile: deploy/local/Containerfile.backend
+    image: localhost/atlas-backend:s06
     entrypoint: ["/atlas/simulator"]
     environment:
       ATLAS_ENV_CONFIG: /config/environment.json
@@ -209,6 +203,8 @@ services:
     build:
       context: ../../apps/web
       dockerfile: Containerfile
+      args:
+        SOURCE_REVISION: ${ATLAS_SOURCE_REVISION:-development}
     environment:
       ATLAS_ENVIRONMENT: local
       ATLAS_ENVIRONMENT_BANNER: LOCAL — SYNTHETIC DATA ONLY
@@ -223,7 +219,7 @@ services:
       retries: 30
 
   postgres-restore:
-    image: docker.io/library/postgres:18.4-alpine
+    image: docker.io/library/postgres:18.4-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15
     profiles: [recovery]
     entrypoint: ["/recovery/restore-entrypoint.sh"]
     environment:

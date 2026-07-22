@@ -2,8 +2,10 @@
 
 - **Evidence ID:** EVD-P00-S08-005
 - **Created:** 2026-07-22T20:18:37Z
+- **Last verified:** 2026-07-22T20:59:17Z
 - **Implementation revision:** `eae43b62f3e0e3f95a09bff46f1ac73217dde5c3`
-- **Observed local source:** `UNCOMMITTED_WORKTREE(base=7b2f67053ab2af5ccd51713de4e7935fe2bfad81)`; the verified implementation files were subsequently committed as `1c42cefec692d3b676d681ea841119867b267ddd`, followed only by release-gate documentation in the implementation revision above
+- **Exact combined verification revision:** `7b1e28ed8e52bc44d593b6114372c28782c8468a`
+- **Earlier focused source:** `UNCOMMITTED_WORKTREE(base=7b2f67053ab2af5ccd51713de4e7935fe2bfad81)`; preserved only as discovery history and superseded by the exact committed combined run above
 - **Requirements:** advances FND-010, FND-023, and FND-024 without claiming hosted publication
 - **Threats:** THR-013; THR-014; THR-018; THR-019; THR-030; THR-042; THR-060
 - **Result:** PASS for local full-stack, recovery, constrained-pool, and bounded web shutdown behavior; PASS for fail-before-publish workflow policy; hosted release remains NOT RUN
@@ -23,13 +25,15 @@
 |---|---|
 | Bun typecheck and tests | PASS; five tests, including graceful, forced, and repeated-signal shutdown cases |
 | Architecture policy and seeded release negatives | PASS |
-| S07 static CI-equivalent | PASS from the pre-commit worktree |
+| Exact full S08 command | PASS from clean committed revision `7b1e28ed8e52bc44d593b6114372c28782c8468a`, including history, supply chain, live, and clean-clone modes |
+| S07 history and supply chain | PASS; complete-history secret scan, reachable-vulnerability analysis, four SPDX SBOM surfaces, critical-CVE/license policy, and hardened image execution |
 | Complete synthetic stack smoke | PASS for API, web shells, Keycloak realm, NATS JetStream, and MinIO |
 | Golden trace and collector outage | PASS; fixed API/readiness/database trace and readiness `200` during collector outage |
 | Real database/broker lanes | PASS for roles, migrations, empty/previous lanes, long-lock abort, and real NATS |
-| Backup/WAL/isolated restore | PASS; base backup 8 seconds and isolated restore 45 seconds |
+| Backup/WAL/isolated restore | PASS; base backup 16 seconds and isolated restore 46 seconds |
 | Constrained database pool | PASS with one real PostgreSQL connection; local CGO-disabled host cannot supply race proof |
-| Web container shutdown | PASS; exit code `0`, observed Compose stop duration `6303ms`, eight-second deadline |
+| Web container shutdown | PASS; exit code `0`, observed Compose stop duration `6349ms`, eight-second deadline |
+| Clean-clone replay | PASS from exact committed revision `7b1e28ed8e52bc44d593b6114372c28782c8468a` with isolated clone-local Go/Bun caches |
 | Full hosted release | NOT RUN; no registry authentication, GHCR artifact, signature, or attestation was created |
 
 ## Reproduce
@@ -42,7 +46,7 @@ pwsh -NoProfile -File ./scripts/verify-s07.ps1
 pwsh -NoProfile -File ./scripts/verify-s08.ps1 -Live -History -SupplyChain -CleanClone -ContainerRuntime podman
 ```
 
-The final combined S08 command is intentionally rerun from the committed evidence revision before this branch is pushed. Hosted Linux PR checks must then provide race/Gosec/CodeQL and protected-workflow evidence. The release workflow must remain untriggered until separately authorized.
+The final combined S08 command passed from committed revision `7b1e28ed8e52bc44d593b6114372c28782c8468a` before this branch was pushed. Hosted Linux PR checks must now provide race/Gosec/CodeQL and protected-workflow evidence. The release workflow remains untriggered and requires separate authorization.
 
 ## Sanitization and limitations
 

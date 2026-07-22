@@ -1,5 +1,7 @@
-# Default review owner. Hosted enforcement additionally requires a protected
-# branch/ruleset with "Require review from Code Owners" enabled.
+# Ownership map for solo synthetic mode under ADR 0012. MichaelSeveen is the
+# accountable owner; self-review is not represented as independent approval.
+# A superseding ADR and genuine second maintainer are required before enabling
+# independent code-owner approval or crossing a policy revalidation trigger.
 * @MichaelSeveen
 
 # Canonical API/event contracts and compatibility controls.

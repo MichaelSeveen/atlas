@@ -31,6 +31,9 @@ try {
     $changes = (& git status --porcelain=v1 | Out-String).Trim()
     $sourceRevision = if ($changes.Length -eq 0) { $baseRevision } else { "UNCOMMITTED_WORKTREE(base=$baseRevision)" }
 
+    & (Join-Path $PSScriptRoot 'test-solo-maintainer-governance.ps1')
+    if (-not $?) { throw 'Solo-maintainer governance canaries failed.' }
+
     $unformatted = (& gofmt -l ./cmd ./internal ./tests | Out-String).Trim()
     if ($unformatted.Length -ne 0) { throw "Unformatted Go source:`n$unformatted" }
     Invoke-NativeChecked 'go' @('build', './cmd/api', './cmd/worker', './cmd/simulator', './cmd/envctl', './cmd/dbctl', './cmd/contractctl')
@@ -96,7 +99,7 @@ try {
         Write-Output 's07_supply_chain=NOT_REQUESTED(use -SupplyChain)'
     }
 
-    Write-Output 's07_seeded_negatives=mutable-action,breaking-openapi,breaking-asyncapi,unresolved-reference,deleted-history-secret'
+    Write-Output 's07_seeded_negatives=mutable-action,breaking-openapi,breaking-asyncapi,unresolved-reference,deleted-history-secret,sensitive-path,incomplete-solo-attestation'
     Write-Output 's07_named_skipped_tests=1,7'
     Write-Output "source_revision=$sourceRevision"
     Write-Output 's07_hosted_enforcement=UNVERIFIED'

@@ -17,6 +17,7 @@ Architecture decisions are not hidden in code or social posts. Each major choice
 | 0009 | React route shells with Bun | preserve one frontend choice and safe actor-shell boundaries without Node.js/pnpm project tooling |
 | 0010 | Native PostgreSQL migration and recovery controls | keep released SQL reviewable, runtime roles schema-inert, and PITR drills isolated before product data exists |
 | 0011 | GitHub Actions and keyless release integrity | bind reviewed source, immutable image digests, SBOMs, signatures, and provenance without a long-lived signing key |
+| 0012 | Solo-maintainer sensitive-change governance | preserve honest synthetic-only progress with protected automated gates and explicit triggers for future independent review |
 
 See `06-governance/adrs/`.
 

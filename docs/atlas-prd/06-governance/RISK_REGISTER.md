@@ -36,6 +36,7 @@ Likelihood and impact use `Low`, `Medium`, `High`, `Critical`. Residual rating i
 | RSK-028 | Test suite gives confidence without independent oracle | High | model/differential/mutation requirements | mutation score and oracle review | Low |
 | RSK-029 | Public demo is abused or mistaken for real financial service | High | synthetic labels, quotas, reset, no real rails, disclaimer | deployment/security review | Low |
 | RSK-030 | Legal/regulatory interpretation is wrong or outdated | High | frame as design reference; qualified review required for real use | baseline version/review record | Medium |
+| RSK-031 | Solo maintainer introduces or approves a sensitive defect without independent challenge | High | synthetic-only scope, protected pull requests, required hosted gates, sensitive-change declaration, fresh-context self-review, independent-review triggers | ADR 0012; policy canaries; ruleset and PR evidence; qualified review before trigger | Medium |
 
 ## Risk review questions
 

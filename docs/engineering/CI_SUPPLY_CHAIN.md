@@ -15,7 +15,7 @@ S07 is a feature-free Phase 00 control slice. It adds no endpoint, event, schema
 | Nightly | schedule/manual | S07 supply-chain plus S06 live trace/metric/collector-outage proof |
 | Release | tag/manual | GHCR images tagged by the full source revision, digest-only signing/attestation, SPDX attestation, signature and GitHub provenance verification |
 
-The versioned workflows are not proof that GitHub enforces them. `main` must have a branch ruleset requiring all PR jobs, at least one approval, dismissal of stale approvals, code-owner review, conversation resolution, and no direct bypass except a separately audited emergency path. Capture the ruleset identifier and successful PR run before marking hosted enforcement verified.
+The versioned workflows are not proof that GitHub enforces them. Under [ADR 0012](../atlas-prd/06-governance/adrs/0012-solo-maintainer-sensitive-change-governance.md), `main` must have a branch ruleset requiring pull requests, all PR jobs, conversation resolution, deletion/non-fast-forward protection, and no unrecorded bypass. While the closed synthetic solo policy is active, required human approvals remain zero because the only owner cannot independently approve their own work; sensitive PRs instead require the machine-checked declaration and fresh-context self-review. This is an accepted deviation, not independent-review evidence. Capture the ruleset identifier and successful PR run before marking hosted enforcement verified. A genuine code-owner approval becomes mandatory before any policy revalidation trigger.
 
 ## Contract policy
 
@@ -31,6 +31,7 @@ Keyless OIDC identity fails closed. Signing or attestation outage stops the rele
 
 ```powershell
 pwsh -NoProfile -File ./scripts/verify-s07.ps1
+pwsh -NoProfile -File ./scripts/test-solo-maintainer-governance.ps1
 pwsh -NoProfile -File ./scripts/verify-s07.ps1 -History
 pwsh -NoProfile -File ./scripts/verify-s07.ps1 -History -SupplyChain -ContainerRuntime podman
 pwsh -NoProfile -File ./scripts/test-s07-contract-compatibility.ps1 -BaseRef HEAD

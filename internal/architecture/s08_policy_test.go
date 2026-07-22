@@ -147,6 +147,13 @@ func TestReleasePublishesOnlyAfterFullLiveAcceptance(t *testing.T) {
 			t.Fatal("release policy accepted an attestation verifier without the GitHub token binding")
 		}
 	})
+
+	t.Run("seeded missing SBOM attestation verification is rejected", func(t *testing.T) {
+		seeded := strings.Replace(workflow, "https://spdx.dev/Document/v2.3", "https://example.invalid/seeded-missing-spdx", 1)
+		if releaseWorkflowClosed(seeded) {
+			t.Fatal("release policy accepted incomplete attestation verification")
+		}
+	})
 }
 
 func TestS08CleanCloneKeepsItsGoModuleCacheRemovable(t *testing.T) {
@@ -199,6 +206,11 @@ func releaseWorkflowClosed(workflow string) bool {
 		"startsWith(github.ref, 'refs/tags/v')",
 		"verify-s08.ps1 -Live -History -SupplyChain -CleanClone -ContainerRuntime docker",
 		"GH_TOKEN: ${{ github.token }}",
+		"--signer-workflow",
+		"--source-digest",
+		"--source-ref",
+		"https://slsa.dev/provenance/v1",
+		"https://spdx.dev/Document/v2.3",
 	} {
 		if !strings.Contains(workflow, required) {
 			return false

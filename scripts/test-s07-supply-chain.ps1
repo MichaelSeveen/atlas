@@ -151,7 +151,12 @@ try {
                 throw "Web image Bun runtime mismatch: expected 1.3.0, observed $bunVersion."
             }
         }
-        $digest = [string]$inspect.Digest
+        # Docker does not expose Digest for an image built only in the local
+        # daemon, while Podman may expose it. Id is immutable in both engines.
+        $digest = ''
+        if ($null -ne $inspect.PSObject.Properties['Digest']) {
+            $digest = [string]$inspect.Digest
+        }
         if ($digest -notmatch '^sha256:[0-9a-f]{64}$') {
             $digest = [string]$inspect.Id
         }

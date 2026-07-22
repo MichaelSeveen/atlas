@@ -59,8 +59,16 @@ jobs:
         run: ./scripts/verify-s05.ps1 -Live -ContainerRuntime docker
 
   codeql:
-    name: codeql-go-typescript
+    name: codeql-go-typescript-${{ matrix.language }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: go
+            build-mode: manual
+          - language: javascript-typescript
+            build-mode: none
     permissions:
       contents: read
     steps:
@@ -68,21 +76,29 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
+      - name: Set up Go for manual extraction
+        if: matrix.language == 'go'
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version-file: .go-version
       - name: Initialize CodeQL
         uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
         with:
-          languages: go,javascript-typescript
-          build-mode: none
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+      - name: Build Go entry points for CodeQL
+        if: matrix.language == 'go'
+        run: go build ./cmd/api ./cmd/worker ./cmd/simulator ./cmd/envctl ./cmd/dbctl ./cmd/contractctl
       - name: Analyze without repository upload
         uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
         with:
-          category: /language:go-javascript-typescript
+          category: /language:${{ matrix.language }}
           upload: never
           output: .tmp/codeql-results
       - name: Retain CodeQL SARIF
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: s07-codeql-${{ github.sha }}
+          name: s07-codeql-${{ matrix.language }}-${{ github.sha }}
           path: .tmp/codeql-results/
           if-no-files-found: error
           retention-days: 14

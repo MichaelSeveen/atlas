@@ -76,7 +76,9 @@ try {
             Write-Output 's07_gosec=NOT_AVAILABLE(unbounded-Windows-analysis;full-Gosec-and-CodeQL-required-on-GitHub-Linux)'
         }
         else {
-            Invoke-NativeChecked $gosec @('-quiet', '-exclude-generated', './...')
+            # Tool downloads and module/build caches live below .tmp. They are
+            # verified independently and are not repository-owned source.
+            Invoke-NativeChecked $gosec @('-quiet', '-exclude-generated', '-exclude-dir', '.tmp', './...')
             Write-Output 's07_gosec=PASS(full)'
         }
         Invoke-NativeChecked 'go' @('run', [string]$goTools.tools.govulncheck, './...')

@@ -121,6 +121,50 @@ func TestS08AcceptanceWiresFailureChecksAndHonestAbsences(t *testing.T) {
 	}
 }
 
+func TestReleasePublishesOnlyAfterFullLiveAcceptance(t *testing.T) {
+	root := repositoryRoot(t)
+	workflow := readText(t, filepath.Join(root, ".github", "workflows", "release.yml"))
+	assertReleaseWorkflowClosed(t, workflow)
+
+	t.Run("seeded missing live preflight is rejected", func(t *testing.T) {
+		seeded := strings.Replace(workflow, "-Live -History", "-History", 1)
+		if releaseWorkflowClosed(seeded) {
+			t.Fatal("release policy accepted a seeded workflow without live acceptance")
+		}
+	})
+
+	t.Run("seeded publish before preflight is rejected", func(t *testing.T) {
+		seeded := strings.Replace(workflow, "- name: Authenticate to GHCR", "- name: Authenticate to GHCR\n        # seeded before-preflight marker", 1)
+		seeded = strings.Replace(seeded, "      - name: Run release preflight", "      - name: Authenticate to GHCR\n        # seeded before-preflight marker\n      - name: Run release preflight", 1)
+		if releaseWorkflowClosed(seeded) {
+			t.Fatal("release policy accepted a seeded registry action before preflight")
+		}
+	})
+}
+
+func assertReleaseWorkflowClosed(t *testing.T, workflow string) {
+	t.Helper()
+	if !releaseWorkflowClosed(workflow) {
+		t.Fatal("release workflow does not keep full live acceptance ahead of registry mutation")
+	}
+}
+
+func releaseWorkflowClosed(workflow string) bool {
+	for _, required := range []string{
+		"github.ref == 'refs/heads/main'",
+		"startsWith(github.ref, 'refs/tags/v')",
+		"verify-s08.ps1 -Live -History -SupplyChain -CleanClone -ContainerRuntime docker",
+	} {
+		if !strings.Contains(workflow, required) {
+			return false
+		}
+	}
+	preflight := strings.Index(workflow, "- name: Run release preflight")
+	authenticate := strings.Index(workflow, "- name: Authenticate to GHCR")
+	firstPush := strings.Index(workflow, "push: true")
+	return preflight >= 0 && authenticate > preflight && firstPush > authenticate
+}
+
 func readText(t *testing.T, path string) string {
 	t.Helper()
 	content, err := os.ReadFile(path)

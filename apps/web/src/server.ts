@@ -1,3 +1,5 @@
+import {createBoundedShutdown} from "./server-lifecycle";
+
 const port = Number(Bun.env.ATLAS_WEB_PORT ?? "3000");
 const environment = Bun.env.ATLAS_ENVIRONMENT ?? "local";
 const banner = Bun.env.ATLAS_ENVIRONMENT_BANNER ?? "LOCAL — SYNTHETIC DATA ONLY";
@@ -21,7 +23,7 @@ const commonHeaders = {
   "X-Frame-Options": "DENY",
 };
 
-Bun.serve({
+const server = Bun.serve({
   hostname: "0.0.0.0",
   port,
   maxRequestBodySize: 16 * 1024,
@@ -42,3 +44,20 @@ Bun.serve({
     return new Response(index, {headers: {...commonHeaders, "Content-Type": "text/html; charset=utf-8"}});
   },
 });
+
+const shutdown = createBoundedShutdown(server, 4_000);
+let terminationStarted = false;
+
+function handleTermination() {
+  if (terminationStarted) {
+    return;
+  }
+  terminationStarted = true;
+  void shutdown().then(
+    () => process.exit(0),
+    () => process.exit(1),
+  );
+}
+
+process.once("SIGINT", handleTermination);
+process.once("SIGTERM", handleTermination);

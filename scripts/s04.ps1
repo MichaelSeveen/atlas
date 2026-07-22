@@ -58,6 +58,31 @@ function Invoke-Compose {
     Invoke-AtlasCompose -ContainerRuntime $ContainerRuntime -RuntimeFile $runtimeFile -ComposeFile $composeFile -Arguments $Arguments
 }
 
+function Stop-WebWithinDeadline {
+    $containerID = (Invoke-AtlasContainer -ContainerRuntime $ContainerRuntime -RepositoryRoot $repositoryRoot -Arguments @(
+        'ps', '--all',
+        '--filter', 'label=com.docker.compose.project=atlas-local',
+        '--filter', 'label=com.docker.compose.service=web',
+        '--format', '{{.ID}}'
+    ) | Out-String).Trim()
+    if ($containerID.Length -eq 0) {
+        Write-Output 's04_web_shutdown=NOT_RUNNING'
+        return
+    }
+
+    $started = [DateTimeOffset]::UtcNow
+    Invoke-Compose -Arguments @('stop', '--timeout', '8', 'web')
+    $elapsedMilliseconds = [Math]::Ceiling(([DateTimeOffset]::UtcNow - $started).TotalMilliseconds)
+    $exitCode = (Invoke-AtlasContainer -ContainerRuntime $ContainerRuntime -RepositoryRoot $repositoryRoot -Arguments @('inspect', '--format', '{{.State.ExitCode}}', $containerID) | Out-String).Trim()
+    if ($exitCode -ne '0') {
+        throw "Web process did not exit cleanly after SIGTERM; container exit code was $exitCode"
+    }
+    if ($elapsedMilliseconds -gt 8000) {
+        throw "Web process exceeded its eight-second container shutdown deadline: ${elapsedMilliseconds}ms"
+    }
+    Write-Output "s04_web_shutdown=PASS(exit=0,elapsed_ms=$elapsedMilliseconds)"
+}
+
 function Wait-ForFoundation {
     $deadline = [DateTimeOffset]::UtcNow.AddMinutes(5)
     do {
@@ -90,7 +115,12 @@ try {
         }
         'Down' {
             if (Test-Path -LiteralPath $runtimeFile) {
-                Invoke-Compose -Arguments @('down', '--remove-orphans')
+                try {
+                    Stop-WebWithinDeadline
+                }
+                finally {
+                    Invoke-Compose -Arguments @('down', '--remove-orphans')
+                }
             }
             Write-Output 's04_environment_down=PASS'
         }

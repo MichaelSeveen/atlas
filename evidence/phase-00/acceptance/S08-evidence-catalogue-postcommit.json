@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "evidence_id": "EVD-P00-S08-001",
-  "created_at": "2026-07-22T22:31:32Z",
-  "source_revision": "4b34edda1ac89f64840841a1f82e0ddd4159882f",
+  "created_at": "2026-07-22T23:10:22Z",
+  "source_revision": "9761754709a09c96fdbb07bf1a55c39994b50e72",
   "sanitization": "Sanitized repository derivatives only: no credentials, tokens, connection strings, customer data, identity data, product payloads, or raw scanner databases.",
   "artifacts": [
     {
@@ -62,13 +62,13 @@
     {
       "evidence_id": "EVD-P00-S08-PROCEDURE",
       "path": "docs/engineering/PHASE-00-ACCEPTANCE.md",
-      "sha256": "8535aee5e405073f739aecd38e8f2c4f7941b3a4b2e7101248aaefc64a579638",
+      "sha256": "112ac339246c1507ab433d9ede5c888ef6ed1298fda179a60b6ccfa27c575bb5",
       "result": "Versioned full/static/live/clean-clone acceptance procedure"
     },
     {
       "evidence_id": "EVD-P00-S08-LIMITATIONS",
       "path": "docs/engineering/PHASE-00-KNOWN-LIMITATIONS.md",
-      "sha256": "e6dcb7e7431192e9ef2469da36e56fa9edb6ba1c672b6c0b034c0b9017632645",
+      "sha256": "b7e556b5ccfca7aca95c6b36f746c95f81a296d24e728bba8ee09d6b1f6db202",
       "result": "Open external and product-deferred gates recorded"
     },
     {
@@ -124,6 +124,18 @@
       "path": "evidence/phase-00/acceptance/S08-known-limitations-release-attempt-2.md",
       "sha256": "014e2891d05effd52a3491258f3806c30eac339f33047f328149ff40e58e4db5",
       "result": "Current automated release-tail, review, encryption, replay, and telemetry limitations after attempt 2"
+    },
+    {
+      "evidence_id": "EVD-P00-S08-008",
+      "path": "evidence/phase-00/acceptance/S08-hosted-release-success.md",
+      "sha256": "6527a63cad983ccded352a8efda471a087b8000cf5c6b9bcd1ca25943f68de24",
+      "result": "PASS for full fresh-host S08, immutable publication, keyless signing, exact-source SLSA/SPDX verification, and retained four-surface SBOMs"
+    },
+    {
+      "evidence_id": "EVD-P00-S08-LIMITATIONS-HOSTED-RELEASE",
+      "path": "evidence/phase-00/acceptance/S08-known-limitations-hosted-release.md",
+      "sha256": "5499922b39a19461a9c081e24648bf13e718f6d92c5701ea68d217667175b8a0",
+      "result": "Current review, custody, encryption, product-replay, event-telemetry, and alert-routing limitations after successful hosted release"
     }
   ]
 }

@@ -70,6 +70,18 @@
       "path": "docs/engineering/PHASE-00-KNOWN-LIMITATIONS.md",
       "sha256": "e6dcb7e7431192e9ef2469da36e56fa9edb6ba1c672b6c0b034c0b9017632645",
       "result": "Open external and product-deferred gates recorded"
+    },
+    {
+      "evidence_id": "EVD-P00-S08-002",
+      "path": "evidence/phase-00/acceptance/S08-post-commit-verification.md",
+      "sha256": "86f287421c4ea51c4cd40787a25fa4fd854861621ed3b78140adf7a3102e4eda",
+      "result": "PASS for committed static and detached same-host clean-clone verification"
+    },
+    {
+      "evidence_id": "EVD-P00-S08-LIMITATIONS-POSTCOMMIT",
+      "path": "evidence/phase-00/acceptance/S08-known-limitations-postcommit.md",
+      "sha256": "48ab2b756f33931dd5b72fbf500dfec40eb0618fe2a2f5f497e241a9965ff3c2",
+      "result": "Current external and product-deferred gates after clean-clone verification"
     }
   ]
 }

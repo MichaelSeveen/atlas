@@ -123,6 +123,8 @@ jobs:
           push-to-registry: true
       - name: Verify signatures and provenance identities
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           $cosign = Join-Path $PWD '.tmp/s07-tools/bin/cosign'
           $identity = '^https://github.com/MichaelSeveen/atlas/.github/workflows/release.yml@refs/(heads/main|tags/.+)$'

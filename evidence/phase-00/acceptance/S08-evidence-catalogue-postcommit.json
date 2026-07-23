@@ -140,8 +140,8 @@
     {
       "evidence_id": "EVD-P00-GATE-001",
       "path": "evidence/phase-00/acceptance/Phase-00-gate-closure.md",
-      "sha256": "45ef84052cefa2a434dfd4c36e5e011c3b65ccdde25f5c11b7bcd607cd4c4e79",
-      "result": "PASS for implementation-revision six-row disposition and four seeded topology-policy failures; clean S08 verification pending"
+      "sha256": "848421ee2f59702f7abc7fbb770b517c0de69271f576f345a32a531a128340f6",
+      "result": "PASS for revision-bound six-row disposition, four seeded topology-policy failures, and clean static S08"
     }
   ]
 }

@@ -6,7 +6,7 @@
 - **Requirements:** FND-011; FND-026; FND-031; FND-040; FND-042; FND-064
 - **Threats:** THR-007; THR-009; THR-013; THR-014; THR-015; THR-018; THR-019; THR-020; THR-023; THR-025; THR-027; THR-030; THR-040; THR-042; THR-043; THR-045; THR-048; THR-049; THR-054; THR-060
 - **Implementation revision:** `188578b96e5b2fe5dab27930a9e2e66f20d2ca12`
-- **Verification revision:** pending the clean evidence-binding commit
+- **Verification revision:** `4859bb54a4b510f73889ab2e4442c624988940c4`
 - **Environment:** Windows host for static/build/test verification; prior fresh GitHub-hosted Docker run `29964442782` supplies unchanged live/release/recovery evidence
 - **Sanitization:** repository paths, public commit/run identities, durations, and pass/fail results only; no token, credential, connection string, customer data, identity data, product payload, or raw scanner database
 
@@ -50,7 +50,9 @@ The final clean S08 result is recorded after the implementation and evidence-bin
 
 Expected: all 37 Phase 00 requirements have an explicit satisfied or accepted decision, guarded topology changes fail closed, existing architecture/build/test/S08 static checks remain green, and no later-phase behavior is introduced.
 
-Observed on the worktree that became implementation revision `188578b96e5b2fe5dab27930a9e2e66f20d2ca12`: the focused policy test passes all four seeded negatives; `go test ./internal/architecture -count=1` and `go test ./...` pass; and all three process entry points build. Full S08 is intentionally deferred until the evidence-binding commit because its evidence-integrity gate requires a clean revision identity. This report does not claim that final clean result before it occurs.
+Observed on the worktree that became implementation revision `188578b96e5b2fe5dab27930a9e2e66f20d2ca12`: the focused policy test passes all four seeded negatives; `go test ./internal/architecture -count=1` and `go test ./...` pass; and all three process entry points build.
+
+Observed from the clean evidence-binding revision `4859bb54a4b510f73889ab2e4442c624988940c4`: `pwsh -NoProfile -File ./scripts/verify-s08.ps1` exits zero. It reports `s08_evidence_integrity=PASS`, `s08_phase_00_gate_policy=PASS`, all existing static S01–S07 canaries, and `s08_phase_00_completion=PASS(scope=synthetic-feature-free;accepted=FND-026,FND-040,FND-042)`. Live, history, supply-chain, clean-clone, and local race lanes were not repeated because this slice changes no runtime/config/image/dependency path; their exact prior hosted evidence and host limitation remain preserved.
 
 ## Residual limitations and revalidation
 

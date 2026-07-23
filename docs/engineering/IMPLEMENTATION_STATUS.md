@@ -1,8 +1,8 @@
 # Atlas implementation status
 
-- **Status date:** 2026-07-22
+- **Status date:** 2026-07-23
 - **Current phase:** [Phase 00 — Secure engineering foundation](../atlas-prd/02-phases/PHASE-00_ENGINEERING_FOUNDATION.md)
-- **Current slice:** [S08 — Phase 00 acceptance, restore, and evidence release](PHASE-00-PLAN.md#s08--phase-00-acceptance-restore-and-evidence-release) has completed its hosted-release closure. Run `29964442782` at protected-main revision `9761754709a09c96fdbb07bf1a55c39994b50e72` passed full fresh-host S08 before publication, published two immutable GHCR images, keyless-signed them, attached and automatically verified exact-source SLSA/SPDX attestations, and retained four SPDX SBOM surfaces for 90 days. Independent exact-identity/source verification and artifact inspection pass. FND-010 and FND-022..024 are satisfied at the current synthetic foundation depth; six other requirements and overall Phase 00 completion remain partial.
+- **Current slice:** Final Phase 00 gate closure. S08 hosted-release evidence remains bound to successful run `29964442782` at protected-main revision `9761754709a09c96fdbb07bf1a55c39994b50e72`. ADR 0013 classifies every formerly partial row against the implemented topology and adds fail-closed revalidation guards. Phase 00 is complete for the synthetic feature-free foundation with 34 satisfied requirements, accepted deviation `FND-026`, and accepted scope decisions `FND-040`/`FND-042`. Phase 01 planning may begin after this closure merges; no Phase 01 implementation is included here.
 - **Implementation state:** Feature-free engineering foundation with typed Go primitives, static policies, three operational API endpoints, a complete synthetic local dependency/process topology, strict environment configuration, deterministic fixture catalogues, three React route shells, PostgreSQL migration/role/readiness/recovery controls, closed-schema JSON logs, OTLP traces/metrics, a Phase 00 threat model, a provider-neutral secret/version boundary, and repository-owned CI/contract/supply-chain controls. No product endpoint, financial workflow, product schema, worker job, executable provider scenario, broker stream, identity exchange, managed production secret provider, or wallet UI exists.
 
 ## Repository baseline
@@ -10,7 +10,7 @@
 | Area | Verified state |
 |---|---|
 | Version control | Valid Git repository with origin `https://github.com/MichaelSeveen/atlas.git`. PR #22 passed all five required checks and merged as `9761754709a09c96fdbb07bf1a55c39994b50e72`. Active ruleset `19577130` protects `main` with PR-only updates, five strict required contexts, conversation resolution, deletion/non-fast-forward protection, no bypass actors, and zero fabricated approvals under ADR 0012. |
-| Specification | Canonical PRD is `docs/atlas-prd/`: the 59-file validated baseline now has five accepted implementation ADRs (64 versioned files including the manifest), while the baseline report retains 399 requirements, 60 threats, 154 adversarial tests, OpenAPI 3.1.1 (33 paths/41 operations), and AsyncAPI 3.0.0 (9 channels/17 messages). S03–S08 edits preserve one canonical contract/spec root. |
+| Specification | Canonical PRD is `docs/atlas-prd/`: the 59-file validated baseline now has six accepted implementation ADRs (65 versioned files including the manifest), while the baseline report retains 399 requirements, 60 threats, 154 adversarial tests, OpenAPI 3.1.1 (33 paths/41 operations), and AsyncAPI 3.0.0 (9 channels/17 messages). S03–S08 and gate-closure edits preserve one canonical contract/spec root. |
 | Application code | Go module `github.com/MichaelSeveen/atlas`; `cmd/api` serves only liveness, readiness, and version with typed dependency and real migration-state probes, while worker/simulator remain feature-free. `cmd/dbctl` validates the released migration inventory and `cmd/contractctl` lints/compares the canonical OpenAPI/AsyncAPI. React owns three feature-free route shells. Twelve narrow platform packages plus a feature-free contract-compatibility package, architecture/layout/toolchain policies, and focused foundation tests exist. External Go dependencies remain limited to pgx, official OpenTelemetry/OTLP modules, and the YAML parser used by the engineering contract checker. No product behavior, product schema, or generated product client exists. |
 | Tooling | Go 1.25.12 with language baseline 1.25.0, pgx/v5 5.10.0, OpenTelemetry Go 1.43.0, Bun 1.3.0, and React 19.2.7 are pinned; `bun.lock` is frozen. Repository-owned S01–S08 verification includes contract/action/image/tool/evidence mutations, solo sensitive-path/declaration canaries, complete-history scanning, Govulncheck, four SPDX SBOMs, critical-CVE/license gates, hardened image execution, and constrained-pool integration. GitHub Linux supplied race/Gosec/CodeQL evidence, including S08 skipped test #10 with a one-connection real PostgreSQL pool. |
 | Local environment | Compose-compatible PostgreSQL, Redis, NATS JetStream, MinIO, OTel Collector, Keycloak, API, worker, simulator, and web run in a constrained loopback-only synthetic namespace. API, worker, and simulator export bounded OTLP traces/metrics; collector availability is explicitly non-authoritative for readiness. Local scripts use the installed WSL `podman-compose` fallback, and successful run `29964442782` independently reproduced the full one-command Docker path on a fresh GitHub-hosted runner. |
@@ -21,13 +21,14 @@
 
 | Classification | Count | Requirement IDs |
 |---|---:|---|
-| Satisfied | 31 | `FND-001..006`, `FND-010`, `FND-012`, `FND-013`, `FND-020..025`, `FND-027`, `FND-030`, `FND-032`, `FND-033`, `FND-041`, `FND-043`, `FND-050..055`, `FND-060..063` |
-| Partially satisfied | 6 | `FND-011`, `FND-026`, `FND-031`, `FND-040`, `FND-042`, `FND-064` |
+| Satisfied | 34 | `FND-001..006`, `FND-010..013`, `FND-020..025`, `FND-027`, `FND-030..033`, `FND-041`, `FND-043`, `FND-050..055`, `FND-060..064` |
+| Accepted deviation/scope decision | 3 | `FND-026` (accepted deviation); `FND-040`, `FND-042` (accepted scope decisions) |
+| Partially satisfied | 0 | None. |
 | Absent | 0 | None. |
 | Conflicting | 0 | None identified. |
 | Not yet assessed | 0 | All 37 Phase 00 requirement IDs were assessed. |
 
-”Satisfied” is requirement-scoped: S01–S08 foundation mechanics named below are verified at the stated depth. It does not imply independent human review, product database ownership, executable application seeds, provider behavior, identity integration, managed secret custody, complete worker/event observability, encrypted product-state recovery, later phases, or that the Phase 00 gate passes. See the [per-requirement audit](PHASE-00-PLAN.md#requirement-by-requirement-audit).
+“Satisfied” is requirement- and scope-specific: S01–S08 foundation mechanics named below are verified at the stated depth. Phase 00 gate completion does not imply independent human review, product database ownership, executable product seeds, provider behavior, identity integration, managed secret custody, worker/event behavior, encrypted product-state recovery, production readiness, or any later-phase capability. ADR 0013 and the machine gate require revalidation when those surfaces appear. See the [per-requirement audit](PHASE-00-PLAN.md#requirement-by-requirement-audit).
 
 ## Completed requirement IDs
 
@@ -38,10 +39,12 @@
 - `FND-005` — bounded integer money/currency, cryptographically random opaque IDs, injectable UTC clocks, explicit actor/correlation contexts, and data-minimizing domain errors pass table/property/fuzz and mutation proof.
 - `FND-006` — the architecture checker rejects seeded floating-money and direct domain wall-clock violations while permitting explicit safe controls.
 - `FND-010` — successful release run `29964442782` completed the full fresh-host Docker S08 command, including the constrained topology, readiness/smoke/trace/outage, real PostgreSQL/NATS, backup/restore, hosted race, exit-zero bounded teardown, and exact clean-clone cleanup.
+- `FND-011` — the closed checksummed seed manifest supplies deterministic fixed-time tenant, user, account-identity, and provider-scenario identities for every seedable surface in the feature-free topology; product schema loading and executable scenarios are guarded future triggers.
 - `FND-012` — portfolio configuration is synthetic-only, loopback/reserved-host constrained, and rejects real/public endpoint, development-key, wildcard, and missing-synthetic canaries.
 - `FND-013` — reset is limited to local/test, validates target containment, prints its resolved target, and requires the exact environment confirmation.
 - `FND-020` — PR #19 run `29949126130` passed static/history/contracts, real PostgreSQL/NATS, both CodeQL languages, race/Gosec, supply-chain, and solo sensitive-declaration checks; active `main` ruleset `19577130` strictly requires the five hosted contexts with no bypass actors.
 - `FND-030` — strict local, test, staging, and production-reference configurations are present and validated as one closed set.
+- `FND-031` — every configured signing, encryption, database, identity, merchant, broker, and object-storage reference is environment/purpose scoped, and generated local/test credential fingerprints are distinct; managed non-local material remains trigger-bound.
 - `FND-032` — all three React actor shells render the persistent synthetic banner and pass live/browser no-store, empty-storage, logout, and back-navigation proof.
 - `FND-033` — flags require complete owner/expiry/default/risk/rollback metadata and have immutable fail-closed/default-on-outage evaluation tests.
 - `FND-041` — API/worker/simulator runtime and bootstrap logs use a closed source-redacted JSON schema; CRLF/field injection is rejected before any sink write, and raw SDK/server diagnostics are suppressed at source.
@@ -62,26 +65,24 @@
 - `FND-061` — API, worker, and reporting roles cannot create, alter, or drop schema objects, grant effective public access, assume the migration role, or create disallowed temporary state.
 - `FND-062` — a closed released SHA-256 manifest covers SQL and risk metadata; changed and deleted released-file canaries are killed and clean post-commit verification binds the result to `5ea77fc`.
 - `FND-063` — every migration has closed lock/timeout/data/plan/space/forward-fix/rollback metadata, and the representative foundation lock canary proves bounded abort and transaction recovery.
+- `FND-064` — ADR 0008/0010 physical base backup, continuous WAL archive, verification, and isolated point-in-time recovery pass on the synthetic reference platform, including fresh-host S08 proof; product/deployed/encrypted recovery remains trigger-bound.
 
-## Active requirement IDs
+## Accepted dispositions
 
-- `FND-011` is partial: deterministic synthetic identity/account labels and provider scenario IDs validate with fixed checksum and tenant ownership, but no application schema is loaded and no provider behavior executes.
-- `FND-026` is partial under an accepted solo-maintainer deviation: ADR 0012, the closed policy, PR declaration, canaries, and ruleset `19577130` enforce the available compensating controls. Independent human review remains unavailable and is not claimed; it becomes blocking at any non-synthetic/data/provider/second-maintainer/production-readiness trigger.
-- `FND-031` is partial: four-environment credential references and generated local/test password/token fingerprints never overlap, but staging/production provisioning, rotation, restore, and secret-manager evidence do not exist.
-- `FND-040` is partial: validated request/correlation/W3C trace context is exported through the API, readiness, and database spans. Worker/simulator have only build/lifecycle telemetry because no request/event/job enters them; no event propagation exists.
-- `FND-042` is partial: emitted HTTP RED, database readiness/pool, and revision/build metrics have closed cardinality plus catalogued dashboards/alerts/runbooks. Queue lag and retry metrics are definition-only until a queue/job exists, and no deployed alert engine/routing proof exists.
-- `FND-064` is partial: a verified physical base backup, WAL archive, isolated target-time restore, migration checksum, and pre-deletion marker pass, but the local backup volume is unencrypted and no product object/key/inbox/outbox/idempotency or financial replay state exists.
+- `FND-026` is an accepted solo-maintainer deviation under ADR 0012. The closed policy, PR declaration, canaries, and ruleset `19577130` enforce the available compensating controls. Independent human review remains unavailable and is not claimed; it becomes blocking at any non-synthetic/data/provider/second-maintainer/production-readiness trigger.
+- `FND-040` is an accepted scope decision under ADR 0013. Validated request/correlation/W3C trace context is exported across every causally reachable request boundary. The first worker/simulator input, event/consumer, or broker stream must implement and evidence propagation in the same change.
+- `FND-042` is an accepted scope decision under ADR 0013. Current HTTP RED, database readiness/pool, and revision/build metrics have closed cardinality plus catalogued dashboards/alerts/runbooks. The first queue/job/retry source or deployed alert backend must add emission/routing and failure evidence in the same change.
 
-S08 static/live/history/supply acceptance is preserved in EVD-P00-S08-001 through EVD-P00-S08-005. EVD-P00-S08-006 and EVD-P00-S08-007 retain the two material fail-closed corrections. EVD-P00-S08-008 binds the successful fresh-host release, immutable digests, automated and independent signature/SLSA/SPDX verification, and retained four-surface SBOM artifact. Hosted-release closure is complete; overall Phase 00 completion is not claimed while six requirements remain partial.
+S08 static/live/history/supply acceptance is preserved in EVD-P00-S08-001 through EVD-P00-S08-005. EVD-P00-S08-006 and EVD-P00-S08-007 retain the two material fail-closed corrections. EVD-P00-S08-008 binds the successful fresh-host release, immutable digests, automated and independent signature/SLSA/SPDX verification, and retained four-surface SBOM artifact. EVD-P00-GATE-001 binds the final six-row disposition and fail-closed topology policy. Phase 00 completion is claimed only for the synthetic feature-free foundation scope.
 
-## Decisions and blockers
+## Decisions and future triggers
 
 | Decision/gap | Impact | Required resolution |
 |---|---|---|
 | Production broker, IdP deployment, object store, and secret manager are not selected | Local/reference products are accepted only by ADR 0008; production semantics, key rotation, backup, and promotion remain blocked. | Resolve with scoped ADRs before any reference release; do not treat local NATS/Keycloak/MinIO as a production selection. |
 | Independent code-owner approval remains trigger-bound | Active ruleset `19577130` requires the passing PR gates and successful hosted release identity is recorded, but ADR 0012 does not represent owner self-review as organizational separation. | Keep the ruleset active and obtain genuine qualified approval before any real-data/provider/deployment/second-maintainer/production-readiness trigger. |
 | Generated product-client strategy is deferred | S07 enforces compatibility directly from the sole canonical contracts and introduces no client or product call. | Select a deterministic generated-client path before the first product API consumer; never create a second hand-edited contract. |
-| Local backup/WAL volumes are not encrypted | S05 proves native backup/WAL/PITR mechanics but cannot satisfy the encrypted reference-environment and key-access facets of FND-064. | Select deployment/object/key controls and run the complete encrypted isolated restore/replay gate in S08. |
+| Local backup/WAL volumes are not encrypted | S05 and hosted S08 satisfy FND-064 for the synthetic ADR 0008 reference platform only. | Before product durable state, a reference deployment, or backup encryption/key custody, select deployment/object/key controls and run the complete encrypted isolated restore/replay gate. |
 
 These are missing implementation decisions, not contradictory product semantics. No accepted ADR conflict was found.
 
@@ -126,6 +127,7 @@ These are missing implementation decisions, not contradictory product semantics.
 - [S08 solo-maintainer governance and ruleset verification](../../evidence/phase-00/acceptance/S08-solo-maintainer-governance.md)
 - [Successful S08 hosted release](../../evidence/phase-00/acceptance/S08-hosted-release-success.md)
 - [Known limitations after hosted release](../../evidence/phase-00/acceptance/S08-known-limitations-hosted-release.md)
+- [Phase 00 gate-closure evidence](../../evidence/phase-00/acceptance/Phase-00-gate-closure.md)
 - [Canonical PRD cleanup report](../../evidence/phase-00/architecture/PRD-canonicalization-report.md)
 - [Module boundary model](MODULE_BOUNDARIES.md)
 - [Platform primitives and static policy](PLATFORM_PRIMITIVES.md)
@@ -152,3 +154,5 @@ S08 PR #19 run `29943586545` passed all five hosted jobs against `10ed35b8d86a68
 ADR 0012 implementation `08762a3e1333043d021264a875b8e5e222e9c34c` and catalogue revision `8c1032333356fe2d10b91ab46328f0a187290024` pass local S07/S08 static gates. Hosted run `29949126130` passed the sensitive declaration plus all five jobs at that exact head; active `main` ruleset `19577130` returns no bypass actors and `current_user_can_bypass=never`.
 
 Release correction PR #22 passed all five protected checks at `88ebaca6baa8f92dd3ecc584042eb723d6abe0fe` and merged as `9761754709a09c96fdbb07bf1a55c39994b50e72`. Authorized run `29964442782` then completed the full preflight and every publication, signing, attestation-verification, retention, and cleanup step successfully; EVD-P00-S08-008 records the exact identities and independent recheck.
+
+Phase 00 gate-closure implementation revision `188578b96e5b2fe5dab27930a9e2e66f20d2ca12` adds ADR 0013 and the fail-closed topology policy. Evidence-binding revision `4859bb54a4b510f73889ab2e4442c624988940c4` passed clean static S08 on 2026-07-23, including the evidence tamper/stale-source canaries and all four new requirement/trigger/digest/directory mutations. Live/release surfaces remain bound to unchanged hosted run `29964442782`.

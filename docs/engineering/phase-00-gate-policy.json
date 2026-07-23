@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "phase": "PHASE-00_ENGINEERING_FOUNDATION",
+  "closure_scope": "synthetic-feature-free-foundation",
+  "completion_status": "complete-with-accepted-deviations",
+  "requirements": [
+    {
+      "id": "FND-011",
+      "disposition": "satisfied-current-scope",
+      "basis": [
+        "deploy/seeds/foundation.json",
+        "internal/platform/environment/seed.go",
+        "internal/platform/environment/config_test.go",
+        "docs/atlas-prd/06-governance/adrs/0013-phase-00-closed-world-completion.md"
+      ],
+      "threats": ["THR-043", "THR-045", "THR-060"],
+      "deferred_surfaces": ["schema-loaded product seeds", "executable provider behavior"],
+      "revalidation_triggers": ["first-product-schema", "first-executable-provider-scenario"]
+    },
+    {
+      "id": "FND-026",
+      "disposition": "accepted-deviation",
+      "basis": [
+        "docs/atlas-prd/06-governance/adrs/0012-solo-maintainer-sensitive-change-governance.md",
+        ".github/solo-maintainer-policy.json",
+        "evidence/phase-00/acceptance/S08-solo-maintainer-governance.md"
+      ],
+      "threats": ["THR-007", "THR-013", "THR-014", "THR-018", "THR-020", "THR-040", "THR-060"],
+      "deferred_surfaces": ["independent qualified code-owner approval"],
+      "revalidation_triggers": [
+        "first-non-synthetic-deployment",
+        "first-real-money-or-personal-data",
+        "first-real-financial-or-identity-provider",
+        "second-qualified-maintainer",
+        "production-readiness-claim"
+      ]
+    },
+    {
+      "id": "FND-031",
+      "disposition": "satisfied-current-scope",
+      "basis": [
+        "deploy/environments",
+        "internal/platform/environment/config.go",
+        "internal/platform/environment/config_test.go",
+        "docs/atlas-prd/06-governance/adrs/0013-phase-00-closed-world-completion.md"
+      ],
+      "threats": ["THR-020", "THR-023", "THR-045"],
+      "deferred_surfaces": ["managed non-local credential material", "rotation and custody evidence"],
+      "revalidation_triggers": [
+        "first-staging-or-production-credential-material",
+        "first-managed-secret-provider",
+        "first-deployable-environment"
+      ]
+    },
+    {
+      "id": "FND-040",
+      "disposition": "accepted-scope-decision",
+      "basis": [
+        "evidence/phase-00/observability-security/S06-observability-security-report.md",
+        "cmd/worker/main.go",
+        "cmd/simulator/main.go",
+        "docs/atlas-prd/06-governance/adrs/0013-phase-00-closed-world-completion.md"
+      ],
+      "threats": ["THR-009", "THR-015", "THR-030", "THR-060"],
+      "deferred_surfaces": ["worker and simulator input propagation", "event and consumer propagation"],
+      "revalidation_triggers": [
+        "first-worker-or-simulator-input",
+        "first-implemented-event-or-consumer",
+        "first-broker-stream"
+      ]
+    },
+    {
+      "id": "FND-042",
+      "disposition": "accepted-scope-decision",
+      "basis": [
+        "deploy/observability/catalog.json",
+        "internal/platform/telemetry/catalog_test.go",
+        "evidence/phase-00/observability-security/S06-observability-security-report.md",
+        "docs/atlas-prd/06-governance/adrs/0013-phase-00-closed-world-completion.md"
+      ],
+      "threats": ["THR-010", "THR-025", "THR-030", "THR-048", "THR-049"],
+      "deferred_surfaces": ["queue lag and worker retry emission", "deployed alert routing"],
+      "revalidation_triggers": [
+        "first-worker-job-or-retry",
+        "first-queue-lag-source",
+        "first-deployed-alert-backend"
+      ]
+    },
+    {
+      "id": "FND-064",
+      "disposition": "satisfied-current-scope",
+      "basis": [
+        "docs/atlas-prd/06-governance/adrs/0010-native-postgresql-migrations-and-recovery.md",
+        "evidence/phase-00/acceptance/S08-hosted-release-success.md",
+        "scripts/s05.ps1",
+        "docs/atlas-prd/06-governance/adrs/0013-phase-00-closed-world-completion.md"
+      ],
+      "threats": ["THR-019", "THR-020", "THR-027", "THR-054"],
+      "deferred_surfaces": ["encrypted deployment backup custody", "product object key and replay state"],
+      "revalidation_triggers": [
+        "first-product-durable-state",
+        "first-reference-deployment",
+        "first-backup-encryption-or-key-custody"
+      ]
+    }
+  ],
+  "guarded_artifacts": [
+    {"path": ".github/solo-maintainer-policy.json", "sha256": "4524d7cae2b0575a6ebe0669f6e44db4cbbecad6ecdd696ad534233c7c993d96"},
+    {"path": "cmd/worker/main.go", "sha256": "64781eb8f4d3148f0165e85a6ff04fc492ed89fd28949fdc99e7463f4b049453"},
+    {"path": "cmd/simulator/main.go", "sha256": "a52a3f919146c72e30ee0aae16757c0aa5042a6972218341244230897a8c84e6"},
+    {"path": "db/migrations/MANIFEST.sha256", "sha256": "d745a31e80c684dcfb2a4dd86938a322ac7694afa083b3b229f4a95f9f306d12"},
+    {"path": "deploy/environments/local.json", "sha256": "86a922c9c288fbc6c64bcefba22ddc75d15e4d7fadbdfbc5fc34f08c574f33cc"},
+    {"path": "deploy/environments/test.json", "sha256": "bb9810e6cbfc582b830d481699c5189996014e2c7381cb3b77a94954f19f03f1"},
+    {"path": "deploy/environments/staging.json", "sha256": "9736d262b2d141915fbca33adb3ded338dfd9c584fa5512f7d7362de4a180871"},
+    {"path": "deploy/environments/production-reference.json", "sha256": "f6e5071468e2914b3846f17e391fa8d9f4f1b79a422d5e65b663d41c30f13a96"},
+    {"path": "deploy/observability/catalog.json", "sha256": "03ba801a3f7b28d821392d171036ae4264b9ca0365fde7baa57d965e483d10b1"},
+    {"path": "deploy/seeds/foundation.json", "sha256": "d350303e1f1129c41ba96af24ea33315fb1739f721b6bc7b7bcf96c774debe4d"}
+  ],
+  "guarded_directories": [
+    {"path": "cmd/worker", "files": ["main.go"]},
+    {"path": "cmd/simulator", "files": ["main.go"]},
+    {"path": "db/migrations", "files": ["000001_foundation_control_schema.metadata.json", "000001_foundation_control_schema.sql", "000002_recovery_probe.metadata.json", "000002_recovery_probe.sql", "MANIFEST.sha256"]},
+    {"path": "deploy/environments", "files": ["local.json", "production-reference.json", "staging.json", "test.json"]},
+    {"path": "internal/platform/secret", "files": ["secret.go", "secret_test.go"]}
+  ],
+  "prohibited_claims": [
+    "independent human review",
+    "production deployment readiness",
+    "event or worker propagation before such a path exists",
+    "queue or retry telemetry before such a path exists",
+    "encrypted or product-complete disaster recovery"
+  ],
+  "verification_command": "go test ./internal/architecture -run TestPhase00GateClosurePolicy -count=1"
+}

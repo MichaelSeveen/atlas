@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "evidence_id": "EVD-P00-S08-001",
-  "created_at": "2026-07-22T23:21:59Z",
-  "source_revision": "7a6a7cf01e753e4bbaca585145dcdce8e9c8310f",
+  "created_at": "2026-07-23T00:00:25Z",
+  "source_revision": "188578b96e5b2fe5dab27930a9e2e66f20d2ca12",
   "sanitization": "Sanitized repository derivatives only: no credentials, tokens, connection strings, customer data, identity data, product payloads, or raw scanner databases.",
   "artifacts": [
     {
@@ -62,14 +62,14 @@
     {
       "evidence_id": "EVD-P00-S08-PROCEDURE",
       "path": "docs/engineering/PHASE-00-ACCEPTANCE.md",
-      "sha256": "112ac339246c1507ab433d9ede5c888ef6ed1298fda179a60b6ccfa27c575bb5",
-      "result": "Versioned full/static/live/clean-clone acceptance procedure"
+      "sha256": "32cacc8f5c5803c5f48d10d35bcbcaa319586aa369d4e2fc0aa3dd07428e749c",
+      "result": "Versioned full/static/live/clean-clone acceptance procedure and scoped Phase 00 completion rule"
     },
     {
       "evidence_id": "EVD-P00-S08-LIMITATIONS",
       "path": "docs/engineering/PHASE-00-KNOWN-LIMITATIONS.md",
-      "sha256": "b7e556b5ccfca7aca95c6b36f746c95f81a296d24e728bba8ee09d6b1f6db202",
-      "result": "Open external and product-deferred gates recorded"
+      "sha256": "b0c82cd9d799c63198a01858e66bd67f863382a534d2ece76ddf564391a25e15",
+      "result": "Trigger-bound review, custody, recovery, telemetry, routing, and product limitations recorded"
     },
     {
       "evidence_id": "EVD-P00-S08-002",
@@ -136,6 +136,12 @@
       "path": "evidence/phase-00/acceptance/S08-known-limitations-hosted-release.md",
       "sha256": "5499922b39a19461a9c081e24648bf13e718f6d92c5701ea68d217667175b8a0",
       "result": "Current review, custody, encryption, product-replay, event-telemetry, and alert-routing limitations after successful hosted release"
+    },
+    {
+      "evidence_id": "EVD-P00-GATE-001",
+      "path": "evidence/phase-00/acceptance/Phase-00-gate-closure.md",
+      "sha256": "848421ee2f59702f7abc7fbb770b517c0de69271f576f345a32a531a128340f6",
+      "result": "PASS for revision-bound six-row disposition, four seeded topology-policy failures, and clean static S08"
     }
   ]
 }

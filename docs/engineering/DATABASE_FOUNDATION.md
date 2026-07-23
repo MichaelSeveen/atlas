@@ -61,7 +61,7 @@ Migration failures never trigger an automatic destructive down migration. Follow
 
 ## Honest limitations
 
-- The local backup and WAL volumes are not encrypted at rest, so `FND-064` is partial.
+- The local backup and WAL volumes are not encrypted at rest. ADR 0013 therefore limits `FND-064` satisfaction to the synthetic ADR 0008 reference platform; the first product durable state, reference deployment, or backup encryption/key-custody change must add the stronger recovery evidence.
 - No product schema or representative product dataset exists; S05 representative data is confined to the permission and recovery probes.
 - No outbox, inbox, idempotency, object, key, or synthetic financial flow exists to replay or reconcile after restore.
 - Backup age, pool, lock, and restore telemetry/alerts remain S06; protected CI enforcement remains S07; clean-machine encrypted recovery acceptance remains S08.

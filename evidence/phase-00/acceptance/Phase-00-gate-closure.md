@@ -5,7 +5,8 @@
 - **Phase/slice:** Phase 00 / final requirement-disposition closure after S08
 - **Requirements:** FND-011; FND-026; FND-031; FND-040; FND-042; FND-064
 - **Threats:** THR-007; THR-009; THR-013; THR-014; THR-015; THR-018; THR-019; THR-020; THR-023; THR-025; THR-027; THR-030; THR-040; THR-042; THR-043; THR-045; THR-048; THR-049; THR-054; THR-060
-- **Source revision:** `UNCOMMITTED_WORKTREE(base=ccb3987f803ff9f6ad508f7ac526443894701628)` until the implementation commit and catalogue-binding commit are created
+- **Implementation revision:** `188578b96e5b2fe5dab27930a9e2e66f20d2ca12`
+- **Verification revision:** pending the clean evidence-binding commit
 - **Environment:** Windows host for static/build/test verification; prior fresh GitHub-hosted Docker run `29964442782` supplies unchanged live/release/recovery evidence
 - **Sanitization:** repository paths, public commit/run identities, durations, and pass/fail results only; no token, credential, connection string, customer data, identity data, product payload, or raw scanner database
 
@@ -49,7 +50,7 @@ The final clean S08 result is recorded after the implementation and evidence-bin
 
 Expected: all 37 Phase 00 requirements have an explicit satisfied or accepted decision, guarded topology changes fail closed, existing architecture/build/test/S08 static checks remain green, and no later-phase behavior is introduced.
 
-Observed before commit: the focused policy test passes all four seeded negatives; `go test ./internal/architecture -count=1` and `go test ./...` pass; and all three process entry points build. Full S08 is intentionally deferred until the first commit because its evidence-integrity gate requires a clean revision identity. Until the catalogue-binding commit, this report deliberately retains the pre-commit source limitation rather than claiming a committed revision.
+Observed on the worktree that became implementation revision `188578b96e5b2fe5dab27930a9e2e66f20d2ca12`: the focused policy test passes all four seeded negatives; `go test ./internal/architecture -count=1` and `go test ./...` pass; and all three process entry points build. Full S08 is intentionally deferred until the evidence-binding commit because its evidence-integrity gate requires a clean revision identity. This report does not claim that final clean result before it occurs.
 
 ## Residual limitations and revalidation
 

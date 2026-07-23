@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "evidence_id": "EVD-P00-S08-001",
-  "created_at": "2026-07-22T23:21:59Z",
-  "source_revision": "7a6a7cf01e753e4bbaca585145dcdce8e9c8310f",
+  "created_at": "2026-07-23T00:00:25Z",
+  "source_revision": "188578b96e5b2fe5dab27930a9e2e66f20d2ca12",
   "sanitization": "Sanitized repository derivatives only: no credentials, tokens, connection strings, customer data, identity data, product payloads, or raw scanner databases.",
   "artifacts": [
     {
@@ -140,8 +140,8 @@
     {
       "evidence_id": "EVD-P00-GATE-001",
       "path": "evidence/phase-00/acceptance/Phase-00-gate-closure.md",
-      "sha256": "98db95bf79330150102ac63b030ca4da52fcf3c35e476296ad37a2c98db31d0c",
-      "result": "PASS for final six-row disposition and four seeded topology-policy failures; pre-commit revision limitation recorded"
+      "sha256": "45ef84052cefa2a434dfd4c36e5e011c3b65ccdde25f5c11b7bcd607cd4c4e79",
+      "result": "PASS for implementation-revision six-row disposition and four seeded topology-policy failures; clean S08 verification pending"
     }
   ]
 }

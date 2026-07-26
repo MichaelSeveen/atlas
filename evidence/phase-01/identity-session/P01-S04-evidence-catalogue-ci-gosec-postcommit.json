@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "evidence_id": "EVD-P01-S04-CATALOGUE-CI-GOSEC-POSTCOMMIT",
+  "created_at": "2026-07-26T23:00:39Z",
+  "phase": "PHASE-01_IDENTITY_ACCESS_TENANCY",
+  "slice": "P01-S04",
+  "source_revision": "818f42e06f06e6e731136356e9dcbd7127237b9e",
+  "sanitization": "Only source identities, public tool versions, public HTTP header names, bounded job and test results, artifact digests, and the public GitHub Actions run identifier are included. Credentials, database URLs, authorization codes, state or nonce or PKCE values, cookies, session identifiers, tokens, raw provider payloads, internal credential-bearing URLs, SQL errors, WAL or data pages, and real identity or provider data are excluded.",
+  "artifacts": [
+    {
+      "evidence_id": "EVD-P01-S04-GOSEC-REMEDIATION-REPORT",
+      "path": "evidence/phase-01/identity-session/S04-gosec-remediation-post-commit-verification.md",
+      "sha256": "1fcf4b75200647ca8767440ad3538b1092512f6b3763ca6e90bbc438cea7dd3e",
+      "result": "PASS",
+      "requirements": ["FND-020", "FND-026", "IAM-001..007", "IAM-020..021", "IAM-025"],
+      "threats": ["THR-007", "THR-020", "THR-037", "THR-039", "THR-056"],
+      "reproduce": "go test ./cmd/api/internal/server ./internal/architecture -count=1; ./.tmp/s07-tools/bin/gosec.exe -quiet -exclude-generated -exclude-dir .tmp ./...",
+      "limitation": "Local pinned-scanner proof; the post-fix hosted five-job rerun was pending when recorded.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-HISTORICAL-CI-REMEDIATION-CATALOGUE",
+      "path": "evidence/phase-01/identity-session/P01-S04-evidence-catalogue-ci-remediation-postcommit.json",
+      "sha256": "f6ec9848627ac0a279450bc3c2417d1a87d3e867e669cfd972555bdf485dc16c",
+      "result": "PASS",
+      "requirements": ["FND-020", "FND-021", "FND-025", "FND-026", "FND-054", "IAM-001..007"],
+      "threats": ["THR-006..007", "THR-020", "THR-037", "THR-039", "THR-044", "THR-056", "THR-058"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/test-p01-evidence-integrity.ps1",
+      "limitation": "Historical catalogue for implementation 57ea819; retained unchanged and superseded only as the current policy pointer.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-CORS-PUBLIC-HEADER-POLICY",
+      "path": "cmd/api/internal/server/cors.go",
+      "sha256": "da1da328d007d4fb8e96bfd9a90bc5b3d5e7feb9b299d711abf648cc4cf233d6",
+      "result": "PASS",
+      "requirements": ["FND-020", "IAM-001..007"],
+      "threats": ["THR-007", "THR-020", "THR-037", "THR-039"],
+      "reproduce": "./.tmp/s07-tools/bin/gosec.exe -quiet -exclude-generated -exclude-dir .tmp ./...",
+      "limitation": "Line-scoped G101 suppression covers only the public HTTP header-name map.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-CORS-PREFLIGHT-REGRESSION",
+      "path": "cmd/api/internal/server/identity_handlers_test.go",
+      "sha256": "a429a91ac7c5dc52adfd981d552e41f7931747668d6246360ee9ed368505a443",
+      "result": "PASS",
+      "requirements": ["IAM-001..007"],
+      "threats": ["THR-007", "THR-037", "THR-039"],
+      "reproduce": "go test ./cmd/api/internal/server -run TestIdentityMutationCORSPreflightAndRouteInventory -count=1",
+      "limitation": "Focused synthetic HTTP preflight assertion; complete live browser storage/BFCache evidence remains open.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-GOSEC-EVIDENCE-POLICY",
+      "path": "docs/engineering/phase-01-evidence-policy.json",
+      "sha256": "0a9d312c7f1e3323d2497d39426f0c7a18468ee4659bdcf2670d151d6ada4641",
+      "result": "PASS",
+      "requirements": ["FND-026", "IAM-001..007"],
+      "threats": ["THR-007", "THR-020", "THR-060"],
+      "reproduce": "go test ./internal/architecture -run TestPhase01EvidencePolicyPreservesPhase00AndBindsNewEvidence -count=1",
+      "limitation": "Selects the additive Gosec-remediation catalogue while retaining every earlier catalogue unchanged.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-GOSEC-CANONICAL-MANIFEST",
+      "path": "docs/atlas-prd/MANIFEST.sha256",
+      "sha256": "491df60842a370925848259ec393c2240a35a7fb42e32221f49f73b313cc461e",
+      "result": "PASS",
+      "requirements": ["FND-027", "IAM-001..007"],
+      "threats": ["THR-060"],
+      "reproduce": "go test ./internal/architecture -run TestCanonicalPRDManifest -count=1",
+      "limitation": "Integrity coverage only; correctness is supported by the focused server, scanner, and evidence mutation checks.",
+      "revalidate_by": "2026-10-27"
+    }
+  ]
+}

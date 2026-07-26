@@ -11,7 +11,7 @@ import (
 	"github.com/MichaelSeveen/atlas/internal/platform/identifier"
 )
 
-const contractVersion = "2026-07-20"
+const contractVersion = "2026-07-23"
 
 func TestOpenAPIFoundationOperations(t *testing.T) {
 	source := readOpenAPI(t)

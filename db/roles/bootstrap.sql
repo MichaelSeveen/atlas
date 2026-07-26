@@ -31,7 +31,7 @@ SELECT format('ALTER ROLE atlas_backup WITH LOGIN NOINHERIT NOSUPERUSER NOCREATE
 GRANT atlas_migration TO atlas_break_glass;
 
 SELECT format('REVOKE CONNECT, TEMPORARY ON DATABASE %I FROM PUBLIC', :'database_name') \gexec
-SELECT format('GRANT CONNECT, CREATE ON DATABASE %I TO atlas_migration', :'database_name') \gexec
+SELECT format('GRANT CONNECT, CREATE, TEMPORARY ON DATABASE %I TO atlas_migration', :'database_name') \gexec
 SELECT format('GRANT CONNECT ON DATABASE %I TO atlas_api, atlas_worker, atlas_reporting_read, atlas_break_glass', :'database_name') \gexec
 SELECT format('REVOKE TEMPORARY, CREATE ON DATABASE %I FROM atlas_api, atlas_worker, atlas_reporting_read, atlas_break_glass', :'database_name') \gexec
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;

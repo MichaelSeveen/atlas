@@ -1,4 +1,4 @@
-// Command dbctl verifies the feature-free Atlas migration release set.
+// Command dbctl verifies the released Atlas migration set.
 package main
 
 import (

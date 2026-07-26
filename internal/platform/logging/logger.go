@@ -103,8 +103,13 @@ var allowedValues = map[string]map[string]struct{}{
 	"severity": {string(SeverityInfo): {}, string(SeverityError): {}},
 	"module":   {"api": {}, "worker": {}, "simulator": {}, "database": {}, "platform": {}},
 	"outcome":  {"ok": {}, "error": {}, "rejected": {}, "ready": {}, "not_ready": {}, "started": {}, "stopped": {}, "degraded": {}},
-	"method":   {"": {}, "GET": {}, "OPTIONS": {}, "OTHER": {}},
-	"route":    {"": {}, "/health/live": {}, "/health/ready": {}, "/version": {}, "unmatched": {}},
+	"method":   {"": {}, "GET": {}, "POST": {}, "DELETE": {}, "OPTIONS": {}, "OTHER": {}},
+	"route": {
+		"": {}, "/health/live": {}, "/health/ready": {}, "/version": {},
+		"/v1/me": {}, "/v1/auth/login": {}, "/v1/auth/callback": {}, "/v1/logout": {},
+		"/v1/sessions": {}, "/v1/sessions/{session_id}": {}, "/v1/sessions/revoke-all": {},
+		"/v1/step-up/challenges": {}, "unmatched": {},
+	},
 }
 
 func (record Record) Validate() error {

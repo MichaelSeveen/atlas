@@ -88,8 +88,15 @@ Phase 00.
 
 ## API surface
 
+ADR 0014 closes the previously implicit browser-login, tenant-switch, invitation-acceptance,
+approval-creation/execution, and cancellation transitions. The authoritative operation details,
+security alternatives, request shapes, and error responses are in `03-contracts/openapi.yaml`.
+
 Customer/session:
 
+- `GET /v1/auth/login`
+- `GET /v1/auth/callback`
+- `POST /v1/logout`
 - `GET /v1/me`
 - `GET /v1/sessions`
 - `DELETE /v1/sessions/{session_id}`
@@ -99,8 +106,10 @@ Customer/session:
 Merchant organizations:
 
 - `GET /v1/organizations`
+- `PUT /v1/me/active-organization`
 - `GET /v1/organizations/{organization_id}/members`
 - `POST /v1/organizations/{organization_id}/invitations`
+- `POST /v1/organization-invitations/{invitation_id}/acceptance`
 - `PATCH /v1/organizations/{organization_id}/members/{member_id}`
 - `DELETE /v1/organizations/{organization_id}/members/{member_id}`
 
@@ -113,9 +122,17 @@ Credentials:
 
 Approvals:
 
+- `POST /v1/approvals`
 - `GET /v1/approvals`
 - `GET /v1/approvals/{approval_id}`
 - `POST /v1/approvals/{approval_id}/decisions`
+- `POST /v1/approvals/{approval_id}/executions`
+- `POST /v1/approvals/{approval_id}/cancellations`
+
+Phase 01 publishes no identity, session, membership, credential, approval, or audit event. The
+privileged mutation and audit write share one PostgreSQL transaction through a synchronous Audit
+application service. A later phase may introduce an outbox-backed event only after its consumer,
+minimum payload, replay, ordering, and delivery need are explicit.
 
 ## Frontend requirements
 

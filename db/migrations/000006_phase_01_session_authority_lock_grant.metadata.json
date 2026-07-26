@@ -1,0 +1,13 @@
+{
+  "version": 6,
+  "name": "phase_01_session_authority_lock_grant",
+  "released": true,
+  "lock_timeout_ms": 500,
+  "statement_timeout_ms": 5000,
+  "lock_risk": "Changes only one column-level privilege on the three-row synthetic principal table; it does not rewrite data or acquire a table-changing lock.",
+  "representative_data": "Runs against empty, version-two, version-five, and deterministic three-principal Phase 01 migration lanes.",
+  "query_plan_review": "No query plan changes; the grant permits the API role to take a shared row lock while resolving a state-bound external subject.",
+  "space_risk": "No storage change.",
+  "forward_fix": "Correct the column-level authority-lock privilege with a new ordered grant or revoke migration while preserving sessions and audit facts.",
+  "rollback": "Disable identity login before revoking the column grant; do not weaken the shared-lock query or grant general principal updates."
+}

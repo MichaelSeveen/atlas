@@ -1,0 +1,350 @@
+{
+  "schema_version": 1,
+  "seed_id": "atlas-phase01-identity-v1",
+  "virtual_time": "2026-07-26T00:00:00Z",
+  "policy_sha256": "fbdb484af7c0feda9304caa76b3e6cefa2be98e39c713f9bad3cdb76553ff23a",
+  "permissions": [
+    "identity.me.read",
+    "identity.sessions.read",
+    "identity.sessions.revoke_self",
+    "identity.sessions.revoke_all_self",
+    "identity.sessions.revoke_admin",
+    "identity.step_up.create",
+    "organization.list",
+    "organization.members.read",
+    "organization.members.sensitive.read",
+    "organization.invitations.create",
+    "organization.members.roles.update",
+    "organization.members.remove",
+    "organization.active.switch",
+    "approvals.read",
+    "approvals.create",
+    "approvals.decide",
+    "approvals.execute",
+    "approvals.cancel",
+    "api_credentials.read",
+    "api_credentials.create",
+    "api_credentials.rotate",
+    "api_credentials.revoke",
+    "audit.events.read"
+  ],
+  "roles": [
+    {
+      "id": "customer_self",
+      "population": "customer",
+      "permissions": [
+        "identity.me.read",
+        "identity.sessions.read",
+        "identity.sessions.revoke_self",
+        "identity.sessions.revoke_all_self",
+        "identity.step_up.create"
+      ],
+      "delegable_roles": []
+    },
+    {
+      "id": "merchant_viewer",
+      "population": "merchant",
+      "permissions": [
+        "identity.me.read",
+        "identity.sessions.read",
+        "identity.sessions.revoke_self",
+        "identity.sessions.revoke_all_self",
+        "identity.step_up.create",
+        "organization.list",
+        "organization.members.read",
+        "organization.active.switch",
+        "approvals.read",
+        "api_credentials.read"
+      ],
+      "delegable_roles": []
+    },
+    {
+      "id": "merchant_operator",
+      "population": "merchant",
+      "permissions": [
+        "identity.me.read",
+        "identity.sessions.read",
+        "identity.sessions.revoke_self",
+        "identity.sessions.revoke_all_self",
+        "identity.step_up.create",
+        "organization.list",
+        "organization.members.read",
+        "organization.active.switch",
+        "approvals.read",
+        "approvals.create",
+        "approvals.execute",
+        "api_credentials.read"
+      ],
+      "delegable_roles": ["merchant_viewer"]
+    },
+    {
+      "id": "merchant_admin",
+      "population": "merchant",
+      "permissions": [
+        "identity.me.read",
+        "identity.sessions.read",
+        "identity.sessions.revoke_self",
+        "identity.sessions.revoke_all_self",
+        "identity.step_up.create",
+        "organization.list",
+        "organization.members.read",
+        "organization.invitations.create",
+        "organization.members.roles.update",
+        "organization.members.remove",
+        "organization.active.switch",
+        "approvals.read",
+        "approvals.create",
+        "approvals.execute",
+        "approvals.cancel",
+        "api_credentials.read",
+        "api_credentials.create",
+        "api_credentials.rotate",
+        "api_credentials.revoke"
+      ],
+      "delegable_roles": ["merchant_viewer", "merchant_operator"]
+    },
+    {
+      "id": "merchant_security_admin",
+      "population": "merchant",
+      "permissions": [
+        "identity.me.read",
+        "identity.sessions.read",
+        "identity.sessions.revoke_self",
+        "identity.sessions.revoke_all_self",
+        "identity.step_up.create",
+        "organization.list",
+        "organization.members.read",
+        "organization.members.sensitive.read",
+        "organization.invitations.create",
+        "organization.members.roles.update",
+        "organization.members.remove",
+        "organization.active.switch",
+        "approvals.read",
+        "approvals.create",
+        "approvals.decide",
+        "approvals.execute",
+        "approvals.cancel",
+        "api_credentials.read",
+        "api_credentials.create",
+        "api_credentials.rotate",
+        "api_credentials.revoke",
+        "audit.events.read"
+      ],
+      "delegable_roles": ["merchant_viewer", "merchant_operator", "merchant_admin"]
+    },
+    {
+      "id": "support",
+      "population": "workforce",
+      "permissions": [
+        "identity.me.read",
+        "identity.sessions.read",
+        "identity.sessions.revoke_self",
+        "identity.sessions.revoke_all_self",
+        "identity.step_up.create",
+        "organization.list",
+        "organization.members.read"
+      ],
+      "delegable_roles": []
+    },
+    {
+      "id": "operations",
+      "population": "workforce",
+      "permissions": [
+        "identity.me.read",
+        "identity.sessions.read",
+        "identity.sessions.revoke_self",
+        "identity.sessions.revoke_all_self",
+        "identity.step_up.create",
+        "organization.list",
+        "organization.members.read",
+        "approvals.read",
+        "approvals.create",
+        "approvals.execute"
+      ],
+      "delegable_roles": []
+    },
+    {
+      "id": "risk_analyst",
+      "population": "workforce",
+      "permissions": [
+        "identity.me.read",
+        "identity.sessions.read",
+        "identity.sessions.revoke_self",
+        "identity.sessions.revoke_all_self",
+        "identity.step_up.create",
+        "approvals.read",
+        "approvals.decide"
+      ],
+      "delegable_roles": []
+    },
+    {
+      "id": "finance_operator",
+      "population": "workforce",
+      "permissions": [
+        "identity.me.read",
+        "identity.sessions.read",
+        "identity.sessions.revoke_self",
+        "identity.sessions.revoke_all_self",
+        "identity.step_up.create",
+        "approvals.read",
+        "approvals.decide"
+      ],
+      "delegable_roles": []
+    },
+    {
+      "id": "security_auditor",
+      "population": "workforce",
+      "permissions": [
+        "identity.me.read",
+        "identity.sessions.read",
+        "identity.sessions.revoke_self",
+        "identity.sessions.revoke_all_self",
+        "identity.step_up.create",
+        "approvals.read",
+        "audit.events.read"
+      ],
+      "delegable_roles": []
+    },
+    {
+      "id": "platform_administrator",
+      "population": "workforce",
+      "permissions": [
+        "identity.me.read",
+        "identity.sessions.read",
+        "identity.sessions.revoke_self",
+        "identity.sessions.revoke_all_self",
+        "identity.sessions.revoke_admin",
+        "identity.step_up.create",
+        "organization.list",
+        "organization.members.read",
+        "organization.members.sensitive.read",
+        "approvals.read",
+        "approvals.decide",
+        "audit.events.read"
+      ],
+      "delegable_roles": []
+    },
+    {
+      "id": "break_glass",
+      "population": "workforce",
+      "permissions": [],
+      "delegable_roles": [],
+      "standing_status": "disabled"
+    },
+    {
+      "id": "merchant_machine",
+      "population": "machine",
+      "permissions": ["identity.me.read"],
+      "delegable_roles": []
+    }
+  ],
+  "organizations": [
+    {
+      "tenant_id": "ten_01JAT1AS00000000000001",
+      "organization_type": "customer",
+      "display_name": "Synthetic Customer Tenant",
+      "normalized_name": "synthetic customer tenant",
+      "confusable_skeleton": "synthetic customer tenant"
+    },
+    {
+      "tenant_id": "ten_01JAT1AS00000000000002",
+      "organization_type": "merchant",
+      "display_name": "Synthetic Merchant Tenant",
+      "normalized_name": "synthetic merchant tenant",
+      "confusable_skeleton": "synthetic merchant tenant"
+    }
+  ],
+  "principals": [
+    {
+      "principal_id": "usr_01JAT1AS00000000000001",
+      "principal_type": "customer",
+      "display_name": "Synthetic Customer"
+    },
+    {
+      "principal_id": "usr_01JAT1AS00000000000002",
+      "principal_type": "merchant",
+      "display_name": "Synthetic Merchant Operator",
+      "person_anchor": "syn_person_merchant_001"
+    },
+    {
+      "principal_id": "usr_01JAT1AS00000000000003",
+      "principal_type": "workforce",
+      "display_name": "Synthetic Workforce Operator",
+      "person_anchor": "syn_person_workforce_001"
+    }
+  ],
+  "external_subjects": [
+    {
+      "external_subject_id": "ext_01JAT1AS00000000000001",
+      "principal_id": "usr_01JAT1AS00000000000001",
+      "population": "customer",
+      "issuer": "http://keycloak:8080/realms/atlas-customer-local",
+      "subject": "00000000-0000-4000-8000-000000000101"
+    },
+    {
+      "external_subject_id": "ext_01JAT1AS00000000000002",
+      "principal_id": "usr_01JAT1AS00000000000002",
+      "population": "merchant",
+      "issuer": "http://keycloak:8080/realms/atlas-merchant-local",
+      "subject": "00000000-0000-4000-8000-000000000201"
+    },
+    {
+      "external_subject_id": "ext_01JAT1AS00000000000003",
+      "principal_id": "usr_01JAT1AS00000000000003",
+      "population": "workforce",
+      "issuer": "http://keycloak:8080/realms/atlas-workforce-local",
+      "subject": "00000000-0000-4000-8000-000000000301"
+    }
+  ],
+  "memberships": [
+    {
+      "membership_id": "mem_01JAT1AS00000000000001",
+      "tenant_id": "ten_01JAT1AS00000000000001",
+      "principal_id": "usr_01JAT1AS00000000000001",
+      "role_id": "customer_self"
+    },
+    {
+      "membership_id": "mem_01JAT1AS00000000000002",
+      "tenant_id": "ten_01JAT1AS00000000000002",
+      "principal_id": "usr_01JAT1AS00000000000002",
+      "role_id": "merchant_operator"
+    }
+  ],
+  "principal_roles": [
+    {
+      "principal_role_id": "prr_01JAT1AS00000000000001",
+      "principal_id": "usr_01JAT1AS00000000000003",
+      "role_id": "operations"
+    }
+  ],
+  "sessions": [
+    {
+      "session_id": "ses_01JAT1AS00000000000901",
+      "principal_id": "usr_01JAT1AS00000000000003",
+      "global_scope": "workforce",
+      "verifier_sha256": "d18c725fbf768abfd832a6ea7ee94833c366e834d611fc973e631fc39fa4548d",
+      "assurance": "phishing-resistant",
+      "status": "revoked",
+      "idle_expires_at": "2026-07-26T00:10:00Z",
+      "absolute_expires_at": "2026-07-26T01:00:00Z",
+      "revoked_at": "2026-07-26T00:00:00Z"
+    }
+  ],
+  "audit_events": [
+    {
+      "audit_event_id": "aud_01JAT1AS00000000000001",
+      "actor_id": "usr_01JAT1AS00000000000003",
+      "actor_type": "workforce",
+      "tenant_id": "ten_01JAT1AS00000000000002",
+      "session_assurance": "none",
+      "action": "identity.seed.applied",
+      "target_type": "identity_seed",
+      "target_id": "atlas-phase01-identity-v1",
+      "decision_id": "dec_01JAT1AS00000000000001",
+      "decision": "executed",
+      "reason_code": "synthetic_seed",
+      "correlation_id": "cor_01JAT1AS00000000000001",
+      "safe_after_reference": "seed:atlas-phase01-identity-v1"
+    }
+  ]
+}

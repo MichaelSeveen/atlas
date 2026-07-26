@@ -46,6 +46,12 @@ func TestMostAgentsSkip05ProductionConfigurationRejectsDevelopmentKeysAndWildcar
 		{name: "plaintext origin", mutate: func(config *Config) {
 			config.AllowedOrigins = []string{"http://web.production-reference.atlas.invalid"}
 		}},
+		{name: "OIDC algorithm downgrade", mutate: func(config *Config) {
+			config.OIDCProviders[0].SupportedAlgorithms = []string{"none"}
+		}},
+		{name: "OIDC redirect escape", mutate: func(config *Config) {
+			config.OIDCProviders[0].RedirectURL = "https://attacker.invalid/callback"
+		}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -153,7 +159,7 @@ func TestCredentialFingerprintsAreUniqueAcrossPreparedEnvironments(t *testing.T)
 		}
 		for _, line := range strings.Split(strings.TrimSpace(string(content)), "\n") {
 			key, value, _ := strings.Cut(line, "=")
-			if !strings.Contains(key, "PASSWORD") && key != "ATLAS_NATS_TOKEN" {
+			if !strings.Contains(key, "PASSWORD") && !strings.HasSuffix(key, "_KEY") && key != "ATLAS_NATS_TOKEN" {
 				continue
 			}
 			fingerprint := sha256.Sum256([]byte(value))
@@ -163,7 +169,7 @@ func TestCredentialFingerprintsAreUniqueAcrossPreparedEnvironments(t *testing.T)
 			fingerprints[fingerprint] = string(name) + "/" + key
 		}
 	}
-	if len(fingerprints) != 22 {
+	if len(fingerprints) != 28 {
 		t.Fatalf("unexpected credential fingerprint inventory: %d", len(fingerprints))
 	}
 }
@@ -256,6 +262,26 @@ func TestPrepareIsIdempotentAndResetRequiresExactEnvironmentConfirmation(t *test
 	}
 }
 
+func TestPrepareAcceptsWindowsRuntimeEnvironmentNewlines(t *testing.T) {
+	root := repositoryRoot(t)
+	stateRoot := filepath.Join(t.TempDir(), "atlas-environments")
+	runtimePath, err := Prepare(Local, filepath.Join(root, "deploy", "environments"), stateRoot, validationTime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(runtimePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	windowsContent := bytes.ReplaceAll(content, []byte("\n"), []byte("\r\n"))
+	if err := os.WriteFile(runtimePath, windowsContent, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Prepare(Local, filepath.Join(root, "deploy", "environments"), stateRoot, validationTime); err != nil {
+		t.Fatalf("prepare rejected a valid Windows-newline runtime environment: %v", err)
+	}
+}
+
 func TestProbeSetFailsClosed(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -315,6 +341,13 @@ func cloneConfig(source Config) Config {
 	cloned.AllowedOrigins = append([]string(nil), source.AllowedOrigins...)
 	cloned.Services = append([]Service(nil), source.Services...)
 	cloned.FeatureFlags = append([]FeatureFlag(nil), source.FeatureFlags...)
+	cloned.OIDCProviders = make([]OIDCProvider, len(source.OIDCProviders))
+	for index := range source.OIDCProviders {
+		cloned.OIDCProviders[index] = source.OIDCProviders[index]
+		cloned.OIDCProviders[index].SupportedAlgorithms = append(
+			[]string(nil), source.OIDCProviders[index].SupportedAlgorithms...,
+		)
+	}
 	cloned.CredentialRefs = make(map[string]string, len(source.CredentialRefs))
 	for key, value := range source.CredentialRefs {
 		cloned.CredentialRefs[key] = value

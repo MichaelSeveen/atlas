@@ -1,7 +1,7 @@
 openapi: 3.1.1
 info:
   title: Atlas Wallet and Financial Operations API
-  version: 2026-07-20
+  version: 2026-07-23
   summary: Security-first contracts for wallet, transfers, merchant payments, operations, and reporting.
   description: |
     Reference contract for the Atlas portfolio platform. Financial amounts are integer minor-unit
@@ -20,6 +20,9 @@ servers:
 tags:
   - name: Platform
   - name: Identity
+  - name: Organizations
+  - name: API credentials
+  - name: Approvals
   - name: Wallets
   - name: Beneficiaries
   - name: Transfers
@@ -124,18 +127,611 @@ paths:
       operationId: getCurrentPrincipal
       tags: [Identity]
       summary: Get the authenticated principal and active tenant context
+      security:
+        - bffSession: []
+        - merchantApiKey: []
       responses:
         '200':
           description: Current principal
           headers:
-            X-Request-Id:
-              $ref: '#/components/headers/XRequestId'
+            X-Request-Id: {$ref: '#/components/headers/XRequestId'}
+            X-Atlas-CSRF-Token: {$ref: '#/components/headers/XAtlasCSRFToken'}
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Principal'}
+        '401': {$ref: '#/components/responses/AuthenticationRequired'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+
+  /v1/auth/login:
+    get:
+      operationId: beginBrowserLogin
+      tags: [Identity]
+      summary: Begin a synthetic OIDC authorization-code login
+      description: Creates a short-lived single-use login transaction and redirects only to an allow-listed issuer.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AuthPopulation'
+        - $ref: '#/components/parameters/ReturnTo'
+      responses:
+        '303':
+          description: Redirect to the allow-listed synthetic identity provider
+          headers:
+            Location: {$ref: '#/components/headers/Location'}
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
+
+  /v1/auth/callback:
+    get:
+      operationId: completeBrowserLogin
+      tags: [Identity]
+      summary: Complete a synthetic OIDC authorization-code login
+      description: Validates issuer, state, nonce, PKCE, code redemption, and claim mapping before issuing an opaque BFF session.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationCode'
+        - $ref: '#/components/parameters/OIDCState'
+        - $ref: '#/components/parameters/OIDCAuthorizationIssuer'
+        - $ref: '#/components/parameters/OIDCSessionState'
+      responses:
+        '303':
+          description: Redirect to a same-origin allow-listed application path
+          headers:
+            Location: {$ref: '#/components/headers/Location'}
+            Set-Cookie: {$ref: '#/components/headers/SessionSetCookie'}
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
+        '401': {$ref: '#/components/responses/AuthenticationRequired'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
+
+  /v1/logout:
+    post:
+      operationId: logoutCurrentSession
+      tags: [Identity]
+      summary: Revoke the current browser session
+      parameters:
+        - $ref: '#/components/parameters/XAtlasCSRFToken'
+      responses:
+        '204':
+          description: Current session revoked or already absent
+          headers:
+            Set-Cookie: {$ref: '#/components/headers/SessionSetCookie'}
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
+        '401': {$ref: '#/components/responses/AuthenticationRequired'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+
+  /v1/sessions:
+    get:
+      operationId: listPrincipalSessions
+      tags: [Identity]
+      summary: List sessions owned by the current principal
+      responses:
+        '200':
+          description: Current principal session list
+          headers:
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Principal'
-        '401':
-          $ref: '#/components/responses/AuthenticationRequired'
+                type: object
+                additionalProperties: false
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    maxItems: 100
+                    items: {$ref: '#/components/schemas/Session'}
+        '401': {$ref: '#/components/responses/AuthenticationRequired'}
+
+  /v1/sessions/{session_id}:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    delete:
+      operationId: revokePrincipalSession
+      tags: [Identity]
+      summary: Revoke one session owned by the current principal
+      parameters:
+        - $ref: '#/components/parameters/XAtlasCSRFToken'
+      responses:
+        '204': {description: Session revoked or already absent}
+        '401': {$ref: '#/components/responses/AuthenticationRequired'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
+
+  /v1/sessions/revoke-all:
+    post:
+      operationId: revokeAllPrincipalSessions
+      tags: [Identity]
+      summary: Revoke all sessions for the current principal
+      parameters:
+        - $ref: '#/components/parameters/XAtlasCSRFToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RevokeAllSessionsRequest'}
+      responses:
+        '204': {description: Selected sessions revoked}
+        '401': {$ref: '#/components/responses/AuthenticationRequired'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+
+  /v1/step-up/challenges:
+    post:
+      operationId: createStepUpChallenge
+      tags: [Identity]
+      summary: Begin a fresh higher-assurance authentication challenge
+      parameters:
+        - $ref: '#/components/parameters/XAtlasCSRFToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/StepUpChallengeRequest'}
+      responses:
+        '201':
+          description: Step-up challenge created
+          headers:
+            Location: {$ref: '#/components/headers/Location'}
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StepUpChallenge'}
+        '401': {$ref: '#/components/responses/AuthenticationRequired'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
+
+  /v1/me/active-organization:
+    put:
+      operationId: setActiveOrganization
+      tags: [Organizations]
+      summary: Select the current browser session organization context
+      parameters:
+        - $ref: '#/components/parameters/XAtlasCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SetActiveOrganizationRequest'}
+      responses:
+        '200':
+          description: Updated principal and tenant context
+          headers:
+            X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Principal'}
+        '401': {$ref: '#/components/responses/AuthenticationRequired'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
+
+  /v1/organizations:
+    get:
+      operationId: listPrincipalOrganizations
+      tags: [Organizations]
+      summary: List organizations visible to the current principal
+      responses:
+        '200':
+          description: Organization list
+          headers:
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    maxItems: 100
+                    items: {$ref: '#/components/schemas/Organization'}
+        '401': {$ref: '#/components/responses/AuthenticationRequired'}
+
+  /v1/organizations/{organization_id}/members:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      operationId: listOrganizationMembers
+      tags: [Organizations]
+      summary: List authorized members without exposing concealed membership
+      parameters:
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Authorized organization-member page
+          headers:
+            X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [data, page]
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/OrganizationMember'}
+                  page: {$ref: '#/components/schemas/PageInfo'}
+        '401': {$ref: '#/components/responses/AuthenticationRequired'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
+
+  /v1/organizations/{organization_id}/invitations:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    post:
+      operationId: createOrganizationInvitation
+      tags: [Organizations]
+      summary: Create a single-use organization invitation
+      parameters:
+        - $ref: '#/components/parameters/XAtlasCSRFToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateOrganizationInvitationRequest'}
+      responses:
+        '201':
+          description: Invitation created; the acceptance token is disclosed only for the original response
+          headers:
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            Location: {$ref: '#/components/headers/Location'}
+            X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OrganizationInvitationCreated'}
+        '401': {$ref: '#/components/responses/AuthenticationRequired'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/ValidationFailed'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+
+  /v1/organization-invitations/{invitation_id}/acceptance:
+    parameters:
+      - $ref: '#/components/parameters/InvitationId'
+    post:
+      operationId: acceptOrganizationInvitation
+      tags: [Organizations]
+      summary: Accept a single-use organization invitation
+      parameters:
+        - $ref: '#/components/parameters/XAtlasCSRFToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AcceptOrganizationInvitationRequest'}
+      responses:
+        '200':
+          description: Invitation accepted and membership returned
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OrganizationMember'}
+        '401': {$ref: '#/components/responses/AuthenticationRequired'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/ValidationFailed'}
+
+  /v1/organizations/{organization_id}/members/{member_id}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/MemberId'
+    patch:
+      operationId: updateOrganizationMember
+      tags: [Organizations]
+      summary: Change an organization member role subject to approval policy
+      parameters:
+        - $ref: '#/components/parameters/XAtlasCSRFToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateOrganizationMemberRequest'}
+      responses:
+        '200':
+          description: Membership changed
+          headers:
+            ETag: {$ref: '#/components/headers/ETag'}
+            X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OrganizationMember'}
+        '202':
+          description: Approval is required before execution
+          headers:
+            Location: {$ref: '#/components/headers/Location'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Approval'}
+        '401': {$ref: '#/components/responses/AuthenticationRequired'}
+        '403': {$ref: '#/components/responses/StepUpRequired'}
+        '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '412': {$ref: '#/components/responses/PreconditionFailed'}
+        '422': {$ref: '#/components/responses/ValidationFailed'}
+    delete:
+      operationId: revokeOrganizationMember
+      tags: [Organizations]
+      summary: Revoke organization membership subject to last-admin policy
+      parameters:
+        - $ref: '#/components/parameters/XAtlasCSRFToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204': {description: Membership revoked}
+        '401': {$ref: '#/components/responses/AuthenticationRequired'}
+        '403': {$ref: '#/components/responses/StepUpRequired'}
+        '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '412': {$ref: '#/components/responses/PreconditionFailed'}
+
+  /v1/api-credentials:
+    get:
+      operationId: listAPICredentials
+      tags: [API credentials]
+      summary: List masked API-credential metadata for the active organization
+      responses:
+        '200':
+          description: API-credential metadata list
+          headers:
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    maxItems: 100
+                    items: {$ref: '#/components/schemas/APICredential'}
+        '401': {$ref: '#/components/responses/AuthenticationRequired'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    post:
+      operationId: createAPICredential
+      tags: [API credentials]
+      summary: Create an organization API credential with least-privilege scopes
+      parameters:
+        - $ref: '#/components/parameters/XAtlasCSRFToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateAPICredentialRequest'}
+      responses:
+        '201':
+          description: API credential created; the secret is disclosed only for the original response
+          headers:
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            Location: {$ref: '#/components/headers/Location'}
+            X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/APICredentialCreated'}
+        '401': {$ref: '#/components/responses/AuthenticationRequired'}
+        '403': {$ref: '#/components/responses/StepUpRequired'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/ValidationFailed'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+
+  /v1/api-credentials/{credential_id}/rotate:
+    parameters:
+      - $ref: '#/components/parameters/APICredentialId'
+    post:
+      operationId: rotateAPICredential
+      tags: [API credentials]
+      summary: Rotate an API credential with a bounded overlap window
+      parameters:
+        - $ref: '#/components/parameters/XAtlasCSRFToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Replacement credential created; the new secret is disclosed only for the original response
+          headers:
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/APICredentialCreated'}
+        '401': {$ref: '#/components/responses/AuthenticationRequired'}
+        '403': {$ref: '#/components/responses/StepUpRequired'}
+        '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+
+  /v1/api-credentials/{credential_id}:
+    parameters:
+      - $ref: '#/components/parameters/APICredentialId'
+    delete:
+      operationId: revokeAPICredential
+      tags: [API credentials]
+      summary: Immediately revoke an API credential
+      parameters:
+        - $ref: '#/components/parameters/XAtlasCSRFToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '204': {description: API credential revoked or already absent}
+        '401': {$ref: '#/components/responses/AuthenticationRequired'}
+        '403': {$ref: '#/components/responses/StepUpRequired'}
+        '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
+        '409': {$ref: '#/components/responses/Conflict'}
+
+  /v1/approvals:
+    get:
+      operationId: listApprovals
+      tags: [Approvals]
+      summary: List approvals visible to the active tenant and principal
+      parameters:
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Approval page
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [data, page]
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/Approval'}
+                  page: {$ref: '#/components/schemas/PageInfo'}
+        '401': {$ref: '#/components/responses/AuthenticationRequired'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    post:
+      operationId: createApproval
+      tags: [Approvals]
+      summary: Create a typed approval request over a canonical payload digest
+      parameters:
+        - $ref: '#/components/parameters/XAtlasCSRFToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateApprovalRequest'}
+      responses:
+        '201':
+          description: Approval request created
+          headers:
+            Location: {$ref: '#/components/headers/Location'}
+            X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Approval'}
+        '401': {$ref: '#/components/responses/AuthenticationRequired'}
+        '403': {$ref: '#/components/responses/StepUpRequired'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/ValidationFailed'}
+
+  /v1/approvals/{approval_id}:
+    parameters:
+      - $ref: '#/components/parameters/ApprovalId'
+    get:
+      operationId: getApproval
+      tags: [Approvals]
+      summary: Get an approval and its immutable payload digest
+      responses:
+        '200':
+          description: Approval detail
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Approval'}
+        '401': {$ref: '#/components/responses/AuthenticationRequired'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
+
+  /v1/approvals/{approval_id}/decisions:
+    parameters:
+      - $ref: '#/components/parameters/ApprovalId'
+    post:
+      operationId: decideApproval
+      tags: [Approvals]
+      summary: Approve or reject an approval as a distinct principal
+      parameters:
+        - $ref: '#/components/parameters/XAtlasCSRFToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ApprovalDecisionRequest'}
+      responses:
+        '200':
+          description: Approval decision recorded
+          headers:
+            ETag: {$ref: '#/components/headers/ETag'}
+            X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Approval'}
+        '401': {$ref: '#/components/responses/AuthenticationRequired'}
+        '403': {$ref: '#/components/responses/StepUpRequired'}
+        '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '412': {$ref: '#/components/responses/PreconditionFailed'}
+
+  /v1/approvals/{approval_id}/executions:
+    parameters:
+      - $ref: '#/components/parameters/ApprovalId'
+    post:
+      operationId: executeApproval
+      tags: [Approvals]
+      summary: Execute an approved typed action after payload revalidation
+      parameters:
+        - $ref: '#/components/parameters/XAtlasCSRFToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200':
+          description: Approved action executed
+          headers:
+            ETag: {$ref: '#/components/headers/ETag'}
+            X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Approval'}
+        '401': {$ref: '#/components/responses/AuthenticationRequired'}
+        '403': {$ref: '#/components/responses/StepUpRequired'}
+        '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '412': {$ref: '#/components/responses/PreconditionFailed'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
+
+  /v1/approvals/{approval_id}/cancellations:
+    parameters:
+      - $ref: '#/components/parameters/ApprovalId'
+    post:
+      operationId: cancelApproval
+      tags: [Approvals]
+      summary: Cancel a pending approval
+      parameters:
+        - $ref: '#/components/parameters/XAtlasCSRFToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ApprovalCancellationRequest'}
+      responses:
+        '200':
+          description: Approval cancelled
+          headers:
+            ETag: {$ref: '#/components/headers/ETag'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Approval'}
+        '401': {$ref: '#/components/responses/AuthenticationRequired'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '412': {$ref: '#/components/responses/PreconditionFailed'}
 
   /v1/wallets:
     get:
@@ -1127,6 +1723,14 @@ components:
       in: cookie
       name: __Host-atlas_session
       description: Secure, HttpOnly, SameSite session cookie managed by the BFF.
+    merchantApiKey:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: |
+        AtlasKey credential formatted as `AtlasKey <key-id>.<secret>`. Secrets are high-entropy,
+        one-time-disclosed values stored only as SHA-256 verifiers. The `identity:read` scope
+        authorizes only `GET /v1/me` in Phase 01.
     merchantOAuth:
       type: oauth2
       description: OAuth 2.0 client-credentials access token with audience and scope enforcement.
@@ -1178,6 +1782,67 @@ components:
       in: header
       required: true
       schema: {type: string, minLength: 3, maxLength: 200}
+    XAtlasCSRFToken:
+      name: X-Atlas-CSRF-Token
+      in: header
+      required: true
+      description: Memory-only token bound to the current browser session and its latest rotation.
+      schema:
+        type: string
+        minLength: 43
+        maxLength: 128
+        pattern: '^[A-Za-z0-9_-]+$'
+    AuthPopulation:
+      name: population
+      in: query
+      required: true
+      schema:
+        type: string
+        enum: [customer, merchant, workforce]
+    ReturnTo:
+      name: return_to
+      in: query
+      required: false
+      description: Same-origin relative application path selected from the server allow-list.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 500
+        pattern: '^/[A-Za-z0-9/_?=&.%~-]*$'
+    AuthorizationCode:
+      name: code
+      in: query
+      required: true
+      schema: {type: string, minLength: 16, maxLength: 2048}
+    OIDCState:
+      name: state
+      in: query
+      required: true
+      schema:
+        type: string
+        minLength: 43
+        maxLength: 128
+        pattern: '^[A-Za-z0-9_-]+$'
+    OIDCAuthorizationIssuer:
+      name: iss
+      in: query
+      required: false
+      description: Authorization-response issuer identifier; when supplied it must exactly match the configured internal or public issuer form for the state-bound population.
+      schema:
+        type: string
+        format: uri
+        minLength: 12
+        maxLength: 2048
+    OIDCSessionState:
+      name: session_state
+      in: query
+      required: false
+      description: Opaque provider browser-session correlation value accepted for protocol interoperability and never used as Atlas authorization state.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 512
+        pattern: '^[A-Za-z0-9._~-]+$'
     PageSize:
       name: page_size
       in: query
@@ -1186,6 +1851,36 @@ components:
       name: cursor
       in: query
       schema: {type: string, minLength: 16, maxLength: 2048}
+    SessionId:
+      name: session_id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/OpaqueId'}
+    OrganizationId:
+      name: organization_id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/OpaqueId'}
+    InvitationId:
+      name: invitation_id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/OpaqueId'}
+    MemberId:
+      name: member_id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/OpaqueId'}
+    APICredentialId:
+      name: credential_id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/OpaqueId'}
+    ApprovalId:
+      name: approval_id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/OpaqueId'}
     WalletId:
       name: wallet_id
       in: path
@@ -1243,6 +1938,23 @@ components:
     IdempotencyReplayed:
       schema: {type: boolean}
       description: True when returning the persisted response for a previous identical request.
+    XAtlasCSRFToken:
+      description: New memory-only CSRF token bound to the current session and latest rotation.
+      schema:
+        type: string
+        minLength: 43
+        maxLength: 128
+        pattern: '^[A-Za-z0-9_-]+$'
+    XAuthorizationDecisionId:
+      description: Opaque identifier linking a privileged or denied action to its authorization evidence.
+      schema: {$ref: '#/components/schemas/OpaqueId'}
+    SessionSetCookie:
+      description: |
+        The `__Host-atlas_session` cookie with Secure, HttpOnly, SameSite=Lax, Path=/, and no
+        Domain attribute; logout uses an immediate expiry.
+      schema: {type: string, maxLength: 1024}
+    Location:
+      schema: {type: string, format: uri-reference, maxLength: 2048}
 
   responses:
     AuthenticationRequired:
@@ -1259,6 +1971,8 @@ components:
             retryable: false
     StepUpRequired:
       description: A fresh higher-assurance authentication is required
+      headers:
+        X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
       content:
         application/problem+json:
           schema: {$ref: '#/components/schemas/Problem'}
@@ -1271,11 +1985,15 @@ components:
             retryable: false
     Forbidden:
       description: Action is not authorized
+      headers:
+        X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
       content:
         application/problem+json:
           schema: {$ref: '#/components/schemas/Problem'}
     NotFoundOrConcealed:
       description: Resource is absent or deliberately concealed by authorization policy
+      headers:
+        X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
       content:
         application/problem+json:
           schema: {$ref: '#/components/schemas/Problem'}
@@ -1479,6 +2197,272 @@ components:
           type: array
           uniqueItems: true
           items: {type: string, maxLength: 120}
+        authorization_version: {type: integer, minimum: 1}
+        session_expires_at: {type: [string, 'null'], format: date-time}
+
+    Session:
+      type: object
+      additionalProperties: false
+      required: [id, population, assurance, current, created_at, last_seen_at, idle_expires_at, absolute_expires_at]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        population: {type: string, enum: [customer, merchant, workforce]}
+        assurance: {type: string, enum: [baseline, stepped_up, phishing_resistant]}
+        current: {type: boolean}
+        client_label: {type: [string, 'null'], maxLength: 120}
+        created_at: {type: string, format: date-time}
+        last_seen_at: {type: string, format: date-time}
+        idle_expires_at: {type: string, format: date-time}
+        absolute_expires_at: {type: string, format: date-time}
+        revoked_at: {type: [string, 'null'], format: date-time}
+    RevokeAllSessionsRequest:
+      type: object
+      additionalProperties: false
+      required: [include_current]
+      properties:
+        include_current: {type: boolean}
+    StepUpChallengeRequest:
+      type: object
+      additionalProperties: false
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum:
+            - identity.session.admin_revoke
+            - identity.organization.invitation.create_admin
+            - identity.organization.membership.change_admin
+            - identity.organization.membership.remove_admin
+            - identity.approval.decide
+            - identity.approval.execute
+            - identity.api_credential.create
+            - identity.api_credential.rotate
+            - identity.api_credential.revoke
+    StepUpChallenge:
+      type: object
+      additionalProperties: false
+      required: [id, action, required_assurance, authorization_url, expires_at]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        action: {type: string, maxLength: 120}
+        required_assurance: {type: string, enum: [stepped_up, phishing_resistant]}
+        authorization_url: {type: string, format: uri-reference, maxLength: 2048}
+        expires_at: {type: string, format: date-time}
+
+    SetActiveOrganizationRequest:
+      type: object
+      additionalProperties: false
+      required: [organization_id]
+      properties:
+        organization_id: {$ref: '#/components/schemas/OpaqueId'}
+    Purpose:
+      type: string
+      enum:
+        - self_service
+        - organization_administration
+        - approval_review
+        - credential_management
+        - security_review
+    Organization:
+      type: object
+      additionalProperties: false
+      required: [id, display_name, principal_role, membership_version]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        display_name: {type: string, minLength: 1, maxLength: 200}
+        principal_role: {$ref: '#/components/schemas/OrganizationMemberRole'}
+        membership_version: {type: integer, minimum: 1}
+    OrganizationMemberRole:
+      type: string
+      enum: [merchant_viewer, merchant_operator, merchant_admin, merchant_security_admin]
+    OrganizationMember:
+      type: object
+      additionalProperties: false
+      required: [id, organization_id, principal_id, role, status, version, created_at]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        organization_id: {$ref: '#/components/schemas/OpaqueId'}
+        principal_id: {$ref: '#/components/schemas/OpaqueId'}
+        email_hint:
+          type: [string, 'null']
+          maxLength: 254
+          description: Masked display value only; never a reusable identifier or secret.
+        role: {$ref: '#/components/schemas/OrganizationMemberRole'}
+        status: {type: string, enum: [active, revoked]}
+        version: {type: integer, minimum: 1}
+        created_at: {type: string, format: date-time}
+        revoked_at: {type: [string, 'null'], format: date-time}
+    CreateOrganizationInvitationRequest:
+      type: object
+      additionalProperties: false
+      required: [email, role]
+      properties:
+        email: {type: string, format: email, minLength: 3, maxLength: 254}
+        role: {$ref: '#/components/schemas/OrganizationMemberRole'}
+    OrganizationInvitation:
+      type: object
+      additionalProperties: false
+      required: [id, organization_id, email_hint, role, status, expires_at, created_at]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        organization_id: {$ref: '#/components/schemas/OpaqueId'}
+        email_hint: {type: string, minLength: 3, maxLength: 254}
+        role: {$ref: '#/components/schemas/OrganizationMemberRole'}
+        status: {type: string, enum: [pending, accepted, revoked, expired]}
+        expires_at: {type: string, format: date-time}
+        created_at: {type: string, format: date-time}
+    OrganizationInvitationCreated:
+      type: object
+      additionalProperties: false
+      required: [invitation, acceptance_token, secret_disclosed]
+      properties:
+        invitation: {$ref: '#/components/schemas/OrganizationInvitation'}
+        acceptance_token:
+          type: [string, 'null']
+          minLength: 43
+          maxLength: 128
+          description: Null on an idempotent replay because secret material is never persisted recoverably.
+        secret_disclosed: {type: boolean}
+    AcceptOrganizationInvitationRequest:
+      type: object
+      additionalProperties: false
+      required: [acceptance_token]
+      properties:
+        acceptance_token:
+          type: string
+          minLength: 43
+          maxLength: 128
+          pattern: '^[A-Za-z0-9_-]+$'
+    UpdateOrganizationMemberRequest:
+      type: object
+      additionalProperties: false
+      required: [role, purpose]
+      properties:
+        role: {$ref: '#/components/schemas/OrganizationMemberRole'}
+        purpose:
+          type: string
+          const: organization_administration
+
+    APICredential:
+      type: object
+      additionalProperties: false
+      required: [id, organization_id, name, secret_hint, scopes, status, expires_at, created_at]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        organization_id: {$ref: '#/components/schemas/OpaqueId'}
+        name: {type: string, minLength: 1, maxLength: 120}
+        secret_hint:
+          type: string
+          minLength: 4
+          maxLength: 12
+          description: Non-secret display suffix only.
+        scopes:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {type: string, enum: ['identity:read']}
+        status: {type: string, enum: [active, rotating, revoked, expired]}
+        expires_at: {type: string, format: date-time}
+        overlap_ends_at: {type: [string, 'null'], format: date-time}
+        last_used_at: {type: [string, 'null'], format: date-time}
+        created_at: {type: string, format: date-time}
+        revoked_at: {type: [string, 'null'], format: date-time}
+    CreateAPICredentialRequest:
+      type: object
+      additionalProperties: false
+      required: [name, scopes, expires_in_days, purpose]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 120}
+        scopes:
+          type: array
+          minItems: 1
+          maxItems: 1
+          uniqueItems: true
+          items: {type: string, enum: ['identity:read']}
+        expires_in_days: {type: integer, minimum: 1, maximum: 365, default: 90}
+        purpose:
+          type: string
+          const: credential_management
+    APICredentialCreated:
+      type: object
+      additionalProperties: false
+      required: [credential, secret, secret_disclosed]
+      properties:
+        credential: {$ref: '#/components/schemas/APICredential'}
+        secret:
+          type: [string, 'null']
+          minLength: 43
+          maxLength: 256
+          description: Full `AtlasKey <key-id>.<secret>` value on the original response and null on replay.
+        secret_disclosed: {type: boolean}
+
+    ApprovalStatus:
+      type: string
+      enum: [pending, approved, rejected, cancelled, expired, executed, execution_failed, superseded]
+    MembershipRoleChangeApprovalRequest:
+      type: object
+      additionalProperties: false
+      required: [organization_id, member_id, expected_membership_version, requested_role, purpose]
+      properties:
+        organization_id: {$ref: '#/components/schemas/OpaqueId'}
+        member_id: {$ref: '#/components/schemas/OpaqueId'}
+        expected_membership_version: {type: integer, minimum: 1}
+        requested_role: {$ref: '#/components/schemas/OrganizationMemberRole'}
+        purpose:
+          type: string
+          const: organization_administration
+    CreateApprovalRequest:
+      type: object
+      additionalProperties: false
+      required: [action_type, payload]
+      properties:
+        action_type:
+          type: string
+          const: identity.organization.membership.change_admin
+        payload: {$ref: '#/components/schemas/MembershipRoleChangeApprovalRequest'}
+    Approval:
+      type: object
+      additionalProperties: false
+      required:
+        [id, organization_id, action_type, payload_digest, status, requester_principal_id,
+         purpose, version, expires_at, created_at]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        organization_id: {$ref: '#/components/schemas/OpaqueId'}
+        action_type:
+          type: string
+          enum: [identity.organization.membership.change_admin]
+        payload_digest:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+          description: SHA-256 over the RFC 8785 canonical request payload.
+        status: {$ref: '#/components/schemas/ApprovalStatus'}
+        requester_principal_id: {$ref: '#/components/schemas/OpaqueId'}
+        decider_principal_id:
+          oneOf: [{$ref: '#/components/schemas/OpaqueId'}, {type: 'null'}]
+        purpose: {$ref: '#/components/schemas/Purpose'}
+        decision_reason: {type: [string, 'null'], maxLength: 500}
+        version: {type: integer, minimum: 1}
+        expires_at: {type: string, format: date-time}
+        created_at: {type: string, format: date-time}
+        decided_at: {type: [string, 'null'], format: date-time}
+        executed_at: {type: [string, 'null'], format: date-time}
+    ApprovalDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [decision, purpose]
+      properties:
+        decision: {type: string, enum: [approve, reject]}
+        purpose:
+          type: string
+          const: approval_review
+        reason: {type: [string, 'null'], maxLength: 500}
+    ApprovalCancellationRequest:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason: {type: string, minLength: 1, maxLength: 500}
 
     WalletStatus:
       type: string

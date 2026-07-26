@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	CurrentVersion  = 2
-	CurrentChecksum = "94fdc5112a045e595ee0a6300b8e7cc50b64e09a60a562336011f176283c1dc6"
+	CurrentVersion  = 6
+	CurrentChecksum = "b8c46daa86ff72667161201fc494fb296325737330d988117fd1e76c62f6e9a0"
 )
 
 var (
@@ -28,6 +28,8 @@ var (
 	hashPattern     = regexp.MustCompile(`^[0-9a-f]{64}$`)
 	transactionSQL  = regexp.MustCompile(`(?im)^\s*(begin|commit|rollback|savepoint|release\s+savepoint)\b`)
 	dangerousSQL    = regexp.MustCompile(`(?i)\b(alter\s+system|copy\s+[^;]+\s+program|security\s+definer)\b`)
+	atlasSchemaSQL  = regexp.MustCompile(`(?i)\b(atlas_[a-z][a-z0-9_]*)\.`)
+	createSchemaSQL = regexp.MustCompile(`(?i)\bcreate\s+schema\s+(atlas_[a-z][a-z0-9_]*)\b`)
 )
 
 type RiskMetadata struct {
@@ -244,9 +246,24 @@ func validateSQL(content []byte) error {
 		return errors.New("migration contains a forbidden privileged statement")
 	}
 	lower := strings.ToLower(source)
-	for _, forbidden := range []string{"wallet", "ledger", "journal", "posting", "balance", "payment", "transfer", "customer", "identity"} {
+	for _, forbidden := range []string{"wallet", "ledger", "journal", "posting", "balance", "payment", "transfer", "payout", "refund"} {
 		if strings.Contains(lower, forbidden) {
-			return fmt.Errorf("feature-free migration contains product term %q", forbidden)
+			return fmt.Errorf("identity-phase migration contains forbidden financial term %q", forbidden)
+		}
+	}
+	for _, match := range atlasSchemaSQL.FindAllStringSubmatch(lower, -1) {
+		schema := match[1]
+		switch schema {
+		case "atlas_foundation", "atlas_identity", "atlas_audit":
+		default:
+			return fmt.Errorf("migration references an unratified schema %q", schema)
+		}
+	}
+	for _, match := range createSchemaSQL.FindAllStringSubmatch(lower, -1) {
+		switch match[1] {
+		case "atlas_foundation", "atlas_identity", "atlas_audit":
+		default:
+			return fmt.Errorf("migration creates an unratified schema %q", match[1])
 		}
 	}
 	return nil

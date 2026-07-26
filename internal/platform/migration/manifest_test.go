@@ -59,10 +59,14 @@ func TestMigrationRiskAndSQLPoliciesFailClosed(t *testing.T) {
 		"BEGIN; CREATE TABLE atlas_foundation.unsafe(id integer); COMMIT;",
 		"ALTER SYSTEM SET log_statement = 'all';",
 		"CREATE TABLE wallet(id integer);",
+		"CREATE SCHEMA atlas_operations;",
 	} {
 		if err := validateSQL([]byte(source)); err == nil {
 			t.Fatalf("unsafe migration SQL was accepted: %s", source)
 		}
+	}
+	if err := validateSQL([]byte("CREATE TABLE atlas_identity.synthetic(id text);")); err != nil {
+		t.Fatalf("ratified Identity schema was rejected: %v", err)
 	}
 }
 

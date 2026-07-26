@@ -71,12 +71,18 @@ func (a *App) corsMiddleware(next http.Handler) http.Handler {
 		if a.cors.allowCredentials {
 			response.Header().Set("Access-Control-Allow-Credentials", "true")
 		}
+		response.Header().Set(
+			"Access-Control-Expose-Headers",
+			"X-Atlas-CSRF-Token, X-Request-Id, X-Correlation-Id, traceparent",
+		)
 		if request.Method != http.MethodOptions {
 			next.ServeHTTP(response, request)
 			return
 		}
 		requestedMethods := request.Header.Values("Access-Control-Request-Method")
-		if telemetryRoute(request.URL.Path) == "unmatched" || len(requestedMethods) != 1 || requestedMethods[0] != http.MethodGet {
+		allowedMethods := allowedMethods(request.URL.Path)
+		if telemetryRoute(request.URL.Path) == "unmatched" || len(requestedMethods) != 1 ||
+			!methodAllowed(requestedMethods[0], allowedMethods) {
 			a.writeProblem(response, request, http.StatusBadRequest, "request-malformed", "Malformed request", "REQUEST_MALFORMED", false)
 			return
 		}
@@ -94,7 +100,7 @@ func (a *App) corsMiddleware(next http.Handler) http.Handler {
 			a.writeProblem(response, request, http.StatusBadRequest, "request-malformed", "Malformed request", "REQUEST_MALFORMED", false)
 			return
 		}
-		response.Header().Set("Access-Control-Allow-Methods", http.MethodGet)
+		response.Header().Set("Access-Control-Allow-Methods", requestedMethods[0])
 		if len(requested) > 0 {
 			response.Header().Set("Access-Control-Allow-Headers", strings.Join(requested, ", "))
 		}
@@ -107,9 +113,12 @@ func allowedCORSHeaders(value string) ([]string, bool) {
 		return nil, true
 	}
 	allowlist := map[string]string{
-		"traceparent":      "traceparent",
-		"x-correlation-id": "X-Correlation-Id",
-		"x-request-id":     "X-Request-Id",
+		"content-type":       "Content-Type",
+		"idempotency-key":    "Idempotency-Key",
+		"traceparent":        "traceparent",
+		"x-atlas-csrf-token": "X-Atlas-CSRF-Token",
+		"x-correlation-id":   "X-Correlation-Id",
+		"x-request-id":       "X-Request-Id",
 	}
 	seen := map[string]struct{}{}
 	var headers []string

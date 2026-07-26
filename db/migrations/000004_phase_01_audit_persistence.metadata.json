@@ -1,0 +1,13 @@
+{
+  "version": 4,
+  "name": "phase_01_audit_persistence",
+  "released": true,
+  "lock_timeout_ms": 500,
+  "statement_timeout_ms": 5000,
+  "lock_risk": "Creates one empty append-only audit table and two indexes; it does not rewrite or lock an existing product table.",
+  "representative_data": "Runs after the empty Identity schema on an empty and a version-three database before deterministic synthetic audit facts are loaded.",
+  "query_plan_review": "Tenant and global-scope time-ordered indexes cover the later controlled audit read paths; no data-reading or data-rewriting statement exists.",
+  "space_risk": "One empty audit fact table and two bounded supporting indexes only.",
+  "forward_fix": "Add a new ordered migration for every correction after release; preserve version four and its checksum.",
+  "rollback": "After release, never delete audit facts or rewrite this migration; correct behavior with an additive reviewed forward fix."
+}

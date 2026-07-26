@@ -1,0 +1,496 @@
+{
+  "schema_version": 1,
+  "decision": "ADR-0014",
+  "phase": "PHASE-01_IDENTITY_ACCESS_TENANCY",
+  "default_authorization": "deny",
+  "authoritative_store": "postgresql",
+  "identity_populations": [
+    {
+      "id": "customer",
+      "atlas_principal_type": "customer",
+      "browser_session": true,
+      "issuer_population": "customer"
+    },
+    {
+      "id": "merchant",
+      "atlas_principal_type": "merchant_user",
+      "browser_session": true,
+      "issuer_population": "merchant"
+    },
+    {
+      "id": "workforce",
+      "atlas_principal_type": "workforce",
+      "browser_session": true,
+      "issuer_population": "workforce"
+    },
+    {
+      "id": "machine",
+      "atlas_principal_type": "machine",
+      "browser_session": false,
+      "issuer_population": "machine"
+    }
+  ],
+  "principal_linking": {
+    "external_key": ["population", "issuer", "subject"],
+    "person_anchor_required_for": ["merchant", "workforce"],
+    "person_anchor_property": "synthetic immutable non-PII anchor in portfolio environments",
+    "multiple_external_accounts_with_one_anchor": "map-to-one-atlas-principal",
+    "self_registration": "disabled"
+  },
+  "sessions": {
+    "cookie": {
+      "name": "__Host-atlas_session",
+      "secure": true,
+      "http_only": true,
+      "same_site": "Lax",
+      "path": "/",
+      "domain_attribute": "forbidden",
+      "random_bits": 256,
+      "stored_verifier": "sha256"
+    },
+    "csrf": {
+      "header": "X-Atlas-CSRF-Token",
+      "delivery": "same-origin-response-header",
+      "browser_storage": "memory-only",
+      "random_bits": 256,
+      "bound_to": "session-id-and-rotation-version",
+      "required_for": "all-cookie-authenticated-mutations"
+    },
+    "policies": [
+      {
+        "population": "customer",
+        "idle_minutes": 30,
+        "absolute_minutes": 720,
+        "minimum_assurance": "baseline"
+      },
+      {
+        "population": "merchant",
+        "idle_minutes": 20,
+        "absolute_minutes": 480,
+        "minimum_assurance": "baseline"
+      },
+      {
+        "population": "workforce",
+        "idle_minutes": 10,
+        "absolute_minutes": 60,
+        "minimum_assurance": "phishing_resistant"
+      }
+    ],
+    "rotate_on": ["login", "step-up", "privilege-change", "tenant-switch"],
+    "old_session_grace_seconds": 0,
+    "maximum_concurrent_sessions_per_principal": 10,
+    "oidc_clock_skew_seconds": 60,
+    "upstream_token_retention": "none-after-validated-callback",
+    "idp_outage_policy": {
+      "new_login": "deny",
+      "new_step_up": "deny",
+      "existing_low_risk_reads": "allow-until-existing-idle-or-absolute-expiry",
+      "high_risk_actions_without_fresh_assurance": "deny",
+      "session_lifetime_extension": "forbidden"
+    }
+  },
+  "tenancy": {
+    "active_organization": "explicit-server-validated-session-context",
+    "tenant_owned_rows": "tenant-id-required-unless-closed-global-scope-catalogue",
+    "repository_signature": "tenant-context-required",
+    "authorization_identifier": "opaque-organization-id-only",
+    "organization_name_normalization": "unicode-nfkc-casefold",
+    "organization_name_confusable_policy": "uts39-skeleton-collision-rejected-within-visible-set",
+    "invitation_expiry_hours": 72,
+    "invitation_random_bits": 256,
+    "invitation_stored_verifier": "sha256",
+    "invitation_use": "single",
+    "membership_revocation_bound": "no-new-authorized-commit-after-revocation-transaction-commits"
+  },
+  "purposes": [
+    "self_service",
+    "organization_administration",
+    "approval_review",
+    "credential_management",
+    "security_review"
+  ],
+  "permissions": [
+    "identity.me.read",
+    "identity.sessions.read",
+    "identity.sessions.revoke_self",
+    "identity.sessions.revoke_all_self",
+    "identity.sessions.revoke_admin",
+    "identity.step_up.create",
+    "organization.list",
+    "organization.members.read",
+    "organization.members.sensitive.read",
+    "organization.invitations.create",
+    "organization.members.roles.update",
+    "organization.members.remove",
+    "organization.active.switch",
+    "approvals.read",
+    "approvals.create",
+    "approvals.decide",
+    "approvals.execute",
+    "approvals.cancel",
+    "api_credentials.read",
+    "api_credentials.create",
+    "api_credentials.rotate",
+    "api_credentials.revoke",
+    "audit.events.read"
+  ],
+  "roles": [
+    {
+      "id": "customer_self",
+      "population": "customer",
+      "permissions": [
+        "identity.me.read",
+        "identity.sessions.read",
+        "identity.sessions.revoke_self",
+        "identity.sessions.revoke_all_self",
+        "identity.step_up.create"
+      ],
+      "delegable_roles": []
+    },
+    {
+      "id": "merchant_viewer",
+      "population": "merchant",
+      "permissions": [
+        "identity.me.read",
+        "identity.sessions.read",
+        "identity.sessions.revoke_self",
+        "identity.sessions.revoke_all_self",
+        "identity.step_up.create",
+        "organization.list",
+        "organization.members.read",
+        "organization.active.switch",
+        "approvals.read",
+        "api_credentials.read"
+      ],
+      "delegable_roles": []
+    },
+    {
+      "id": "merchant_operator",
+      "population": "merchant",
+      "permissions": [
+        "identity.me.read",
+        "identity.sessions.read",
+        "identity.sessions.revoke_self",
+        "identity.sessions.revoke_all_self",
+        "identity.step_up.create",
+        "organization.list",
+        "organization.members.read",
+        "organization.active.switch",
+        "approvals.read",
+        "approvals.create",
+        "approvals.execute",
+        "api_credentials.read"
+      ],
+      "delegable_roles": ["merchant_viewer"]
+    },
+    {
+      "id": "merchant_admin",
+      "population": "merchant",
+      "permissions": [
+        "identity.me.read",
+        "identity.sessions.read",
+        "identity.sessions.revoke_self",
+        "identity.sessions.revoke_all_self",
+        "identity.step_up.create",
+        "organization.list",
+        "organization.members.read",
+        "organization.invitations.create",
+        "organization.members.roles.update",
+        "organization.members.remove",
+        "organization.active.switch",
+        "approvals.read",
+        "approvals.create",
+        "approvals.execute",
+        "approvals.cancel",
+        "api_credentials.read",
+        "api_credentials.create",
+        "api_credentials.rotate",
+        "api_credentials.revoke"
+      ],
+      "delegable_roles": ["merchant_viewer", "merchant_operator"]
+    },
+    {
+      "id": "merchant_security_admin",
+      "population": "merchant",
+      "permissions": [
+        "identity.me.read",
+        "identity.sessions.read",
+        "identity.sessions.revoke_self",
+        "identity.sessions.revoke_all_self",
+        "identity.step_up.create",
+        "organization.list",
+        "organization.members.read",
+        "organization.members.sensitive.read",
+        "organization.invitations.create",
+        "organization.members.roles.update",
+        "organization.members.remove",
+        "organization.active.switch",
+        "approvals.read",
+        "approvals.create",
+        "approvals.decide",
+        "approvals.execute",
+        "approvals.cancel",
+        "api_credentials.read",
+        "api_credentials.create",
+        "api_credentials.rotate",
+        "api_credentials.revoke",
+        "audit.events.read"
+      ],
+      "delegable_roles": ["merchant_viewer", "merchant_operator", "merchant_admin"]
+    },
+    {
+      "id": "support",
+      "population": "workforce",
+      "permissions": [
+        "identity.me.read",
+        "identity.sessions.read",
+        "identity.sessions.revoke_self",
+        "identity.sessions.revoke_all_self",
+        "identity.step_up.create",
+        "organization.list",
+        "organization.members.read"
+      ],
+      "delegable_roles": []
+    },
+    {
+      "id": "operations",
+      "population": "workforce",
+      "permissions": [
+        "identity.me.read",
+        "identity.sessions.read",
+        "identity.sessions.revoke_self",
+        "identity.sessions.revoke_all_self",
+        "identity.step_up.create",
+        "organization.list",
+        "organization.members.read",
+        "approvals.read",
+        "approvals.create",
+        "approvals.execute"
+      ],
+      "delegable_roles": []
+    },
+    {
+      "id": "risk_analyst",
+      "population": "workforce",
+      "permissions": [
+        "identity.me.read",
+        "identity.sessions.read",
+        "identity.sessions.revoke_self",
+        "identity.sessions.revoke_all_self",
+        "identity.step_up.create",
+        "approvals.read",
+        "approvals.decide"
+      ],
+      "delegable_roles": []
+    },
+    {
+      "id": "finance_operator",
+      "population": "workforce",
+      "permissions": [
+        "identity.me.read",
+        "identity.sessions.read",
+        "identity.sessions.revoke_self",
+        "identity.sessions.revoke_all_self",
+        "identity.step_up.create",
+        "approvals.read",
+        "approvals.decide"
+      ],
+      "delegable_roles": []
+    },
+    {
+      "id": "security_auditor",
+      "population": "workforce",
+      "permissions": [
+        "identity.me.read",
+        "identity.sessions.read",
+        "identity.sessions.revoke_self",
+        "identity.sessions.revoke_all_self",
+        "identity.step_up.create",
+        "approvals.read",
+        "audit.events.read"
+      ],
+      "delegable_roles": []
+    },
+    {
+      "id": "platform_administrator",
+      "population": "workforce",
+      "permissions": [
+        "identity.me.read",
+        "identity.sessions.read",
+        "identity.sessions.revoke_self",
+        "identity.sessions.revoke_all_self",
+        "identity.sessions.revoke_admin",
+        "identity.step_up.create",
+        "organization.list",
+        "organization.members.read",
+        "organization.members.sensitive.read",
+        "approvals.read",
+        "approvals.decide",
+        "audit.events.read"
+      ],
+      "delegable_roles": []
+    },
+    {
+      "id": "break_glass",
+      "population": "workforce",
+      "permissions": [],
+      "delegable_roles": [],
+      "standing_status": "disabled",
+      "activation": "deferred-to-phase-10"
+    },
+    {
+      "id": "merchant_machine",
+      "population": "machine",
+      "permissions": ["identity.me.read"],
+      "delegable_roles": []
+    }
+  ],
+  "field_rules": [
+    {
+      "resource": "organization_member",
+      "field": "email_hint",
+      "default": "masked",
+      "reveal_permission": "organization.members.sensitive.read",
+      "required_purpose": "organization_administration"
+    },
+    {
+      "resource": "session",
+      "field": "network_hint",
+      "default": "masked",
+      "reveal_permission": "identity.sessions.revoke_admin",
+      "required_purpose": "security_review"
+    },
+    {
+      "resource": "api_credential",
+      "field": "last_used_network_hint",
+      "default": "masked",
+      "reveal_permission": "api_credentials.read",
+      "required_purpose": "credential_management"
+    }
+  ],
+  "authorization": {
+    "inputs": [
+      "principal-id",
+      "principal-type",
+      "tenant-id",
+      "role",
+      "permission",
+      "resource-owner",
+      "resource-classification",
+      "action",
+      "field",
+      "purpose",
+      "session-assurance",
+      "authorization-version",
+      "resource-version"
+    ],
+    "decision_cache": "none-in-phase-01",
+    "redis_authorization_truth": "forbidden",
+    "decision_id_required_for": ["privileged", "denied-high-risk"],
+    "list_filter_order": "authorize-before-count-cursor-suggestion",
+    "cross_tenant_object_policy": "not-found-or-concealed",
+    "mutation_recheck": "same-transaction-or-locked-authority-version-before-commit"
+  },
+  "step_up": {
+    "freshness_minutes": 5,
+    "current_actions": [
+      "identity.session.admin_revoke",
+      "identity.organization.invitation.create_admin",
+      "identity.organization.membership.change_admin",
+      "identity.organization.membership.remove_admin",
+      "identity.approval.decide",
+      "identity.approval.execute",
+      "identity.api_credential.create",
+      "identity.api_credential.rotate",
+      "identity.api_credential.revoke"
+    ],
+    "reserved_deny_until_owner_phase": [
+      "customer.contact.change",
+      "customer.restriction.remove",
+      "payment.payout.create",
+      "payment.refund.create",
+      "reporting.export.privileged",
+      "wallet.beneficiary.activate"
+    ]
+  },
+  "approvals": {
+    "owner": "operations",
+    "payload_canonicalization": "rfc8785",
+    "payload_hash": "sha256",
+    "default_expiry_minutes": 1440,
+    "maker_identity": "atlas-principal-id",
+    "checker_identity": "atlas-principal-id",
+    "same_principal_prohibited": true,
+    "eligible_checker_policy": "dynamic-at-decision-and-execution",
+    "execution": "explicit-synchronous-target-application-service",
+    "event_publication": "none-in-phase-01",
+    "action_types": [
+      {
+        "id": "identity.organization.membership.change_admin",
+        "request_schema": "MembershipRoleChangeApprovalRequest",
+        "maker_permission": "organization.members.roles.update",
+        "checker_permission": "approvals.decide",
+        "executor_permission": "organization.members.roles.update",
+        "target_version_required": true
+      }
+    ]
+  },
+  "api_credentials": {
+    "owner": "identity",
+    "scheme": "AtlasKey",
+    "header": "Authorization",
+    "random_bits": 256,
+    "entropy_failure": "deny-creation-or-rotation",
+    "stored_verifier": "sha256",
+    "audience": "atlas-api",
+    "environment_binding": "exact-configured-environment",
+    "secret_display": "initial-response-only",
+    "idempotent_replay_secret": "redacted",
+    "rotation_overlap_minutes": 10,
+    "default_expiry_days": 90,
+    "maximum_expiry_days": 365,
+    "current_scopes": [
+      {
+        "id": "identity:read",
+        "permission": "identity.me.read"
+      }
+    ],
+    "revocation_truth": "postgresql",
+    "rate_counter_store": "redis-ephemeral",
+    "rate_limit_dimensions": ["credential-id", "tenant-id", "source-network-signal"],
+    "redis_outage_policy": "bounded-conservative-process-local-limit-never-authorize"
+  },
+  "audit": {
+    "owner": "audit",
+    "classification": "confidential-security",
+    "retention": "retain-through-phase-01;phase-11-may-pseudonymize-identifiers-but-not-delete-security-facts",
+    "read_permission": "audit.events.read",
+    "write_path": "synchronous-application-service",
+    "privileged_mutation_atomicity": "same-postgresql-transaction",
+    "denied_high_risk_persistence": "required-before-final-response",
+    "persistence_outage": "deny-action-and-return-service-unavailable",
+    "asyncapi_publication": "not-implemented-in-phase-01",
+    "required_fields": [
+      "audit-event-id",
+      "actor-id",
+      "actor-type",
+      "tenant-id-or-global-scope",
+      "session-assurance",
+      "action",
+      "target",
+      "decision",
+      "reason-code",
+      "correlation-id",
+      "approval-id-if-any",
+      "occurred-at",
+      "safe-before-after-references"
+    ]
+  },
+  "generated_client": {
+    "source": "docs/atlas-prd/03-contracts/openapi.yaml",
+    "runtime": "bun",
+    "output": "generated-types-and-fetch-client",
+    "hand_edited_generated_output": "forbidden",
+    "tool_pin_and_install": "required-before-first-web-product-consumer-in-p01-s09"
+  }
+}

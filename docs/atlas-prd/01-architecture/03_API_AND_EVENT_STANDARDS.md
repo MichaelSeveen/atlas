@@ -26,13 +26,13 @@ The API and event contracts are product artifacts. A reviewer should understand 
 | Customer web | OIDC through BFF | Secure HttpOnly session cookie |
 | Merchant dashboard | OIDC through BFF | organization-scoped session |
 | Workforce console | separate OIDC client/realm | short session, MFA, step-up |
-| Merchant server API | OAuth client credentials or signed scoped key | no browser use |
+| Merchant server API | Phase 01 `AtlasKey <key-id>.<secret>` credential; later OAuth only by ADR | scoped, tenant-bound, expiring, no browser use |
 | Provider callback | signed request | timestamp, key ID, event replay check |
 | Internal job | workload identity | least-privilege service scope |
 
 ## 4. Idempotency protocol
 
-Money-moving POST endpoints require `Idempotency-Key`.
+Money-moving POST endpoints and non-repeatable security mutations require `Idempotency-Key`.
 
 Server scope:
 
@@ -56,6 +56,9 @@ Rules:
 - concurrent same-key requests wait, poll, or receive a documented in-progress response without duplicating effects;
 - timeout after commit remains recoverable through the key;
 - provider idempotency is separate from public API idempotency;
+- a response containing an invitation token, API secret, recovery material, or other one-time
+  secret is never persisted in recoverable form; an identical replay returns stable metadata with
+  the secret field `null` and an explicit disclosure flag;
 - retention is long enough for realistic client retries and documented per endpoint.
 
 ## 5. Error model

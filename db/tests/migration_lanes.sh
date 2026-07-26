@@ -25,14 +25,17 @@ psql -X -h 127.0.0.1 -U "$ATLAS_POSTGRES_USER" -d "$ATLAS_POSTGRES_DB" -v ON_ERR
 
 ATLAS_MIGRATION_TARGET_DATABASE="$empty_database" /database/tools/apply-migrations.sh >/dev/null
 empty_count="$(PGPASSWORD="$ATLAS_POSTGRES_MIGRATION_PASSWORD" psql -X -h 127.0.0.1 -U atlas_migration -d "$empty_database" -Atqc 'SELECT count(*) FROM atlas_foundation.schema_migrations')"
-[ "$empty_count" = '2' ]
+[ "$empty_count" = '6' ]
 
-ATLAS_MIGRATION_TARGET_DATABASE="$previous_database" ATLAS_MIGRATION_MAX_VERSION=1 /database/tools/apply-migrations.sh >/dev/null
+ATLAS_MIGRATION_TARGET_DATABASE="$previous_database" ATLAS_MIGRATION_MAX_VERSION=2 /database/tools/apply-migrations.sh >/dev/null
 previous_count="$(PGPASSWORD="$ATLAS_POSTGRES_MIGRATION_PASSWORD" psql -X -h 127.0.0.1 -U atlas_migration -d "$previous_database" -Atqc 'SELECT count(*) FROM atlas_foundation.schema_migrations')"
-[ "$previous_count" = '1' ]
+[ "$previous_count" = '2' ]
 ATLAS_MIGRATION_TARGET_DATABASE="$previous_database" /database/tools/apply-migrations.sh >/dev/null
 upgraded_count="$(PGPASSWORD="$ATLAS_POSTGRES_MIGRATION_PASSWORD" psql -X -h 127.0.0.1 -U atlas_migration -d "$previous_database" -Atqc 'SELECT count(*) FROM atlas_foundation.schema_migrations')"
-[ "$upgraded_count" = '2' ]
+[ "$upgraded_count" = '6' ]
+ATLAS_MIGRATION_TARGET_DATABASE="$previous_database" /database/tools/apply-migrations.sh >/dev/null
+rerun_count="$(PGPASSWORD="$ATLAS_POSTGRES_MIGRATION_PASSWORD" psql -X -h 127.0.0.1 -U atlas_migration -d "$previous_database" -Atqc 'SELECT count(*) FROM atlas_foundation.schema_migrations')"
+[ "$rerun_count" = '6' ]
 
 unset PGPASSWORD
 echo 'database_empty_and_previous_lanes=PASS'

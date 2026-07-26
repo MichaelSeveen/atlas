@@ -18,6 +18,8 @@ Architecture decisions are not hidden in code or social posts. Each major choice
 | 0010 | Native PostgreSQL migration and recovery controls | keep released SQL reviewable, runtime roles schema-inert, and PITR drills isolated before product data exists |
 | 0011 | GitHub Actions and keyless release integrity | bind reviewed source, immutable image digests, SBOMs, signatures, and provenance without a long-lived signing key |
 | 0012 | Solo-maintainer sensitive-change governance | preserve honest synthetic-only progress with protected automated gates and explicit triggers for future independent review |
+| 0013 | Phase 00 closed-world completion | close the feature-free foundation against its implemented topology with explicit revalidation triggers |
+| 0014 | Phase 01 identity/access contract boundary | keep identity truth in PostgreSQL, authorization server-side, privileged audit synchronous, and Phase 01 event-free |
 
 See `06-governance/adrs/`.
 
@@ -31,7 +33,7 @@ See `06-governance/adrs/`.
 - object storage retention/immutability;
 - row-level security as defense in depth;
 - deployment platform and secret management;
-- generated API client strategy;
+- exact generated API client tool/version before the first Phase 01 web product consumer (the OpenAPI/Bun strategy is fixed by ADR 0014);
 - reconciliation rule versioning;
 - database partitioning threshold;
 - analytics/read-replica boundary;

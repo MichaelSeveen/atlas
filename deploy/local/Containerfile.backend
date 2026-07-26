@@ -24,7 +24,7 @@ FROM docker.io/library/alpine:3.23.5@sha256:1beb0dc0a51de7ff38e3b5274078a2e0b811
 ARG SOURCE_REVISION=development
 LABEL org.opencontainers.image.source="https://github.com/MichaelSeveen/atlas" \
       org.opencontainers.image.revision="${SOURCE_REVISION}" \
-      org.opencontainers.image.title="Atlas feature-free backend processes"
+      org.opencontainers.image.title="Atlas backend processes"
 RUN addgroup -S -g 10001 atlas && adduser -S -D -H -u 10001 -G atlas atlas
 COPY --from=build /out /atlas
 USER 10001:10001

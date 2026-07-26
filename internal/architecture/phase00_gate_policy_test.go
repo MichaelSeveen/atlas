@@ -21,10 +21,18 @@ type phase00GatePolicy struct {
 	ClosureScope     string                    `json:"closure_scope"`
 	CompletionStatus string                    `json:"completion_status"`
 	Requirements     []phase00GateRequirement  `json:"requirements"`
+	Revalidations    []phase00Revalidation     `json:"revalidated_triggers"`
 	GuardedArtifacts []phase00GuardedArtifact  `json:"guarded_artifacts"`
 	GuardedDirs      []phase00GuardedDirectory `json:"guarded_directories"`
 	ProhibitedClaims []string                  `json:"prohibited_claims"`
 	Verification     string                    `json:"verification_command"`
+}
+
+type phase00Revalidation struct {
+	RequirementID string   `json:"requirement_id"`
+	Trigger       string   `json:"trigger"`
+	Result        string   `json:"result"`
+	Evidence      []string `json:"evidence"`
 }
 
 type phase00GateRequirement struct {
@@ -66,6 +74,14 @@ func TestPhase00GateClosurePolicy(t *testing.T) {
 		seeded.Requirements[3].RevalidationTriggers = nil
 		if err := validatePhase00GatePolicy(root, seeded); err == nil {
 			t.Fatal("phase gate accepted a scope decision without its revalidation triggers")
+		}
+	})
+
+	t.Run("seeded consumed trigger evidence is rejected", func(t *testing.T) {
+		seeded := clonePhase00GatePolicy(t, policy)
+		seeded.Revalidations = seeded.Revalidations[1:]
+		if err := validatePhase00GatePolicy(root, seeded); err == nil {
+			t.Fatal("phase gate accepted a product trigger without its revalidation evidence")
 		}
 	})
 
@@ -166,7 +182,29 @@ func validatePhase00GatePolicy(root string, policy phase00GatePolicy) error {
 	if err := validateSoloReviewTriggers(root, policy.Requirements); err != nil {
 		return err
 	}
-	if len(policy.GuardedArtifacts) != 10 || len(policy.GuardedDirs) != 5 {
+	expectedRevalidations := map[string]string{
+		"FND-011:first-product-schema":        "satisfied-synthetic-product-schema",
+		"FND-064:first-product-durable-state": "satisfied-synthetic-product-recovery",
+	}
+	if len(policy.Revalidations) != len(expectedRevalidations) {
+		return errors.New("phase gate consumed-trigger inventory is incomplete")
+	}
+	for _, revalidation := range policy.Revalidations {
+		key := revalidation.RequirementID + ":" + revalidation.Trigger
+		if expectedRevalidations[key] != revalidation.Result || len(revalidation.Evidence) < 2 {
+			return fmt.Errorf("phase gate revalidation is invalid for %s", key)
+		}
+		for _, path := range revalidation.Evidence {
+			if err := requireContainedPath(root, path); err != nil {
+				return fmt.Errorf("%s revalidation: %w", key, err)
+			}
+		}
+		delete(expectedRevalidations, key)
+	}
+	if len(expectedRevalidations) != 0 {
+		return fmt.Errorf("phase gate revalidations missing: %v", expectedRevalidations)
+	}
+	if len(policy.GuardedArtifacts) != 15 || len(policy.GuardedDirs) != 6 {
 		return errors.New("phase gate guarded inventory is incomplete")
 	}
 	seenPaths := map[string]bool{}

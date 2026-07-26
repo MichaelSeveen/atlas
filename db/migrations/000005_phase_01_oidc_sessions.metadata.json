@@ -1,0 +1,13 @@
+{
+  "version": 5,
+  "name": "phase_01_oidc_sessions",
+  "released": true,
+  "lock_timeout_ms": 500,
+  "statement_timeout_ms": 5000,
+  "lock_risk": "Adds one nullable session label, replaces two small check constraints, and creates two initially empty Identity tables with one partial index.",
+  "representative_data": "Runs against the deterministic three-principal seed with one revoked session and against empty, version-two, and version-four migration lanes.",
+  "query_plan_review": "Unique verifier, state, and principal-idempotency indexes support single-row authentication and replay paths; the partial expiry index bounds pending transaction cleanup.",
+  "space_risk": "Adds only bounded short-lived OIDC transaction rows and one compact revocation replay record per accepted idempotency key.",
+  "forward_fix": "Correct released session protocol state with a new ordered migration while preserving consumed transactions, revocations, and audit facts.",
+  "rollback": "Disable runtime identity routes and reject sessions; never restore a revoked session, browser bearer token, consumed OIDC transaction, or deleted audit fact."
+}

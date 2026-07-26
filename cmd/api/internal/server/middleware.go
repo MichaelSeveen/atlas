@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"net/http"
@@ -111,6 +112,15 @@ func (a *App) requestMetadata(next http.Handler) http.Handler {
 		attributes := requestAttributes(method, route, outcome, capture.status)
 		safeAdd(a.requestCounter, request.Context(), 1, metricapi.WithAttributes(attributes...))
 		safeRecord(a.requestDuration, request.Context(), duration.Seconds(), metricapi.WithAttributes(attributes...))
+		if operation := identityOperation(route); operation != "" {
+			identityAttributes := []attribute.KeyValue{
+				attribute.String("atlas.identity.operation", operation),
+				attribute.String("atlas.outcome", outcome),
+				attribute.Int("http.response.status_code", capture.status),
+			}
+			safeAdd(a.identityCounter, request.Context(), 1, metricapi.WithAttributes(identityAttributes...))
+			safeRecord(a.identityDuration, request.Context(), duration.Seconds(), metricapi.WithAttributes(identityAttributes...))
+		}
 		severity := logging.SeverityInfo
 		if capture.status >= 500 {
 			severity = logging.SeverityError
@@ -138,15 +148,41 @@ func telemetryRoute(path string) string {
 			return route
 		}
 	}
+	if route := identityRoute(path); route != "" {
+		return route
+	}
 	return "unmatched"
 }
 
 func telemetryMethod(method string) string {
 	switch method {
-	case http.MethodGet, http.MethodOptions:
+	case http.MethodGet, http.MethodPost, http.MethodDelete, http.MethodOptions:
 		return method
 	default:
 		return "OTHER"
+	}
+}
+
+func identityOperation(route string) string {
+	switch route {
+	case "/v1/auth/login":
+		return "login"
+	case "/v1/auth/callback":
+		return "callback"
+	case "/v1/me":
+		return "current"
+	case "/v1/logout":
+		return "logout"
+	case "/v1/sessions":
+		return "session_list"
+	case "/v1/sessions/{session_id}":
+		return "session_revoke"
+	case "/v1/sessions/revoke-all":
+		return "session_revoke_all"
+	case "/v1/step-up/challenges":
+		return "step_up"
+	default:
+		return ""
 	}
 }
 
@@ -190,10 +226,12 @@ func (a *App) resourceLimits(next http.Handler) http.Handler {
 				a.writeProblem(response, request, http.StatusRequestEntityTooLarge, "request-too-large", "Request too large", "REQUEST_TOO_LARGE", false)
 				return
 			}
-			if err != nil || len(body) > 0 {
+			if err != nil {
 				a.writeProblem(response, request, http.StatusBadRequest, "request-malformed", "Malformed request", "REQUEST_MALFORMED", false)
 				return
 			}
+			request.Body = io.NopCloser(bytes.NewReader(body))
+			request.ContentLength = int64(len(body))
 		}
 		next.ServeHTTP(response, request)
 	})

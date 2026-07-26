@@ -1,4 +1,4 @@
-// Package database owns feature-free PostgreSQL connectivity and schema readiness.
+// Package database owns PostgreSQL connectivity and released-schema readiness.
 package database
 
 import (

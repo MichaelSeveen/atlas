@@ -70,6 +70,7 @@ Every non-2xx response uses RFC 9457 Problem Details with `application/problem+j
 | Code | Status | Retryable | Meaning |
 |---|---:|---:|---|
 | `AUTHENTICATION_REQUIRED` | 401 | No | No valid session or machine credential |
+| `OIDC_TRANSACTION_INVALID` | 401 | No | Login state, nonce, PKCE, issuer, audience, redirect, or timing validation failed |
 | `SESSION_EXPIRED` | 401 | No | Absolute/idle lifetime elapsed |
 | `SESSION_REVOKED` | 401 | No | Session explicitly invalidated |
 | `STEP_UP_REQUIRED` | 403 | No | Higher assurance required; challenge metadata may be returned |
@@ -77,10 +78,14 @@ Every non-2xx response uses RFC 9457 Problem Details with `application/problem+j
 | `INSUFFICIENT_SCOPE` | 403 | No | Machine credential lacks scope |
 | `ACTION_NOT_AUTHORIZED` | 403 | No | Policy denied action |
 | `TENANT_CONTEXT_INVALID` | 403 | No | Principal cannot act in selected tenant |
+| `INVITATION_INVALID_OR_EXPIRED` | 404 | No | Invitation is absent, expired, revoked, or concealed |
+| `INVITATION_ALREADY_USED` | 409 | No | Single-use invitation has already reached a terminal state |
 | `MAKER_CANNOT_APPROVE` | 403 | No | Request creator cannot approve own request |
 | `APPROVAL_REQUIRED` | 409 | No | Action is staged pending checker decision |
 | `APPROVAL_EXPIRED` | 409 | No | Approval no longer executable |
 | `APPROVAL_PAYLOAD_CHANGED` | 409 | No | Payload hash differs; create a new request |
+| `APPROVAL_STATE_CONFLICT` | 409 | No | Current approval state forbids the requested transition |
+| `APPROVAL_EXECUTION_FAILED` | 503 | Yes | Approved action did not execute; retry only through the execution resource |
 
 ### Idempotency and duplicate control
 
@@ -156,6 +161,8 @@ Every non-2xx response uses RFC 9457 Problem Details with `application/problem+j
 | Code | Status | Retryable | Meaning |
 |---|---:|---:|---|
 | `API_CREDENTIAL_REVOKED` | 401 | No | Credential no longer valid |
+| `API_CREDENTIAL_EXPIRED` | 401 | No | Credential lifetime elapsed |
+| `API_CREDENTIAL_SECRET_NOT_RECOVERABLE` | 409 | No | One-time secret cannot be replayed or recovered; rotate or replace it |
 | `WEBHOOK_ENDPOINT_UNVERIFIED` | 409 | No | Endpoint must complete challenge |
 | `WEBHOOK_DESTINATION_NOT_ALLOWED` | 422 | No | SSRF/network destination policy rejected URL |
 | `WEBHOOK_REPLAY_NOT_ALLOWED` | 409 | No | Delivery is ineligible or already replayed under policy |

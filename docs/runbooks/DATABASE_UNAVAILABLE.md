@@ -2,7 +2,9 @@
 
 ## Scope
 
-This Phase 00 runbook defines the safe readiness posture for the S05 PostgreSQL adapter and migration-state probe. It does not claim product data, an alert/dashboard, automated failover, or production recovery is implemented.
+This runbook defines the safe readiness posture for the PostgreSQL adapter and migration-state
+probe after the P01-S04 core checkpoint. Synthetic Identity/Audit rows and the OIDC/session BFF
+now exist, but automated failover and production recovery are not implemented.
 
 ## Expected external behavior
 
@@ -21,7 +23,8 @@ This Phase 00 runbook defines the safe readiness posture for the S05 PostgreSQL 
 
 ## Recovery verification
 
-Restore readiness only after the real application-role checker proves both required dependency availability and migration version 2 with its exact released checksum. Then verify, in order:
+Restore readiness only after the real application-role checker proves both required dependency
+availability and migration version 6 with its exact released checksum. Then verify, in order:
 
 1. readiness changes to `200`;
 2. liveness remained healthy unless the process was intentionally restarted;
@@ -30,7 +33,11 @@ Restore readiness only after the real application-role checker proves both requi
 
 ## Telemetry degradation
 
-S03 defines safe trace/metric recorder boundaries but ships no exporter. Failure or absence of a future telemetry sink must not make liveness fail or cause unbounded buffering. Record the gap through an environment-private operational channel, preserve request/correlation identifiers only, and do not claim observability restoration until a synthetic trace is visible end to end. S06 owns exporters, bounded buffering, dashboards, alerts, and the telemetry-pipeline runbook.
+The database readiness count/duration, pool metrics, bounded identity-operation metrics, and
+bounded provider-request metrics remain authoritative only for their documented source.
+Migration, seed, role, lock, and restore scripts emit bounded PASS/failure-class signals without
+tenant, actor, subject, SQL, or credential fields. Deployed alert routing and
+authorization-decision metrics do not exist; do not claim that coverage early.
 
 ## Escalation and evidence
 

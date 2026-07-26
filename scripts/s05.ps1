@@ -13,6 +13,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
+$env:GOTELEMETRY = 'off'
+$env:GOCACHE = Join-Path $repositoryRoot '.tmp/go-build'
+$env:GOMODCACHE = Join-Path $repositoryRoot '.tmp/go-mod'
 $composeFile = Join-Path $repositoryRoot 'deploy/local/compose.yaml'
 $configDirectory = Join-Path $repositoryRoot 'deploy/environments'
 $stateRoot = Join-Path $repositoryRoot '.tmp/environments'
@@ -72,6 +75,7 @@ function Invoke-DatabaseScript {
 function Initialize-RolesAndMigrations {
     Invoke-DatabaseScript -Path '/database/roles/bootstrap.sh'
     Invoke-DatabaseScript -Path '/database/tools/apply-migrations.sh'
+    Invoke-DatabaseScript -Path '/database/tools/apply-phase-01-seeds.sh'
 }
 
 function Test-RealBroker {
@@ -125,6 +129,7 @@ try {
             Start-DatabaseFoundation
             Initialize-RolesAndMigrations
             Invoke-DatabaseScript -Path '/database/tests/migration_lanes.sh'
+            Invoke-DatabaseScript -Path '/database/tests/phase01_identity.sh'
             Invoke-DatabaseScript -Path '/database/tests/role_matrix.sh'
             Invoke-DatabaseScript -Path '/database/tests/lock_timeout.sh'
             Test-RealBroker

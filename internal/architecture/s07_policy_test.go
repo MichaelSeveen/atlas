@@ -175,6 +175,7 @@ func TestS07ContainerInvokedShellScriptsAreExecutableInGit(t *testing.T) {
 		"db/recovery/postgres-entrypoint.sh",
 		"db/recovery/restore-entrypoint.sh",
 		"db/tools/apply-migrations.sh",
+		"db/tools/apply-phase-01-seeds.sh",
 	}
 	arguments := append([]string{"-C", root, "ls-files", "--stage", "--"}, paths...)
 	output, err := exec.Command("git", arguments...).CombinedOutput()

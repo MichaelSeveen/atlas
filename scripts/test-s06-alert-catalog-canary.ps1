@@ -10,7 +10,7 @@ $catalogPath = Join-Path $repositoryRoot 'deploy/observability/catalog.json'
 function Assert-CatalogPolicy {
     param([Parameter(Mandatory)][object]$Catalog)
 
-    if ($Catalog.version -ne 1 -or $Catalog.cardinality_budget_per_metric -lt 1 -or $Catalog.cardinality_budget_per_metric -gt 128) {
+    if ($Catalog.version -ne 1 -or $Catalog.cardinality_budget_per_metric -lt 1 -or $Catalog.cardinality_budget_per_metric -gt 256) {
         throw 'catalog metadata is invalid'
     }
     $metricNames = @{}

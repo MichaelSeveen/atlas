@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "cardinality_budget_per_metric": 64,
+  "cardinality_budget_per_metric": 256,
   "metrics": [
     {
       "name": "http.server.request.count",
@@ -9,9 +9,22 @@
       "owner": "platform-on-call",
       "labels": {
         "atlas.outcome": ["ok", "rejected", "error"],
-        "http.request.method": ["GET", "OPTIONS", "OTHER"],
+        "http.request.method": ["GET", "POST", "DELETE", "OPTIONS", "OTHER"],
         "http.response.status_code": ["bounded-http-status"],
-        "http.route": ["/health/live", "/health/ready", "/version", "unmatched"]
+        "http.route": [
+          "/health/live",
+          "/health/ready",
+          "/version",
+          "/v1/auth/login",
+          "/v1/auth/callback",
+          "/v1/me",
+          "/v1/logout",
+          "/v1/sessions",
+          "/v1/sessions/{session_id}",
+          "/v1/sessions/revoke-all",
+          "/v1/step-up/challenges",
+          "unmatched"
+        ]
       }
     },
     {
@@ -21,9 +34,66 @@
       "owner": "platform-on-call",
       "labels": {
         "atlas.outcome": ["ok", "rejected", "error"],
-        "http.request.method": ["GET", "OPTIONS", "OTHER"],
+        "http.request.method": ["GET", "POST", "DELETE", "OPTIONS", "OTHER"],
         "http.response.status_code": ["bounded-http-status"],
-        "http.route": ["/health/live", "/health/ready", "/version", "unmatched"]
+        "http.route": [
+          "/health/live",
+          "/health/ready",
+          "/version",
+          "/v1/auth/login",
+          "/v1/auth/callback",
+          "/v1/me",
+          "/v1/logout",
+          "/v1/sessions",
+          "/v1/sessions/{session_id}",
+          "/v1/sessions/revoke-all",
+          "/v1/step-up/challenges",
+          "unmatched"
+        ]
+      }
+    },
+    {
+      "name": "atlas.identity.operation.count",
+      "kind": "counter",
+      "status": "emitted",
+      "owner": "identity-on-call",
+      "labels": {
+        "atlas.identity.operation": ["login", "callback", "current", "logout", "session_list", "session_revoke", "session_revoke_all", "step_up"],
+        "atlas.outcome": ["ok", "rejected", "error"],
+        "http.response.status_code": ["bounded-http-status"]
+      }
+    },
+    {
+      "name": "atlas.identity.operation.duration",
+      "kind": "histogram",
+      "status": "emitted",
+      "owner": "identity-on-call",
+      "labels": {
+        "atlas.identity.operation": ["login", "callback", "current", "logout", "session_list", "session_revoke", "session_revoke_all", "step_up"],
+        "atlas.outcome": ["ok", "rejected", "error"],
+        "http.response.status_code": ["bounded-http-status"]
+      }
+    },
+    {
+      "name": "atlas.identity.provider.request.count",
+      "kind": "counter",
+      "status": "emitted",
+      "owner": "identity-on-call",
+      "labels": {
+        "atlas.identity.provider.operation": ["discovery", "token"],
+        "atlas.identity.population": ["customer", "merchant", "workforce"],
+        "atlas.outcome": ["ok", "error"]
+      }
+    },
+    {
+      "name": "atlas.identity.provider.request.duration",
+      "kind": "histogram",
+      "status": "emitted",
+      "owner": "identity-on-call",
+      "labels": {
+        "atlas.identity.provider.operation": ["discovery", "token"],
+        "atlas.identity.population": ["customer", "merchant", "workforce"],
+        "atlas.outcome": ["ok", "error"]
       }
     },
     {
@@ -105,6 +175,16 @@
       "rationale": "Telemetry loss must be investigated without making the application unready.",
       "runbook": "docs/runbooks/TELEMETRY_UNAVAILABLE.md",
       "test": "scripts/test-s06-alert-catalog-canary.ps1"
+    },
+    {
+      "id": "S04-ALR-001",
+      "metric": "atlas.identity.provider.request.count",
+      "severity": "page",
+      "owner": "identity-on-call",
+      "condition": "five-minute provider error ratio exceeds 20% with at least 10 discovery or token requests",
+      "rationale": "New authentication and step-up fail closed during provider outage while existing low-risk application sessions remain independently validated.",
+      "runbook": "docs/runbooks/IDENTITY_PROVIDER_UNAVAILABLE.md",
+      "test": "scripts/test-s06-alert-catalog-canary.ps1"
     }
   ],
   "dashboards": [
@@ -118,6 +198,16 @@
         "atlas.database.readiness.duration",
         "atlas.database.pool.connections",
         "atlas.build.info"
+      ]
+    },
+    {
+      "name": "phase-01-identity-session",
+      "owner": "identity-on-call",
+      "panels": [
+        "atlas.identity.operation.count",
+        "atlas.identity.operation.duration",
+        "atlas.identity.provider.request.count",
+        "atlas.identity.provider.request.duration"
       ]
     }
   ]

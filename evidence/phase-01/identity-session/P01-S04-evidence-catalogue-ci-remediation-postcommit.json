@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "evidence_id": "EVD-P01-S04-CATALOGUE-CI-REMEDIATION-POSTCOMMIT",
+  "created_at": "2026-07-26T21:22:32Z",
+  "phase": "PHASE-01_IDENTITY_ACCESS_TENANCY",
+  "slice": "P01-S04",
+  "source_revision": "57ea819b8c4e585cd4df8e6eafa1535d61a7b526",
+  "sanitization": "Only source identities, public dependency versions and vulnerability IDs, closed population or operation labels, artifact digests, bounded PASS labels, counts, and durations are included. Credentials, database URLs, authorization codes, state or nonce or PKCE values, cookies, session identifiers, tokens, raw provider payloads, internal credential-bearing URLs, SQL errors, WAL or data pages, and real identity or provider data are excluded.",
+  "artifacts": [
+    {
+      "evidence_id": "EVD-P01-S04-CI-REMEDIATION-REPORT",
+      "path": "evidence/phase-01/identity-session/S04-ci-remediation-post-commit-verification.md",
+      "sha256": "85601fc8aebe92219426f38c87fe9157229c86ffd06b91861d7ac1c7371982c0",
+      "result": "PASS",
+      "requirements": ["FND-020", "FND-021", "FND-025", "FND-026", "FND-054", "IAM-001..007", "IAM-020..021", "IAM-025"],
+      "threats": ["THR-006..007", "THR-020", "THR-037", "THR-039", "THR-044", "THR-056", "THR-058"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/verify-s05.ps1 -Live -ContainerRuntime podman; pwsh -NoProfile -File ./scripts/verify-s07.ps1 -History; pwsh -NoProfile -File ./scripts/verify-p01-s04.ps1 -Live -ContainerRuntime podman",
+      "limitation": "Same-host synthetic evidence; GitHub Linux supplies the hosted race, Gosec, CodeQL, and supply-chain verdicts.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-HISTORICAL-CATALOGUE",
+      "path": "evidence/phase-01/identity-session/P01-S04-evidence-catalogue-postcommit.json",
+      "sha256": "26aa6414b81bc7c6c634d9e2719932c993717e3c4d53cfcfff27c38f9b169607",
+      "result": "PASS",
+      "requirements": ["IAM-001..007", "IAM-020..021", "IAM-025"],
+      "threats": ["THR-005..008", "THR-018", "THR-020", "THR-023", "THR-037..039", "THR-044", "THR-056..058", "THR-060"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/test-p01-evidence-integrity.ps1",
+      "limitation": "Historical catalogue for implementation d276ad4; retained unchanged and superseded only as the current policy pointer.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-GITLEAKS-POLICY",
+      "path": ".gitleaks.toml",
+      "sha256": "0b49a36ee23273a6e09677df8ec862a006aa9458f660a56ae3fa8e8aa9b35c59",
+      "result": "PASS",
+      "requirements": ["FND-020", "FND-026", "FND-054"],
+      "threats": ["THR-020", "THR-056"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/verify-s07.ps1 -History",
+      "limitation": "Match-scoped synthetic event-name false-positive exception; the deleted-history-secret canary remains mandatory.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-SEED-EXECUTABLE",
+      "path": "db/tools/apply-phase-01-seeds.sh",
+      "sha256": "4dcab3ed58b441516bb525ccaff7c53a3a7609167b9324c44cfa8aa59d17f933",
+      "result": "PASS",
+      "requirements": ["FND-021", "FND-025", "IAM-010..012", "IAM-020..021"],
+      "threats": ["THR-006", "THR-044", "THR-058"],
+      "reproduce": "git ls-files --stage -- db/tools/apply-phase-01-seeds.sh; pwsh -NoProfile -File ./scripts/verify-s05.ps1 -Live -ContainerRuntime podman",
+      "limitation": "File-content digest plus Git mode and live Linux execution proof; the mode is separately guarded by architecture test.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-EXECUTABLE-GUARD",
+      "path": "internal/architecture/s07_policy_test.go",
+      "sha256": "01e83bc05014be5792111b7e6c0087ca963a79084e146cc52b8adda8d4febeaf",
+      "result": "PASS",
+      "requirements": ["FND-020", "FND-021", "FND-025"],
+      "threats": ["THR-020"],
+      "reproduce": "go test ./internal/architecture -run TestS07ContainerInvokedShellScriptsAreExecutableInGit -count=1",
+      "limitation": "Closed inventory guard for currently direct container entry points and tool invocations.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-GO-MODULE",
+      "path": "go.mod",
+      "sha256": "dbdfbf450a63986eabf20bc3181a57b93a24e92d06501a85b61478ddba42419a",
+      "result": "PASS",
+      "requirements": ["FND-054", "IAM-001", "IAM-007"],
+      "threats": ["THR-020", "THR-056"],
+      "reproduce": "go mod verify; go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...",
+      "limitation": "Module graph proof; hosted SBOM and container scans remain separately required.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-GO-CHECKSUMS",
+      "path": "go.sum",
+      "sha256": "549c12fae6eb3bd0b5a0a420da35672c6ab94e118539450257d6805488ef0a1a",
+      "result": "PASS",
+      "requirements": ["FND-054"],
+      "threats": ["THR-020"],
+      "reproduce": "go mod verify",
+      "limitation": "Checksum integrity only; source provenance and vulnerability analysis are separate gates.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-CANONICAL-MANIFEST",
+      "path": "docs/atlas-prd/MANIFEST.sha256",
+      "sha256": "a2f4825f20d87eef7ce68c11194965f794932655cd66c93efe3f8d83e4f6b460",
+      "result": "PASS",
+      "requirements": ["FND-027", "IAM-001..007"],
+      "threats": ["THR-060"],
+      "reproduce": "go test ./internal/architecture -run TestCanonicalPRDManifest -count=1",
+      "limitation": "Integrity coverage only; correctness is supported by the focused static and live tests.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-VERIFIER",
+      "path": "scripts/verify-p01-s04.ps1",
+      "sha256": "d959d8eb9ec91705552cc0971d142b2f220a2b62718c00903d2483117f262227",
+      "result": "PASS",
+      "requirements": ["IAM-001..007", "IAM-020..021", "IAM-025"],
+      "threats": ["THR-006..007", "THR-020", "THR-037", "THR-039", "THR-044", "THR-056", "THR-058"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/verify-p01-s04.ps1 -Live -ContainerRuntime podman",
+      "limitation": "Same-host local/reference orchestration; protected-host proof remains a separate PR gate.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-EVIDENCE-POLICY",
+      "path": "docs/engineering/phase-01-evidence-policy.json",
+      "sha256": "af1367df47a0742a7bc56c5d324957b34a6d2f38e8d028181b8d7cef31ea9197",
+      "result": "PASS",
+      "requirements": ["FND-026", "IAM-001..007"],
+      "threats": ["THR-007", "THR-020", "THR-060"],
+      "reproduce": "go test ./internal/architecture -run TestPhase01EvidencePolicyPreservesPhase00AndBindsNewEvidence -count=1",
+      "limitation": "Selects the additive remediation catalogue while retaining the earlier catalogue unchanged.",
+      "revalidate_by": "2026-10-26"
+    }
+  ]
+}

@@ -92,7 +92,9 @@ func completeRuntimeEnvironment(name Name, values map[string]string) (bool, erro
 		changed = true
 	}
 	for _, key := range []string{
-		"ATLAS_KEYCLOAK_ADMIN_PASSWORD", "ATLAS_MINIO_ROOT_PASSWORD", "ATLAS_NATS_TOKEN",
+		"ATLAS_IDENTITY_CSRF_KEY", "ATLAS_IDENTITY_TRANSACTION_KEY",
+		"ATLAS_KEYCLOAK_ADMIN_PASSWORD", "ATLAS_SYNTHETIC_OIDC_TEST_PASSWORD",
+		"ATLAS_MINIO_ROOT_PASSWORD", "ATLAS_NATS_TOKEN",
 		"ATLAS_POSTGRES_API_PASSWORD", "ATLAS_POSTGRES_BACKUP_PASSWORD", "ATLAS_POSTGRES_BREAK_GLASS_PASSWORD",
 		"ATLAS_POSTGRES_MIGRATION_PASSWORD", "ATLAS_POSTGRES_PASSWORD", "ATLAS_POSTGRES_REPORTING_PASSWORD",
 		"ATLAS_POSTGRES_WORKER_PASSWORD", "ATLAS_REDIS_PASSWORD",
@@ -155,7 +157,8 @@ func parseRuntimeEnvironment(content []byte) (map[string]string, error) {
 		return nil, errors.New("runtime environment file has unsafe size")
 	}
 	values := make(map[string]string)
-	for _, line := range strings.Split(strings.TrimSpace(string(content)), "\n") {
+	for _, rawLine := range strings.Split(strings.TrimSpace(string(content)), "\n") {
+		line := strings.TrimSuffix(rawLine, "\r")
 		key, value, found := strings.Cut(line, "=")
 		if !found || key == "" || value == "" {
 			return nil, errors.New("runtime environment file is malformed")
@@ -170,7 +173,9 @@ func parseRuntimeEnvironment(content []byte) (map[string]string, error) {
 
 func validateRuntimeValues(values map[string]string) error {
 	for _, key := range []string{
-		"ATLAS_ENVIRONMENT", "ATLAS_KEYCLOAK_ADMIN", "ATLAS_KEYCLOAK_ADMIN_PASSWORD",
+		"ATLAS_ENVIRONMENT", "ATLAS_IDENTITY_CSRF_KEY", "ATLAS_IDENTITY_TRANSACTION_KEY",
+		"ATLAS_KEYCLOAK_ADMIN", "ATLAS_KEYCLOAK_ADMIN_PASSWORD",
+		"ATLAS_SYNTHETIC_OIDC_TEST_PASSWORD",
 		"ATLAS_MINIO_ROOT_PASSWORD", "ATLAS_MINIO_ROOT_USER", "ATLAS_NATS_TOKEN",
 		"ATLAS_POSTGRES_API_PASSWORD", "ATLAS_POSTGRES_API_USER", "ATLAS_POSTGRES_BACKUP_PASSWORD",
 		"ATLAS_POSTGRES_BACKUP_USER", "ATLAS_POSTGRES_BREAK_GLASS_PASSWORD", "ATLAS_POSTGRES_BREAK_GLASS_USER",

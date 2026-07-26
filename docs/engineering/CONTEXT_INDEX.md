@@ -39,7 +39,15 @@ Source: [product charter §5–6](../atlas-prd/00-master/00_PRODUCT_CHARTER.md),
 
 ### Delivery order and obligations
 
-Current delivery is Phase 00. Hard order is `00 → {01,03}`, `01 → 02`, `{01,02,04} → 05`, `03 → 04`, `05 → 06 → 07`, `{01,07} → 08`, `{07,08} → 09`, `{05,09} → 10 → 11 → 12 → 13`. See the [roadmap](../atlas-prd/00-master/04_ROADMAP_AND_DEPENDENCIES.md).
+Current delivery is Phase 01 after bounded Phase 00 closure. S01 planning, S02
+contract/decision closure, and S03 Identity/Audit persistence plus recovery revalidation are
+complete in the pre-commit worktree. S04 synthetic OIDC BFF/session lifecycle is underway: its
+core customer/merchant session boundary and workforce baseline denial exist, while step-up
+idempotency/live higher assurance, admin revocation, and remaining differential/browser evidence
+are open. Hard order is `00 → {01,03}`,
+`01 → 02`, `{01,02,04} → 05`,
+`03 → 04`, `05 → 06 → 07`, `{01,07} → 08`, `{07,08} → 09`, `{05,09} → 10 → 11 → 12 → 13`.
+See the [roadmap](../atlas-prd/00-master/04_ROADMAP_AND_DEPENDENCIES.md).
 
 Explicit non-goals include real money/card/identity data, native mobile apps, React/Vue duplication, custom identity/cryptography, speculative AI decisions, blockchain/stablecoin paths, vanity dashboards, false exactly-once/compliance claims, premature microservices/Kafka/Kubernetes/multi-region writes, and universal event sourcing.
 
@@ -70,8 +78,8 @@ Every completed requirement needs stable IDs, tests/review, evidence, an owner, 
 
 | Phase | Source | Load when |
 |---|---|---|
-| 00 — Engineering foundation | [PHASE-00](../atlas-prd/02-phases/PHASE-00_ENGINEERING_FOUNDATION.md) | Current phase: repository, tooling, environments, CI, observability, security, DB foundation |
-| 01 — Identity/access/tenancy | [PHASE-01](../atlas-prd/02-phases/PHASE-01_IDENTITY_ACCESS_TENANCY.md) | Customer/merchant/workforce/machine identity, BFF, authorization, approval foundations |
+| 00 — Engineering foundation | [PHASE-00](../atlas-prd/02-phases/PHASE-00_ENGINEERING_FOUNDATION.md) | Complete for the bounded synthetic feature-free topology; revalidate ADR 0013 triggers |
+| 01 — Identity/access/tenancy | [PHASE-01](../atlas-prd/02-phases/PHASE-01_IDENTITY_ACCESS_TENANCY.md) | Current: S01/S02/S03 complete; S04 synthetic OIDC/session core implemented with idempotent/live higher-assurance completion and other stated gaps still open |
 | 02 — Customer/KYC/privacy | [PHASE-02](../atlas-prd/02-phases/PHASE-02_CUSTOMER_KYC_PRIVACY.md) | Customer lifecycle, synthetic KYC, consent, restrictions, retention |
 | 03 — Ledger core | [PHASE-03](../atlas-prd/02-phases/PHASE-03_LEDGER_CORE.md) | Chart of accounts, journal/posting, reversal, projection, period/FX foundation |
 | 04 — Wallets/holds | [PHASE-04](../atlas-prd/02-phases/PHASE-04_WALLETS_BALANCES_HOLDS.md) | Wallet lifecycle, balances, reservation/capture/release, freezes |
@@ -89,6 +97,7 @@ Every completed requirement needs stable IDs, tests/review, evidence, an owner, 
 
 - [Implementation status](IMPLEMENTATION_STATUS.md)
 - [Phase 00 audit and execution plan](PHASE-00-PLAN.md)
+- [Phase 01 audit and execution plan](PHASE-01-PLAN.md)
 - [Synthetic local environment and S04 commands](LOCAL_ENVIRONMENT.md)
 - [Database foundation and S05 commands](DATABASE_FOUNDATION.md)
 - [S06 Phase 00 threat model](../security/PHASE-00-THREAT-MODEL.md)

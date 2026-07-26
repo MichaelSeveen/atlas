@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "evidence_id": "EVD-P01-S04-CATALOGUE-PRECOMMIT",
+  "created_at": "2026-07-26T00:00:00Z",
+  "phase": "PHASE-01_IDENTITY_ACCESS_TENANCY",
+  "slice": "P01-S04",
+  "source_revision": "UNCOMMITTED_WORKTREE(base=2884484a99eeb2b846a56c90177163e37e419d11)",
+  "sanitization": "Only synthetic population labels, closed operation names, artifact digests, bounded PASS labels, counts, and durations are included. Credentials, database URLs, authorization codes, state/nonce/PKCE values, cookies, session identifiers, tokens, raw provider payloads, internal credential-bearing URLs, SQL errors, WAL/data pages, and real identity/provider data are excluded.",
+  "artifacts": [
+    {
+      "evidence_id": "EVD-P01-S04-REPORT",
+      "path": "evidence/phase-01/identity-session/S04-identity-session-core-report.md",
+      "sha256": "815671d1afc927fe1dbcdf09dd2fae0eb810374669686a09d4b6ea708d8dd66f",
+      "result": "PASS",
+      "requirements": ["FND-011", "FND-064", "IAM-001..007", "IAM-020..021", "IAM-025"],
+      "threats": ["THR-005..008", "THR-018", "THR-020", "THR-023", "THR-037..039", "THR-044", "THR-056..058", "THR-060"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/verify-p01-s04.ps1 -Live -ContainerRuntime podman",
+      "limitation": "Pre-commit same-host synthetic core checkpoint; S04 remains open for step-up idempotency/live higher assurance, admin revocation, enumeration timing, and complete browser cache/storage/BFCache evidence.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-MIGRATION-MANIFEST",
+      "path": "db/migrations/MANIFEST.sha256",
+      "sha256": "3e4820502d41f2d5fb5b5724db1760feb957f63712ef8eb8f8cc10b4af4ff93c",
+      "result": "PASS",
+      "requirements": ["FND-025", "FND-060..064", "IAM-001..004"],
+      "threats": ["THR-006", "THR-020", "THR-040", "THR-060"],
+      "reproduce": "go run ./cmd/dbctl verify --migration-dir db/migrations",
+      "limitation": "Integrity and ordering proof; live role/recovery execution is orchestrated separately.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-VERIFIER",
+      "path": "scripts/verify-p01-s04.ps1",
+      "sha256": "d959d8eb9ec91705552cc0971d142b2f220a2b62718c00903d2483117f262227",
+      "result": "PASS",
+      "requirements": ["IAM-001..007", "IAM-020..021", "IAM-025"],
+      "threats": ["THR-005..008", "THR-018", "THR-020", "THR-023", "THR-037..039", "THR-056..058"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/verify-p01-s04.ps1 -Live -ContainerRuntime podman",
+      "limitation": "Same-host local/reference orchestration; protected-host proof is pending a future PR.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-REAL-POSTGRES-ORCHESTRATOR",
+      "path": "scripts/p01-s04-session-repository.ps1",
+      "sha256": "a6dbb23ca1fd731859cc9e093f7c060613fa635406f399284e94af502694f64d",
+      "result": "PASS",
+      "requirements": ["IAM-002..004", "IAM-025"],
+      "threats": ["THR-006", "THR-018", "THR-037", "THR-058"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/p01-s04-session-repository.ps1 -ContainerRuntime podman",
+      "limitation": "Fixed disposable local database and same-host concurrency proof only.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-REAL-POSTGRES-CANARY",
+      "path": "db/tests/phase01_session_repository.sh",
+      "sha256": "fb4e966e10ab3282b6a551bf3aa5cb7193b28b947cbaf1c387bfba094cda478e",
+      "result": "PASS",
+      "requirements": ["IAM-002..004", "IAM-025"],
+      "threats": ["THR-006", "THR-018", "THR-037", "THR-058"],
+      "reproduce": "run inside scripts/p01-s04-session-repository.ps1",
+      "limitation": "Exercises the current application-role repository; later replicas and admin revocation must revalidate.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-OIDC-CLIENT",
+      "path": "internal/identity/oidc/client.go",
+      "sha256": "0e52af4108967d35cddea43a1c5f58f8683c1086a3593a2af11e8eaf03c5a66f",
+      "result": "PASS",
+      "requirements": ["IAM-001", "IAM-005..007"],
+      "threats": ["THR-005", "THR-020", "THR-023", "THR-037", "THR-039", "THR-056"],
+      "reproduce": "go test ./internal/identity/oidc -count=1",
+      "limitation": "Synthetic provider adapter only; no real IdP selection or production trust/custody claim.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-SESSION-REPOSITORY",
+      "path": "internal/identity/persistence/session.go",
+      "sha256": "dd3333a54d6672d05716a8c44fe363253e707733c36e2d624064d618faf356b6",
+      "result": "PASS",
+      "requirements": ["IAM-002..004", "IAM-025"],
+      "threats": ["THR-006", "THR-018", "THR-037", "THR-058"],
+      "reproduce": "go test ./internal/identity/persistence -count=1; run the real database orchestrator",
+      "limitation": "Self-session/revoke-all persistence only; admin security revocation and step-up idempotency are absent.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-HTTP-HANDLERS",
+      "path": "cmd/api/internal/server/identity_handlers.go",
+      "sha256": "47987cff3f2a2e48138f32881b80930ab548efa0bb2107bee8a4527afa2934ea",
+      "result": "PASS",
+      "requirements": ["IAM-001..007"],
+      "threats": ["THR-005..008", "THR-023", "THR-037..039", "THR-056..057"],
+      "reproduce": "go test ./cmd/api/internal/server -count=1; run scripts/test-p01-s04-oidc-http.ps1",
+      "limitation": "Step-up requires CSRF but does not yet implement its contracted Idempotency-Key replay boundary.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-OBSERVABILITY-CATALOG",
+      "path": "deploy/observability/catalog.json",
+      "sha256": "dfd94ea00408f4b3a0fda8c2c1c1869edb23bc9c48f2680d174a68d310cb693d",
+      "result": "PASS",
+      "requirements": ["FND-041..043", "IAM-007", "IAM-025"],
+      "threats": ["THR-010", "THR-020", "THR-025", "THR-030", "THR-048..049"],
+      "reproduce": "go test ./internal/platform/telemetry ./cmd/api/internal/server ./internal/identity/oidc -count=1; pwsh -NoProfile -File ./scripts/test-s06-alert-catalog-canary.ps1",
+      "limitation": "Source/catalogue proof only; no deployed alert backend or routing is claimed.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-IDP-RUNBOOK",
+      "path": "docs/runbooks/IDENTITY_PROVIDER_UNAVAILABLE.md",
+      "sha256": "b2da94c2922825b42297167cbe82d89468016b7e7dfc4809cdb55644e7a3ebc9",
+      "result": "PASS",
+      "requirements": ["IAM-007"],
+      "threats": ["THR-020", "THR-039"],
+      "reproduce": "go test ./internal/identity -run TestProviderOutagePreservesExistingLowRiskSessionAndDeniesNewAuthentication -count=1",
+      "limitation": "Injected-provider proof and local runbook; live operational outage exercise remains open.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-REVOCATION-RUNBOOK",
+      "path": "docs/runbooks/SESSION_COMPROMISE_AND_REVOCATION.md",
+      "sha256": "1efccd9accc07ef7d10ac89d15a61045f0afd3ee847ce659b47b08965120104f",
+      "result": "PASS",
+      "requirements": ["IAM-004", "IAM-025"],
+      "threats": ["THR-006", "THR-007", "THR-018", "THR-058"],
+      "reproduce": "go test ./internal/identity ./internal/identity/persistence -count=1; run the real database orchestrator",
+      "limitation": "Self-revocation incident path only; administrator security revocation is not implemented.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-TRACEABILITY",
+      "path": "docs/atlas-prd/06-governance/REQUIREMENTS_TRACEABILITY.csv",
+      "sha256": "c164c3c7473edd6c612cbd2426abf592835884f7f699f5543ef398331c666467",
+      "result": "PASS",
+      "requirements": ["IAM-001..007"],
+      "threats": ["THR-005..008", "THR-018", "THR-020", "THR-023", "THR-037..039", "THR-056..058"],
+      "reproduce": "go test ./tests/contract ./internal/architecture -count=1",
+      "limitation": "All IAM rows remain Planned; links are checkpoint evidence only.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-CANONICAL-MANIFEST",
+      "path": "docs/atlas-prd/MANIFEST.sha256",
+      "sha256": "2ca878e5e7dbddcd0e8aa24c5a0093c1274bc2c7c79806beb1b9c0468dfab151",
+      "result": "PASS",
+      "requirements": ["FND-027", "IAM-001..007"],
+      "threats": ["THR-060"],
+      "reproduce": "go test ./internal/architecture -run TestCanonicalPRDManifest -count=1",
+      "limitation": "Integrity coverage only; correctness is supported by focused static/live tests.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-PHASE00-REVALIDATION",
+      "path": "docs/engineering/phase-00-gate-policy.json",
+      "sha256": "d46baf29040619a8c7579734dd2832c2038c9b95a17c1ba72bfed538e6b2b82e",
+      "result": "PASS",
+      "requirements": ["FND-011", "FND-064"],
+      "threats": ["THR-020", "THR-060"],
+      "reproduce": "go test ./internal/architecture -run TestPhase00GateClosurePolicy -count=1",
+      "limitation": "Revalidates product-schema/recovery triggers without rebinding historical Phase 00 evidence.",
+      "revalidate_by": "2026-10-26"
+    }
+  ]
+}

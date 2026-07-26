@@ -2,7 +2,9 @@
 
 ## Scope
 
-This runbook covers the S05 feature-free PostgreSQL migration foundation. It does not authorize product data repair, direct status edits, or an automatic down migration.
+This runbook covers the S05 migration foundation and the P01-S03 Identity/Audit migrations and
+deterministic seed. It does not authorize product data repair, direct authority/status edits, or
+an automatic down migration.
 
 ## Immediate containment
 
@@ -10,6 +12,8 @@ This runbook covers the S05 feature-free PostgreSQL migration foundation. It doe
 2. Preserve the source revision, migration manifest digest, target environment, UTC time, safe database error class, and migration version. Never capture credentials, connection strings, SQL parameters, or row data in evidence.
 3. Confirm `GET /health/live` independently. A live process with not-ready migration state is expected.
 4. Do not edit an already-released SQL or metadata file and do not manually rewrite `atlas_foundation.schema_migrations`.
+5. If seed loading fails, preserve `db/seeds/MANIFEST.sha256`, the policy digest, and the safe
+   failure class. Do not bypass drift detection or update existing seeded authority manually.
 
 ## Diagnose safely
 
@@ -27,7 +31,9 @@ Before resuming rollout:
 
 1. run the manifest validator and migration canaries;
 2. apply migrations twice and confirm idempotence;
-3. confirm the exact version/checksum using the application role;
-4. run the real role matrix and bounded lock test;
-5. verify API readiness returns 200 without diagnostic detail;
-6. attach sanitized revision-bound evidence and record any forward fix as a new migration.
+3. apply the deterministic seed twice and confirm the same seed/policy checksums;
+4. confirm version 4 and the exact released checksum using the application role;
+5. run the real population/tenant constraints, role matrix, and bounded product-table lock test;
+6. run the isolated PITR drill and confirm revoked authority remains revoked;
+7. verify API readiness returns 200 without diagnostic detail;
+8. attach sanitized revision-bound evidence and record any forward fix as a new migration or seed version.

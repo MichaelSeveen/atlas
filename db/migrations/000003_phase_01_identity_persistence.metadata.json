@@ -1,0 +1,13 @@
+{
+  "version": 3,
+  "name": "phase_01_identity_persistence",
+  "released": true,
+  "lock_timeout_ms": 500,
+  "statement_timeout_ms": 5000,
+  "lock_risk": "Creates empty Identity and registry tables and indexes; it does not rewrite or lock an existing product table.",
+  "representative_data": "Runs from both the Phase 00 version-two snapshot and an empty database before deterministic synthetic identity seeds are loaded.",
+  "query_plan_review": "The two tenant-leading indexes cover membership and session authority lookups; no data-reading or data-rewriting statement exists.",
+  "space_risk": "Empty identity metadata tables, closed catalogues, and bounded supporting indexes only.",
+  "forward_fix": "Add a new ordered migration for every correction after release; preserve version three and its checksum.",
+  "rollback": "Before release only, remove the empty uncommitted schemas. After release, preserve state and apply a reviewed forward fix."
+}

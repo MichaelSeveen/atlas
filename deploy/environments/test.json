@@ -1,10 +1,10 @@
 {
-  "version": 1,
+  "version": 2,
   "environment": "test",
   "synthetic_data": true,
   "banner": "TEST — SYNTHETIC DATA ONLY",
   "mock_mode": false,
-  "migration_state": "foundation-v2-required",
+  "migration_state": "phase01-v6-required",
   "allowed_origins": ["https://web.test.atlas.invalid"],
   "surfaces": {
     "api": "https://api.test.atlas.invalid",
@@ -28,6 +28,35 @@
     "broker": "secret://atlas/test/broker",
     "object-storage": "secret://atlas/test/object-storage"
   },
+  "oidc_providers": [
+    {
+      "population": "customer",
+      "issuer": "https://identity.test.atlas.invalid:8080/realms/atlas-customer-test",
+      "public_origin": "https://identity.test.atlas.invalid",
+      "client_id": "atlas-bff-test",
+      "redirect_url": "https://api.test.atlas.invalid/v1/auth/callback",
+      "allowed_return_to": "/customer",
+      "supported_signing_algorithms": ["RS256"]
+    },
+    {
+      "population": "merchant",
+      "issuer": "https://identity.test.atlas.invalid:8080/realms/atlas-merchant-test",
+      "public_origin": "https://identity.test.atlas.invalid",
+      "client_id": "atlas-bff-test",
+      "redirect_url": "https://api.test.atlas.invalid/v1/auth/callback",
+      "allowed_return_to": "/merchant",
+      "supported_signing_algorithms": ["RS256"]
+    },
+    {
+      "population": "workforce",
+      "issuer": "https://identity.test.atlas.invalid:8080/realms/atlas-workforce-test",
+      "public_origin": "https://identity.test.atlas.invalid",
+      "client_id": "atlas-bff-test",
+      "redirect_url": "https://api.test.atlas.invalid/v1/auth/callback",
+      "allowed_return_to": "/workforce",
+      "supported_signing_algorithms": ["RS256"]
+    }
+  ],
   "feature_flags": [
     {"key": "foundation.synthetic-shells", "owner": "platform", "expires": "2027-07-21", "default": true, "risk": "low", "rollback": "Disable the shell entry affordance; keep the synthetic banner visible."}
   ]

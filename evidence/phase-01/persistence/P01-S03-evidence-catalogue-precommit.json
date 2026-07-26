@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "evidence_id": "EVD-P01-S03-CATALOGUE-PRECOMMIT",
+  "created_at": "2026-07-26T00:00:00Z",
+  "phase": "PHASE-01_IDENTITY_ACCESS_TENANCY",
+  "slice": "P01-S03",
+  "source_revision": "UNCOMMITTED_WORKTREE(base=2884484a99eeb2b846a56c90177163e37e419d11)",
+  "sanitization": "Only synthetic fixed IDs, artifact digests, bounded PASS labels, counts, and durations are included. Credentials, database URLs, runtime environment files, raw verifier/cookie values, WAL/data pages, SQL errors, and real identity/provider data are excluded.",
+  "artifacts": [
+    {
+      "evidence_id": "EVD-P01-S03-REPORT",
+      "path": "evidence/phase-01/persistence/S03-identity-audit-persistence-report.md",
+      "sha256": "e4dbc0178195c852d3b16b2b1ea7d24f04e134812781d46f0a0a7363cda98fc4",
+      "result": "PASS",
+      "requirements": ["FND-011", "FND-064", "IAM-004", "IAM-010..012", "IAM-020..021", "IAM-025"],
+      "threats": ["THR-005..006", "THR-018", "THR-020", "THR-040..041", "THR-044", "THR-058", "THR-060"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/verify-p01-s03.ps1 -Live -ContainerRuntime podman",
+      "limitation": "Pre-commit same-host synthetic evidence; no product HTTP behavior or independent review.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S03-MIGRATION-MANIFEST",
+      "path": "db/migrations/MANIFEST.sha256",
+      "sha256": "cfe0de22b88edf7cfe466356beebf18370011a35905dedcf26a2abac402163c6",
+      "result": "PASS",
+      "requirements": ["FND-060..061", "IAM-010"],
+      "threats": ["THR-040", "THR-060"],
+      "reproduce": "go run ./cmd/dbctl verify --migration-dir db/migrations",
+      "limitation": "Integrity and ordering evidence; live execution is recorded separately.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S03-SEED-MANIFEST",
+      "path": "db/seeds/MANIFEST.sha256",
+      "sha256": "0314066f1884b7290b8f14f51af90943f41cbe1d0f877994c14bdbd82bcbb80d",
+      "result": "PASS",
+      "requirements": ["FND-011", "IAM-010", "IAM-020"],
+      "threats": ["THR-005", "THR-006", "THR-060"],
+      "reproduce": "go test ./internal/identity -run TestCanonicalPhase01IdentitySeed -count=1",
+      "limitation": "Synthetic fixed-time product seed only; no real identity or login credential.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S03-IDENTITY-MIGRATION",
+      "path": "db/migrations/000003_phase_01_identity_persistence.sql",
+      "sha256": "5ef55b917d7fd76b2b05fcbbb3a84744287135a807f92df49b0b433cfbe82b32",
+      "result": "PASS",
+      "requirements": ["IAM-004", "IAM-010..012", "IAM-020..021"],
+      "threats": ["THR-005..006", "THR-040..041", "THR-044"],
+      "reproduce": "sh /database/tests/phase01_identity.sh inside scripts/p01-s03.ps1",
+      "limitation": "Persistence foundation only; session and authorization behavior are not composed.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S03-AUDIT-MIGRATION",
+      "path": "db/migrations/000004_phase_01_audit_persistence.sql",
+      "sha256": "8331fa74149830bc1ae0f258d48df6db8e3db83b8bbf9254812ac684b2b2fc21",
+      "result": "PASS",
+      "requirements": ["IAM-004", "IAM-025"],
+      "threats": ["THR-018", "THR-040", "THR-058"],
+      "reproduce": "sh /database/tests/role_matrix.sh inside scripts/p01-s03.ps1",
+      "limitation": "Append-only table and insert boundary only; no product action invokes it yet.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S03-TENANT-REPOSITORY",
+      "path": "internal/identity/persistence/membership.go",
+      "sha256": "1f4abef5f6c5e95a4b7966727e6653961cb2a63f63971d736d099febf116a2be",
+      "result": "PASS",
+      "requirements": ["IAM-011", "IAM-012"],
+      "threats": ["THR-005", "THR-044"],
+      "reproduce": "go test ./internal/identity/persistence -count=1; add ATLAS_P01_DATABASE_URL through scripts/p01-s03.ps1",
+      "limitation": "One current tenant-resource query; later repositories must revalidate the invariant.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S03-AUDIT-RECORDER",
+      "path": "internal/audit/persistence/postgres.go",
+      "sha256": "369246fe57706d59c94dbc06bea685801660c0b3b550f71fd62dde0685357065",
+      "result": "PASS",
+      "requirements": ["IAM-004", "IAM-025"],
+      "threats": ["THR-018", "THR-058"],
+      "reproduce": "go test ./internal/audit/... -count=1",
+      "limitation": "Caller-owned transaction boundary; no runtime caller or emitted metric exists.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S03-VERIFIER",
+      "path": "scripts/verify-p01-s03.ps1",
+      "sha256": "5a7bb2b7a4489c27565fadb1ff2b18b05cc153c6948723ad703a15908eaa7eeb",
+      "result": "PASS",
+      "requirements": ["FND-011", "FND-064", "IAM-010..012", "IAM-020"],
+      "threats": ["THR-005", "THR-018", "THR-040", "THR-058", "THR-060"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/verify-p01-s03.ps1 -Live -ContainerRuntime podman",
+      "limitation": "Same-host local/reference orchestration; clean-host/hosted proof is pending a protected PR.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S03-RESTORE-CHECK",
+      "path": "db/recovery/verify-restore.sh",
+      "sha256": "bafeab1bf67be574717432ec7d25a2be61f0d01f8cc4c85d7f000b3d057a6b8b",
+      "result": "PASS",
+      "requirements": ["FND-064", "IAM-004", "IAM-010"],
+      "threats": ["THR-006", "THR-020", "THR-040"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/s05.ps1 -Action BackupRestore -ContainerRuntime podman",
+      "limitation": "Developer backup/WAL volumes are unencrypted; synthetic local/reference PITR only.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S03-PHASE00-REVALIDATION",
+      "path": "docs/engineering/phase-00-gate-policy.json",
+      "sha256": "771a7dcd62866a4c013752d84d6b3a411a45d3b49b9e6fda80702474a4d5a75c",
+      "result": "PASS",
+      "requirements": ["FND-011", "FND-064"],
+      "threats": ["THR-020", "THR-060"],
+      "reproduce": "go test ./internal/architecture -run TestPhase00GateClosurePolicy -count=1",
+      "limitation": "Consumes two product triggers without changing the historical Phase 00 evidence source identity.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S03-TRACEABILITY",
+      "path": "docs/atlas-prd/06-governance/REQUIREMENTS_TRACEABILITY.csv",
+      "sha256": "577c7dcfb07520c10f636a432c8852556d679e317668ab6a7661818a84e13881",
+      "result": "PASS",
+      "requirements": ["FND-011", "FND-064", "IAM-010..012", "IAM-020"],
+      "threats": ["THR-005", "THR-006", "THR-018", "THR-020", "THR-040", "THR-044", "THR-058", "THR-060"],
+      "reproduce": "go test ./tests/contract ./internal/architecture -count=1",
+      "limitation": "All IAM rows remain Planned; links are exact persistence-boundary evidence only.",
+      "revalidate_by": "2026-10-26"
+    },
+    {
+      "evidence_id": "EVD-P01-S03-CANONICAL-MANIFEST",
+      "path": "docs/atlas-prd/MANIFEST.sha256",
+      "sha256": "1707365ea7a24a7235f11e07f0a7e9c1084ddb9e5ccecbb5eb5d711d242a2ba5",
+      "result": "PASS",
+      "requirements": ["FND-011", "FND-064", "IAM-010..012", "IAM-020"],
+      "threats": ["THR-060"],
+      "reproduce": "go test ./internal/architecture -run TestCanonicalPRDManifest -count=1",
+      "limitation": "Integrity coverage only; correctness is supported by focused static/live tests.",
+      "revalidate_by": "2026-10-26"
+    }
+  ]
+}

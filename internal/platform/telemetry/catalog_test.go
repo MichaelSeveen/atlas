@@ -43,11 +43,13 @@ func loadCatalog(t *testing.T) (metricCatalog, string) {
 
 func TestMetricCatalogEnforcesCardinalityAndRuntimeCoverage(t *testing.T) {
 	catalog, root := loadCatalog(t)
-	if catalog.Version != 1 || catalog.CardinalityBudget < 1 || catalog.CardinalityBudget > 128 {
+	if catalog.Version != 1 || catalog.CardinalityBudget < 1 || catalog.CardinalityBudget > 256 {
 		t.Fatal("metric catalog policy is invalid")
 	}
 	required := map[string]string{
 		"http.server.request.count": "emitted", "http.server.request.duration": "emitted",
+		"atlas.identity.operation.count": "emitted", "atlas.identity.operation.duration": "emitted",
+		"atlas.identity.provider.request.count": "emitted", "atlas.identity.provider.request.duration": "emitted",
 		"atlas.database.readiness.count": "emitted", "atlas.database.readiness.duration": "emitted",
 		"atlas.database.pool.connections": "emitted", "atlas.build.info": "emitted",
 		"atlas.queue.lag": "definition-only", "atlas.worker.retry.count": "definition-only",
@@ -92,7 +94,11 @@ func TestMetricCatalogEnforcesCardinalityAndRuntimeCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sources := string(serverSource) + string(databaseSource) + string(runtimeSource)
+	oidcSource, err := os.ReadFile(filepath.Join(root, "internal", "identity", "oidc", "client.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sources := string(serverSource) + string(databaseSource) + string(runtimeSource) + string(oidcSource)
 	for name := range seen {
 		status := ""
 		for _, metric := range catalog.Metrics {

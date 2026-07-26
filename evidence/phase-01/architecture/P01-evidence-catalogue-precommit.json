@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "evidence_id": "EVD-P01-S02-CATALOGUE-PRECOMMIT",
+  "created_at": "2026-07-23T00:00:00Z",
+  "phase": "PHASE-01_IDENTITY_ACCESS_TENANCY",
+  "slice": "P01-S02",
+  "source_revision": "UNCOMMITTED_WORKTREE(base=2884484a99eeb2b846a56c90177163e37e419d11)",
+  "sanitization": "No credential, cookie, CSRF value, token, person data, private endpoint, database row, or provider payload is included. Repository revisions, evidence IDs, structural canaries, and artifact digests are non-secret.",
+  "artifacts": [
+    {
+      "evidence_id": "EVD-P01-S01-PLAN",
+      "path": "docs/engineering/PHASE-01-PLAN.md",
+      "sha256": "0503284cd45d59194a6d4018bd65d15d5be8a087df82081ca11d7738071d8545",
+      "result": "PASS",
+      "requirements": ["IAM-001..007", "IAM-010..015", "IAM-020..026", "IAM-030..034", "IAM-040..044"],
+      "threats": ["THR-005..008", "THR-018", "THR-020", "THR-023..024", "THR-028", "THR-037..041", "THR-044", "THR-053", "THR-056..058", "THR-060"],
+      "reproduce": "Review against canonical phase, requirements, contracts, traceability, threats, ADRs, and repository state.",
+      "limitation": "Planning and ordering evidence only; no IAM runtime requirement is satisfied.",
+      "revalidate_by": "2026-10-23"
+    },
+    {
+      "evidence_id": "EVD-P01-S02-ADR",
+      "path": "docs/atlas-prd/06-governance/adrs/0014-phase-01-identity-access-contract-boundary.md",
+      "sha256": "fb13b70784eeac5bab2e3e355ed294b893d4ba2d58dd5b1cc997aae8f6b5a64c",
+      "result": "PASS",
+      "requirements": ["IAM-001..044"],
+      "threats": ["THR-005..008", "THR-018", "THR-020", "THR-023..024", "THR-028", "THR-037..041", "THR-044", "THR-053", "THR-056..058", "THR-060"],
+      "reproduce": "go test ./internal/architecture -count=1",
+      "limitation": "Accepted decision; not runtime or operational proof.",
+      "revalidate_by": "2026-10-23"
+    },
+    {
+      "evidence_id": "EVD-P01-S02-POLICY",
+      "path": "docs/atlas-prd/03-contracts/identity-access-policy.json",
+      "sha256": "fbdb484af7c0feda9304caa76b3e6cefa2be98e39c713f9bad3cdb76553ff23a",
+      "result": "PASS",
+      "requirements": ["IAM-002..007", "IAM-010..015", "IAM-020..026", "IAM-030..034", "IAM-040..044"],
+      "threats": ["THR-005..008", "THR-018", "THR-023..024", "THR-028", "THR-037..041", "THR-044", "THR-056..058"],
+      "reproduce": "go test ./tests/contract -run TestPhase01IdentityAccessPolicyIsClosedAndConsistent -count=1",
+      "limitation": "Machine-readable policy contract; enforcement is pending later slices.",
+      "revalidate_by": "2026-10-23"
+    },
+    {
+      "evidence_id": "EVD-P01-S02-OPENAPI",
+      "path": "docs/atlas-prd/03-contracts/openapi.yaml",
+      "sha256": "d081e2b41aee70dd4c8ebc0f5784d7eb2a520f97b4464e8da94756e12c278f60",
+      "result": "PASS",
+      "requirements": ["IAM-001..007", "IAM-013..015", "IAM-022..025", "IAM-030..034", "IAM-040..044"],
+      "threats": ["THR-005..008", "THR-023..024", "THR-037..041", "THR-056..058"],
+      "reproduce": "go run ./cmd/contractctl lint docs/atlas-prd/03-contracts/openapi.yaml docs/atlas-prd/03-contracts/asyncapi.yaml",
+      "limitation": "Contract only; the running API continues to expose three Phase 00 operational routes.",
+      "revalidate_by": "2026-10-23"
+    },
+    {
+      "evidence_id": "EVD-P01-S02-EVIDENCE-POLICY",
+      "path": "docs/engineering/phase-01-evidence-policy.json",
+      "sha256": "403eab8fe896440905a555fa9ad4c3434aa627800878bee6800e3cd375568506",
+      "result": "PASS",
+      "requirements": ["IAM-001..044"],
+      "threats": ["THR-007", "THR-018", "THR-060"],
+      "reproduce": "go test ./internal/architecture -run TestPhase01EvidencePolicyPreservesPhase00AndBindsNewEvidence -count=1",
+      "limitation": "Evidence continuity policy; does not replace runtime requirement evidence.",
+      "revalidate_by": "2026-10-23"
+    },
+    {
+      "evidence_id": "EVD-P01-S02-CONTRACT-TEST",
+      "path": "tests/contract/phase01_contract_test.go",
+      "sha256": "61504a150eba4c0b08abf79cd4ab1484d146897142e4b353a52363a67df878ad",
+      "result": "PASS",
+      "requirements": ["IAM-001..007", "IAM-013..014", "IAM-020..026", "IAM-030..034", "IAM-040..043"],
+      "threats": ["THR-005..008", "THR-023..024", "THR-037..041", "THR-056..058"],
+      "reproduce": "go test ./tests/contract -count=1",
+      "limitation": "Static contract/policy test; no handler or database is exercised.",
+      "revalidate_by": "2026-10-23"
+    },
+    {
+      "evidence_id": "EVD-P01-S02-CONTRACT-CANARY",
+      "path": "scripts/test-p01-s02-contract-canary.ps1",
+      "sha256": "a4d32aed5bd4c05ce2cf705c237c65dff51c9ca1881f731289d354b0ed64d396",
+      "result": "PASS",
+      "requirements": ["IAM-020", "IAM-021"],
+      "threats": ["THR-005", "THR-008", "THR-060"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/test-p01-s02-contract-canary.ps1",
+      "limitation": "Proves selected omissions/weakenings are killed, not exhaustive mutation coverage.",
+      "revalidate_by": "2026-10-23"
+    },
+    {
+      "evidence_id": "EVD-P01-S02-INTEGRITY-CANARY",
+      "path": "scripts/test-p01-evidence-integrity.ps1",
+      "sha256": "0a63c59994c6f28971ac065feb9d7877170e1217b73c6acd135372a39f89c5b8",
+      "result": "PASS",
+      "requirements": ["IAM-001..044"],
+      "threats": ["THR-007", "THR-018", "THR-060"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/test-p01-evidence-integrity.ps1",
+      "limitation": "Validates repository artifacts and source identity; independent custody is not claimed.",
+      "revalidate_by": "2026-10-23"
+    },
+    {
+      "evidence_id": "EVD-P01-S02-CONTRACT",
+      "path": "evidence/phase-01/architecture/S02-contract-and-security-decisions.md",
+      "sha256": "52240f225de76202dcfa0e0eba10c6bc46468f5989d54716928333b95ed9690c",
+      "result": "PASS",
+      "requirements": ["IAM-001..007", "IAM-010..015", "IAM-020..026", "IAM-030..034", "IAM-040..044"],
+      "threats": ["THR-005..008", "THR-018", "THR-020", "THR-023..024", "THR-028", "THR-037..041", "THR-044", "THR-053", "THR-056..058", "THR-060"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/verify-p01-s02.ps1",
+      "limitation": "S02 decision/contract evidence only; all IAM rows remain Planned.",
+      "revalidate_by": "2026-10-23"
+    },
+    {
+      "evidence_id": "EVD-P01-S02-CANONICAL-MANIFEST",
+      "path": "docs/atlas-prd/MANIFEST.sha256",
+      "sha256": "1707365ea7a24a7235f11e07f0a7e9c1084ddb9e5ccecbb5eb5d711d242a2ba5",
+      "result": "PASS",
+      "requirements": ["IAM-001..044"],
+      "threats": ["THR-060"],
+      "reproduce": "go test ./internal/architecture -run TestCanonicalPRDManifest -count=1",
+      "limitation": "Integrity coverage only; correctness depends on focused review/tests.",
+      "revalidate_by": "2026-10-23"
+    }
+  ]
+}

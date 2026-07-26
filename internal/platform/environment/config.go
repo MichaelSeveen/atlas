@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	ConfigVersion          = 1
-	RequiredMigrationState = "foundation-v2-required"
+	ConfigVersion          = 2
+	RequiredMigrationState = "phase01-v6-required"
 )
 
 type Name string
@@ -54,6 +54,16 @@ type FeatureFlag struct {
 	Rollback string `json:"rollback"`
 }
 
+type OIDCProvider struct {
+	Population          string   `json:"population"`
+	Issuer              string   `json:"issuer"`
+	PublicOrigin        string   `json:"public_origin"`
+	ClientID            string   `json:"client_id"`
+	RedirectURL         string   `json:"redirect_url"`
+	AllowedReturnTo     string   `json:"allowed_return_to"`
+	SupportedAlgorithms []string `json:"supported_signing_algorithms"`
+}
+
 type Config struct {
 	Version        int               `json:"version"`
 	Environment    Name              `json:"environment"`
@@ -65,6 +75,7 @@ type Config struct {
 	Surfaces       Surfaces          `json:"surfaces"`
 	Services       []Service         `json:"services"`
 	CredentialRefs map[string]string `json:"credential_refs"`
+	OIDCProviders  []OIDCProvider    `json:"oidc_providers"`
 	FeatureFlags   []FeatureFlag     `json:"feature_flags"`
 }
 
@@ -158,8 +169,56 @@ func (c Config) Validate(now time.Time) error {
 	if err := c.validateCredentialRefs(); err != nil {
 		return err
 	}
+	if err := c.validateOIDCProviders(); err != nil {
+		return err
+	}
 	if err := c.validateFeatureFlags(now); err != nil {
 		return err
+	}
+	return nil
+}
+
+func (c Config) validateOIDCProviders() error {
+	if len(c.OIDCProviders) != 3 {
+		return errors.New("customer, merchant, and workforce OIDC providers are required")
+	}
+	serviceHost := ""
+	for _, service := range c.Services {
+		if service.Name == "identity-provider" {
+			serviceHost = service.Address
+			break
+		}
+	}
+	seen := make(map[string]struct{}, len(c.OIDCProviders))
+	for _, provider := range c.OIDCProviders {
+		if provider.Population != "customer" && provider.Population != "merchant" && provider.Population != "workforce" {
+			return errors.New("OIDC population is invalid")
+		}
+		if _, duplicate := seen[provider.Population]; duplicate {
+			return errors.New("duplicate OIDC population")
+		}
+		seen[provider.Population] = struct{}{}
+		issuer, err := url.Parse(provider.Issuer)
+		if err != nil || issuer.User != nil || issuer.RawQuery != "" || issuer.Fragment != "" ||
+			(issuer.Scheme != "http" && issuer.Scheme != "https") || issuer.Host != serviceHost ||
+			issuer.Path != "/realms/atlas-"+provider.Population+"-"+string(c.Environment) {
+			return errors.New("OIDC issuer is outside its fixed environment identity service")
+		}
+		if provider.PublicOrigin != c.Surfaces.Identity {
+			return errors.New("OIDC public origin differs from the identity surface")
+		}
+		if provider.RedirectURL != c.Surfaces.API+"/v1/auth/callback" {
+			return errors.New("OIDC redirect URL differs from the API callback")
+		}
+		if provider.ClientID != "atlas-bff-"+string(c.Environment) {
+			return errors.New("OIDC client ID is outside its fixed environment identity")
+		}
+		if provider.AllowedReturnTo != "/"+provider.Population {
+			return errors.New("OIDC return path is not population-bound")
+		}
+		if len(provider.SupportedAlgorithms) != 1 || provider.SupportedAlgorithms[0] != "RS256" {
+			return errors.New("OIDC signing algorithm allow-list must contain only RS256")
+		}
 	}
 	return nil
 }

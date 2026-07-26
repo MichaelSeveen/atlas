@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "phase": "PHASE-01_IDENTITY_ACCESS_TENANCY",
+  "decision": "ADR-0014",
+  "phase_00_catalogue": {
+    "path": "evidence/phase-00/acceptance/S08-evidence-catalogue-postcommit.json",
+    "mode": "historical-read-only",
+    "rebind_for_phase_01": false
+  },
+  "phase_01_catalogue": {
+    "precommit_path": "evidence/phase-01/identity-session/P01-S04-evidence-catalogue-precommit.json",
+    "postcommit_path": "evidence/phase-01/identity-session/P01-S04-evidence-catalogue-ci-gosec-postcommit.json",
+    "source_identity": "40-hex-commit-or-UNCOMMITTED_WORKTREE(base=40-hex)",
+    "artifact_digest": "sha256",
+    "historical_update": "add-new-version-never-delete-material-evidence"
+  },
+  "required_canaries": [
+    "artifact-tamper",
+    "stale-source",
+    "duplicate-evidence-id",
+    "unsafe-artifact-path"
+  ],
+  "prohibited_shortcuts": [
+    "refresh-source-without-owning-evidence",
+    "rewrite-phase-00-result",
+    "treat-plan-as-runtime-proof",
+    "accept-unbound-screenshot"
+  ]
+}

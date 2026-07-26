@@ -5,6 +5,27 @@
   "registrationAllowed": false,
   "resetPasswordAllowed": false,
   "rememberMe": false,
+  "ssoSessionIdleTimeout": 600,
+  "ssoSessionMaxLifespan": 3600,
+  "accessTokenLifespan": 180,
+  "clients": [
+    {
+      "clientId": "atlas-bff-local",
+      "name": "Atlas BFF — Synthetic Local",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://127.0.0.1:18080/v1/auth/callback"],
+      "webOrigins": ["http://127.0.0.1:13000"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://127.0.0.1:13000/signed-out"
+      }
+    }
+  ],
   "users": [
     {
       "id": "00000000-0000-4000-8000-000000000301",
@@ -12,6 +33,8 @@
       "enabled": true,
       "emailVerified": true,
       "email": "workforce-operator@synthetic.invalid",
+      "firstName": "Synthetic",
+      "lastName": "Workforce Operator",
       "attributes": {"synthetic_data": ["true"]}
     }
   ]

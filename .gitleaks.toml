@@ -13,6 +13,13 @@ regexes = [
 ]
 
 [[allowlists]]
+description = "Phase 01 unpublished event-name pair misclassified as a generic API key assignment"
+regexTarget = "match"
+regexes = [
+  '''identity\.api_credential\.rotated\.v1",\s*"operations\.approval\.decided\.v1''',
+]
+
+[[allowlists]]
 description = "Generated and ignored build artifacts are scanned through their source inputs"
 paths = [
   '''(^|[\\/])\.git([\\/]|$)''',

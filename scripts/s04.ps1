@@ -71,7 +71,7 @@ function Stop-WebWithinDeadline {
     }
 
     $started = [DateTimeOffset]::UtcNow
-    Invoke-Compose -Arguments @('stop', '--timeout', '8', 'web')
+    Invoke-Compose -Arguments @('stop', '--timeout', '5', 'web')
     $elapsedMilliseconds = [Math]::Ceiling(([DateTimeOffset]::UtcNow - $started).TotalMilliseconds)
     $exitCode = (Invoke-AtlasContainer -ContainerRuntime $ContainerRuntime -RepositoryRoot $repositoryRoot -Arguments @('inspect', '--format', '{{.State.ExitCode}}', $containerID) | Out-String).Trim()
     if ($exitCode -ne '0') {
@@ -108,7 +108,14 @@ try {
     switch ($Action) {
         'Up' {
             Initialize-LocalEnvironment
-            Invoke-Compose -Arguments @('up', '--detach', '--build', '--remove-orphans')
+            Invoke-Compose -Arguments @('build')
+            try {
+                Stop-WebWithinDeadline
+            }
+            finally {
+                Invoke-Compose -Arguments @('down', '--remove-orphans')
+            }
+            Invoke-Compose -Arguments @('up', '--detach', '--remove-orphans')
             Wait-ForFoundation
             & (Join-Path $PSScriptRoot 'test-s04-live.ps1')
             Write-Output 's04_environment_up=PASS'

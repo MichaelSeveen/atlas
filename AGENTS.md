@@ -4,11 +4,11 @@
 
 Atlas is a portfolio-grade, security-first multi-currency wallet and financial-operations platform. Its value is demonstrated by financial correctness, recoverable failure handling, strict authorization and tenancy, deterministic provider simulation, reconciliation, operational tooling, and reproducible evidence—not by feature count or visual polish.
 
-This repository is currently in **Phase 00 — Secure engineering foundation**. Do not implement wallet or money-movement features before their prerequisite phases pass.
+This repository is currently in **Phase 01 — Identity, access, tenancy, and privileged workforce controls**. P01-S01 planning, P01-S02 contract/decision closure, P01-S03 identity/audit persistence plus recovery revalidation, and the P01-S04 core OIDC/session checkpoint are committed at `d276ad4` with revision-bound local evidence. P01-S04 remains underway: idempotent step-up execution, live higher-assurance completion, admin security revocation, and remaining browser/differential evidence are still open. Do not implement wallet or money-movement features before their prerequisite phases pass.
 
 ## Stack and commands discovered
 
-- Backend: Go only. The module is `github.com/MichaelSeveen/atlas`, derived from the configured GitHub origin, with language baseline Go 1.25.0 and security-patched toolchain Go 1.25.12. Separate feature-free `api`, `worker`, and `simulator` entry points exist. The API exposes only the three S03 operational routes; worker and simulator remain inert.
+- Backend: Go only. The module is `github.com/MichaelSeveen/atlas`, derived from the configured GitHub origin, with language baseline Go 1.25.0 and security-patched toolchain Go 1.25.12. Separate `api`, feature-free `worker`, and feature-free `simulator` entry points exist. The API exposes the three operational routes plus the eight approved S04 identity/session routes through application boundaries; worker and simulator remain inert.
 - Frontend: React 19.2.7 + TypeScript only, built/tested/served by Bun 1.3.0 with `bun.lock` as the sole lockfile. Do not add Node.js, pnpm, npm, Yarn, Vue, or a competing frontend toolchain. The three S04 route shells are synthetic foundation UI only.
 - React source uses function components and hooks only. Class declarations are forbidden under `apps/web/src` and enforced by `TestFrontendUsesFunctionComponentsOnly`; do not introduce React class components for error handling or any other reason.
 - Authoritative store: PostgreSQL. Redis is ephemeral only. Async fan-out uses a transactional outbox and an at-least-once broker only when required.
@@ -23,17 +23,20 @@ This repository is currently in **Phase 00 — Secure engineering foundation**. 
 - S06 verification: `pwsh -NoProfile -File ./scripts/verify-s06.ps1`; add `-Live` for the exported golden trace, metric assertions, and collector-outage readiness exercise.
 - S07 verification: `pwsh -NoProfile -File ./scripts/verify-s07.ps1`; add `-History` for full-history secrets and Govulncheck, and `-SupplyChain -ContainerRuntime podman` for four SBOMs plus image CVE/license/hardening checks.
 - S08 verification: `pwsh -NoProfile -File ./scripts/verify-s08.ps1`; add `-Live -History -SupplyChain -ContainerRuntime podman` for the full local acceptance/restore gate and add `-CleanClone` only after S08 is committed and the tree is clean.
+- Phase 01 S02 verification: `pwsh -NoProfile -File ./scripts/verify-p01-s02.ps1`.
+- Phase 01 S03 verification: `pwsh -NoProfile -File ./scripts/verify-p01-s03.ps1`; add `-Live` for real PostgreSQL roles, tenant isolation, long-lock, backup/WAL/PITR, and repository integration.
+- Phase 01 S04 verification: `pwsh -NoProfile -File ./scripts/verify-p01-s04.ps1`; add `-Live -ContainerRuntime podman` for real PostgreSQL session/revocation concurrency, a rebuilt synthetic Keycloak stack, customer/merchant HTTP journeys, workforce baseline denial, and bounded identity telemetry.
 - Backend checks: `go test ./...` and `go build ./cmd/api ./cmd/worker ./cmd/simulator`.
 - Boundary/policy checks: `go test ./internal/architecture -count=1`; seeded negatives cover forbidden imports, floating-point money, and direct domain `time.Now()`.
-- S04 composes local PostgreSQL, Redis, NATS, MinIO, the OTel Collector, Keycloak, API, worker, simulator, and web. S05 adds repository-owned PostgreSQL migration/role/recovery controls. S06 exports bounded traces/metrics from the Go processes, emits source-redacted JSON logs, and keeps the collector outside authoritative readiness. S07 adds only CI, contract, SBOM, scanner, ownership, and release-integrity controls. S08 adds only acceptance orchestration, evidence integrity, clean-clone support, and constrained-pool verification. These remain synthetic local/reference controls only. No product schema, broker stream, identity exchange, worker job, managed secret provider, or financial behavior exists yet.
-- Git origin is `https://github.com/MichaelSeveen/atlas.git`. Successful hosted release run `29964442782` at protected-main revision `9761754` passed full fresh-host S08 before publication, pushed immutable backend/web GHCR indexes, keyless-signed them, attached and automatically verified exact-source SLSA/SPDX attestations, and retained all four SPDX SBOM surfaces for 90 days. Independent exact-identity verification also passes. ADR 0013 closes Phase 00 for the synthetic feature-free foundation with 34 satisfied requirements, the ADR 0012 accepted deviation for FND-026, and accepted scope decisions for FND-040/FND-042. Phase 01 may begin only after that closure merges; all policy triggers remain fail-closed and no production capability is implied.
+- S04 composes local PostgreSQL, Redis, NATS, MinIO, the OTel Collector, Keycloak, API, worker, simulator, and web. S05 adds repository-owned PostgreSQL migration/role/recovery controls. P01-S03 adds `atlas_identity`/`atlas_audit` persistence, deterministic synthetic product seeds, explicit tenant-query foundations, insert-only Audit grants, and product-state PITR revalidation. P01-S04 composes only the approved OIDC BFF and durable application-session boundary against those stores. S06 exports bounded traces/metrics from the Go processes, emits source-redacted JSON logs, and keeps the collector outside authoritative readiness. S07 adds only CI, contract, SBOM, scanner, ownership, and release-integrity controls. S08 adds only acceptance orchestration, evidence integrity, clean-clone support, and constrained-pool verification. These remain synthetic local/reference controls only. No broker stream, worker job, managed production secret provider, authorization/approval/credential capability, or financial behavior exists yet.
+- Git origin is `https://github.com/MichaelSeveen/atlas.git`. Successful hosted release run `29964442782` at protected-main revision `9761754` passed full fresh-host S08 before publication, pushed immutable backend/web GHCR indexes, keyless-signed them, attached and automatically verified exact-source SLSA/SPDX attestations, and retained all four SPDX SBOM surfaces for 90 days. Independent exact-identity verification also passes. ADR 0013 closes Phase 00 for the synthetic feature-free foundation with 34 satisfied requirements, the ADR 0012 accepted deviation for FND-026, and accepted scope decisions for FND-040/FND-042. ADR 0014 closes only the Phase 01 identity/access contract boundary; all 30 IAM rows remain Planned and no product runtime capability is implied.
 
 ## Source-of-truth hierarchy
 
 1. Product purpose, scope, and non-goals: `docs/atlas-prd/00-master/`.
 2. Project-wide invariants and release gates: `00-master/03_REQUIREMENTS_AND_QUALITY_GATES.md`.
 3. Architecture boundaries: `01-architecture/` and accepted ADRs in `06-governance/adrs/`.
-4. Current scope and acceptance: `02-phases/PHASE-00_ENGINEERING_FOUNDATION.md`.
+4. Current scope and acceptance: `02-phases/PHASE-01_IDENTITY_ACCESS_TENANCY.md`.
 5. HTTP behavior: `03-contracts/openapi.yaml`.
 6. Event behavior: `03-contracts/asyncapi.yaml` and `03-contracts/EVENT_CATALOG.md`.
 7. Security: the trust model, threat register, and security verification plan.
@@ -99,8 +102,9 @@ Do not silently resolve conflicts. Cite the exact files/sections, check accepted
 ## Links
 
 - [PRD root](docs/atlas-prd/README.md)
-- [Current phase](docs/atlas-prd/02-phases/PHASE-00_ENGINEERING_FOUNDATION.md)
+- [Current phase](docs/atlas-prd/02-phases/PHASE-01_IDENTITY_ACCESS_TENANCY.md)
 - [Context routing index](docs/engineering/CONTEXT_INDEX.md)
 - [Implementation status](docs/engineering/IMPLEMENTATION_STATUS.md)
 - [Phase 00 execution plan](docs/engineering/PHASE-00-PLAN.md)
+- [Phase 01 execution plan](docs/engineering/PHASE-01-PLAN.md)
 - [Definition of Done](docs/atlas-prd/06-governance/DEFINITION_OF_DONE.md)

@@ -20,6 +20,14 @@ This runbook covers the S05 local/reference physical PostgreSQL backup, WAL arch
 
 ## Recovery and verification
 
-Create a fresh exact restore volume and rerun `scripts/s05.ps1 -Action BackupRestore`. Success requires all of the following: base-backup verification, archived WAL presence, successful target-time recovery, promotion out of recovery, two migration records, the exact released checksum, and the pre-deletion synthetic marker. The active database must still have the marker absent.
+Create a fresh exact restore volume and rerun `scripts/s05.ps1 -Action BackupRestore`. Success
+requires all of the following: base-backup verification, archived WAL presence, successful
+target-time recovery, promotion out of recovery, four migration records, exact released
+migration/seed/policy checksums, the pre-deletion synthetic marker, the expected synthetic
+principals/memberships/Audit fact, insert-only Audit grants, and the recovery session still
+revoked. The active database must have the marker absent and authority restored to the safe
+revoked state after the failpoint.
 
-Product schema, object storage, encryption-key access, outbox/inbox/idempotency replay, and financial invariant checks do not exist in S05. Their absence blocks `FND-064` completion and the final Phase 00 recovery claim.
+Object storage, encryption-key access, outbox/inbox/idempotency replay, and financial invariant
+checks remain absent. This drill revalidates only synthetic Identity/Audit durable state and is not
+production disaster-recovery evidence.

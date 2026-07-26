@@ -8,7 +8,7 @@ set -eu
 database_name="${ATLAS_MIGRATION_TARGET_DATABASE:-$ATLAS_POSTGRES_DB}"
 maximum_version="${ATLAS_MIGRATION_MAX_VERSION:-999999}"
 case "$database_name" in
-  atlas_local|atlas_s05_empty_test|atlas_s05_previous_test) ;;
+  atlas_local|atlas_s05_empty_test|atlas_s05_previous_test|atlas_p01_s03_seed_test|atlas_p01_s04_session_test) ;;
   *) echo 'migration target is outside the contained S05 database set' >&2; exit 1 ;;
 esac
 case "$maximum_version" in

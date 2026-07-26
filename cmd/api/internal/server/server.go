@@ -1,4 +1,4 @@
-// Package server implements the feature-free Atlas HTTP foundation.
+// Package server implements the Atlas HTTP API and identity BFF boundary.
 package server
 
 import (
@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MichaelSeveen/atlas/internal/identity"
 	"github.com/MichaelSeveen/atlas/internal/platform/clock"
 	"github.com/MichaelSeveen/atlas/internal/platform/correlation"
 	"github.com/MichaelSeveen/atlas/internal/platform/identifier"
@@ -60,6 +61,8 @@ type Options struct {
 	Meter            metricapi.Meter
 	Propagator       propagation.TextMapPropagator
 	Logs             logging.Recorder
+	Identity         *identity.Service
+	WebOrigin        string
 	CORS             CORSConfig
 	MaxBodyBytes     int64
 	ReadinessTimeout time.Duration
@@ -75,8 +78,12 @@ type App struct {
 	tracer           traceapi.Tracer
 	propagator       propagation.TextMapPropagator
 	logs             logging.Recorder
+	identity         *identity.Service
+	webOrigin        string
 	requestCounter   metricapi.Int64Counter
 	requestDuration  metricapi.Float64Histogram
+	identityCounter  metricapi.Int64Counter
+	identityDuration metricapi.Float64Histogram
 	cors             corsPolicy
 	maxBodyBytes     int64
 	readinessTimeout time.Duration
@@ -97,6 +104,11 @@ func New(options Options) (*App, error) {
 
 	if options.Readiness == nil {
 		return nil, errors.New("readiness checker is required")
+	}
+	if options.Identity != nil {
+		if err := validateWebOrigin(options.WebOrigin); err != nil {
+			return nil, err
+		}
 	}
 	if options.Clock == nil {
 		options.Clock = clock.System{}
@@ -144,6 +156,8 @@ func New(options Options) (*App, error) {
 	}
 	var requestCounter metricapi.Int64Counter
 	var requestDuration metricapi.Float64Histogram
+	var identityCounter metricapi.Int64Counter
+	var identityDuration metricapi.Float64Histogram
 	if options.Meter != nil {
 		requestCounter, err = options.Meter.Int64Counter("http.server.request.count",
 			metricapi.WithDescription("Completed foundation HTTP requests."), metricapi.WithUnit("{request}"))
@@ -154,6 +168,16 @@ func New(options Options) (*App, error) {
 			metricapi.WithDescription("Foundation HTTP request duration."), metricapi.WithUnit("s"))
 		if err != nil {
 			return nil, errors.New("create request duration")
+		}
+		identityCounter, err = options.Meter.Int64Counter("atlas.identity.operation.count",
+			metricapi.WithDescription("Completed bounded Identity operations."), metricapi.WithUnit("{operation}"))
+		if err != nil {
+			return nil, errors.New("create identity operation counter")
+		}
+		identityDuration, err = options.Meter.Float64Histogram("atlas.identity.operation.duration",
+			metricapi.WithDescription("Bounded Identity operation duration."), metricapi.WithUnit("s"))
+		if err != nil {
+			return nil, errors.New("create identity operation duration")
 		}
 	}
 
@@ -166,8 +190,12 @@ func New(options Options) (*App, error) {
 		tracer:           options.Tracer,
 		propagator:       options.Propagator,
 		logs:             options.Logs,
+		identity:         options.Identity,
+		webOrigin:        options.WebOrigin,
 		requestCounter:   requestCounter,
 		requestDuration:  requestDuration,
+		identityCounter:  identityCounter,
+		identityDuration: identityDuration,
 		cors:             cors,
 		maxBodyBytes:     options.MaxBodyBytes,
 		readinessTimeout: options.ReadinessTimeout,

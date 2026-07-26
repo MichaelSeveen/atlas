@@ -1,9 +1,9 @@
-// Command api runs the Atlas synchronous API/BFF process foundation.
-// It exposes operational health/version endpoints only; it has no product API.
+// Command api runs the Atlas synchronous API/BFF process.
 package main
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"net/http"
 	"os"
@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/MichaelSeveen/atlas/cmd/api/internal/server"
+	"github.com/MichaelSeveen/atlas/internal/identity"
+	identityapplication "github.com/MichaelSeveen/atlas/internal/identity/application"
 	"github.com/MichaelSeveen/atlas/internal/platform/database"
 	"github.com/MichaelSeveen/atlas/internal/platform/environment"
 	"github.com/MichaelSeveen/atlas/internal/platform/logging"
@@ -68,6 +70,11 @@ func run() error {
 		return err
 	}
 	defer closeReadiness()
+	identityService, closeIdentity, err := identityOptions(baseContext, config, meter)
+	if err != nil {
+		return err
+	}
+	defer closeIdentity()
 	logger, err := logging.NewJSONRecorder(os.Stdout)
 	if err != nil {
 		return err
@@ -84,6 +91,8 @@ func run() error {
 		Meter:      meter,
 		Propagator: propagator,
 		Logs:       logger,
+		Identity:   identityService,
+		WebOrigin:  webOrigin(config),
 	})
 	if err != nil {
 		return err
@@ -125,6 +134,49 @@ func run() error {
 	return err
 }
 
+func webOrigin(config *environment.Config) string {
+	if config == nil {
+		return ""
+	}
+	return config.Surfaces.Web
+}
+
+func identityOptions(
+	ctx context.Context,
+	config *environment.Config,
+	meter metricapi.Meter,
+) (*identity.Service, func(), error) {
+	if config == nil {
+		return nil, func() {}, nil
+	}
+	transactionKey, err := decodeRuntimeKey("ATLAS_IDENTITY_TRANSACTION_KEY")
+	if err != nil {
+		return nil, nil, err
+	}
+	defer wipeRuntimeKey(transactionKey)
+	csrfKey, err := decodeRuntimeKey("ATLAS_IDENTITY_CSRF_KEY")
+	if err != nil {
+		return nil, nil, err
+	}
+	defer wipeRuntimeKey(csrfKey)
+	return identityapplication.NewRuntime(ctx, *config, transactionKey, csrfKey, meter)
+}
+
+func decodeRuntimeKey(name string) ([]byte, error) {
+	value := os.Getenv(name)
+	decoded, err := base64.RawURLEncoding.DecodeString(value)
+	if err != nil || len(decoded) != 32 {
+		return nil, errors.New("invalid identity runtime key")
+	}
+	return decoded, nil
+}
+
+func wipeRuntimeKey(value []byte) {
+	for index := range value {
+		value[index] = 0
+	}
+}
+
 func loadEnvironment(path string) (*environment.Config, error) {
 	if path == "" {
 		return nil, nil
@@ -158,5 +210,5 @@ func environmentOptions(ctx context.Context, config *environment.Config, probeOp
 			DependenciesReady: probes.Ready(ctx),
 			MigrationsCurrent: schemaProbe.Ready(ctx),
 		}
-	}), server.CORSConfig{AllowedOrigins: config.AllowedOrigins}, schemaProbe.Close, nil
+	}), server.CORSConfig{AllowedOrigins: config.AllowedOrigins, AllowCredentials: true}, schemaProbe.Close, nil
 }

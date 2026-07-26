@@ -11,10 +11,13 @@
         "deploy/seeds/foundation.json",
         "internal/platform/environment/seed.go",
         "internal/platform/environment/config_test.go",
+        "db/seeds/MANIFEST.sha256",
+        "evidence/phase-01/persistence/S03-identity-audit-persistence-report.md",
+        "evidence/phase-01/identity-session/S04-identity-session-core-report.md",
         "docs/atlas-prd/06-governance/adrs/0013-phase-00-closed-world-completion.md"
       ],
       "threats": ["THR-043", "THR-045", "THR-060"],
-      "deferred_surfaces": ["schema-loaded product seeds", "executable provider behavior"],
+      "deferred_surfaces": ["executable provider behavior"],
       "revalidation_triggers": ["first-product-schema", "first-executable-provider-scenario"]
     },
     {
@@ -92,6 +95,8 @@
       "basis": [
         "docs/atlas-prd/06-governance/adrs/0010-native-postgresql-migrations-and-recovery.md",
         "evidence/phase-00/acceptance/S08-hosted-release-success.md",
+        "evidence/phase-01/persistence/S03-identity-audit-persistence-report.md",
+        "evidence/phase-01/identity-session/S04-identity-session-core-report.md",
         "scripts/s05.ps1",
         "docs/atlas-prd/06-governance/adrs/0013-phase-00-closed-world-completion.md"
       ],
@@ -104,22 +109,50 @@
       ]
     }
   ],
+  "revalidated_triggers": [
+    {
+      "requirement_id": "FND-011",
+      "trigger": "first-product-schema",
+      "result": "satisfied-synthetic-product-schema",
+      "evidence": [
+        "db/seeds/MANIFEST.sha256",
+        "evidence/phase-01/persistence/S03-identity-audit-persistence-report.md",
+        "evidence/phase-01/identity-session/S04-identity-session-core-report.md"
+      ]
+    },
+    {
+      "requirement_id": "FND-064",
+      "trigger": "first-product-durable-state",
+      "result": "satisfied-synthetic-product-recovery",
+      "evidence": [
+        "db/recovery/verify-restore.sh",
+        "evidence/phase-01/persistence/S03-identity-audit-persistence-report.md",
+        "evidence/phase-01/identity-session/S04-identity-session-core-report.md"
+      ]
+    }
+  ],
   "guarded_artifacts": [
     {"path": ".github/solo-maintainer-policy.json", "sha256": "4524d7cae2b0575a6ebe0669f6e44db4cbbecad6ecdd696ad534233c7c993d96"},
     {"path": "cmd/worker/main.go", "sha256": "64781eb8f4d3148f0165e85a6ff04fc492ed89fd28949fdc99e7463f4b049453"},
     {"path": "cmd/simulator/main.go", "sha256": "a52a3f919146c72e30ee0aae16757c0aa5042a6972218341244230897a8c84e6"},
-    {"path": "db/migrations/MANIFEST.sha256", "sha256": "d745a31e80c684dcfb2a4dd86938a322ac7694afa083b3b229f4a95f9f306d12"},
-    {"path": "deploy/environments/local.json", "sha256": "86a922c9c288fbc6c64bcefba22ddc75d15e4d7fadbdfbc5fc34f08c574f33cc"},
-    {"path": "deploy/environments/test.json", "sha256": "bb9810e6cbfc582b830d481699c5189996014e2c7381cb3b77a94954f19f03f1"},
-    {"path": "deploy/environments/staging.json", "sha256": "9736d262b2d141915fbca33adb3ded338dfd9c584fa5512f7d7362de4a180871"},
-    {"path": "deploy/environments/production-reference.json", "sha256": "f6e5071468e2914b3846f17e391fa8d9f4f1b79a422d5e65b663d41c30f13a96"},
-    {"path": "deploy/observability/catalog.json", "sha256": "03ba801a3f7b28d821392d171036ae4264b9ca0365fde7baa57d965e483d10b1"},
+    {"path": "db/migrations/MANIFEST.sha256", "sha256": "3e4820502d41f2d5fb5b5724db1760feb957f63712ef8eb8f8cc10b4af4ff93c"},
+    {"path": "db/seeds/MANIFEST.sha256", "sha256": "0314066f1884b7290b8f14f51af90943f41cbe1d0f877994c14bdbd82bcbb80d"},
+    {"path": "db/seeds/000001_phase_01_identity.json", "sha256": "e5a8ab37437edad69ed655e6589efffd824ca4b9151b6f9d9358632bf1f13d6c"},
+    {"path": "db/seeds/load-phase-01-identity.sql", "sha256": "b6b8b311866cb1ca9209bad991ebf76fca796ce157e26280d166451521787ec1"},
+    {"path": "evidence/phase-01/persistence/S03-identity-audit-persistence-report.md", "sha256": "e4dbc0178195c852d3b16b2b1ea7d24f04e134812781d46f0a0a7363cda98fc4"},
+    {"path": "evidence/phase-01/identity-session/S04-identity-session-core-report.md", "sha256": "815671d1afc927fe1dbcdf09dd2fae0eb810374669686a09d4b6ea708d8dd66f"},
+    {"path": "deploy/environments/local.json", "sha256": "d0e41be68789be0eed8a3a552e27ff9a57d68f7c56dad4391f21fc2624bbdebc"},
+    {"path": "deploy/environments/test.json", "sha256": "5dfa70d9d1dabe62b0da29244b2837b0afbc283778667dce5ff08514c105e0a7"},
+    {"path": "deploy/environments/staging.json", "sha256": "623983eb09bd417014b737cac860613a08639f7ed15ed5298d6b7b4104714bc3"},
+    {"path": "deploy/environments/production-reference.json", "sha256": "884cd96d38ee6756a4937c9320ac7df81c1893546b29c15b65e24266ac3a7865"},
+    {"path": "deploy/observability/catalog.json", "sha256": "dfd94ea00408f4b3a0fda8c2c1c1869edb23bc9c48f2680d174a68d310cb693d"},
     {"path": "deploy/seeds/foundation.json", "sha256": "d350303e1f1129c41ba96af24ea33315fb1739f721b6bc7b7bcf96c774debe4d"}
   ],
   "guarded_directories": [
     {"path": "cmd/worker", "files": ["main.go"]},
     {"path": "cmd/simulator", "files": ["main.go"]},
-    {"path": "db/migrations", "files": ["000001_foundation_control_schema.metadata.json", "000001_foundation_control_schema.sql", "000002_recovery_probe.metadata.json", "000002_recovery_probe.sql", "MANIFEST.sha256"]},
+    {"path": "db/migrations", "files": ["000001_foundation_control_schema.metadata.json", "000001_foundation_control_schema.sql", "000002_recovery_probe.metadata.json", "000002_recovery_probe.sql", "000003_phase_01_identity_persistence.metadata.json", "000003_phase_01_identity_persistence.sql", "000004_phase_01_audit_persistence.metadata.json", "000004_phase_01_audit_persistence.sql", "000005_phase_01_oidc_sessions.metadata.json", "000005_phase_01_oidc_sessions.sql", "000006_phase_01_session_authority_lock_grant.metadata.json", "000006_phase_01_session_authority_lock_grant.sql", "MANIFEST.sha256"]},
+    {"path": "db/seeds", "files": ["000001_phase_01_identity.json", "MANIFEST.sha256", "load-phase-01-identity.sql"]},
     {"path": "deploy/environments", "files": ["local.json", "production-reference.json", "staging.json", "test.json"]},
     {"path": "internal/platform/secret", "files": ["secret.go", "secret_test.go"]}
   ],

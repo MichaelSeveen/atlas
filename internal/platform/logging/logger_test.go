@@ -55,7 +55,7 @@ func TestLogSchemaRejectsSensitiveAndUnboundedValuesAtSource(t *testing.T) {
 		func(record *Record) { record.Event = "raw.user.message" },
 		func(record *Record) { record.Module = "tenant-controlled" },
 		func(record *Record) { record.Route = "/users/customer_123" },
-		func(record *Record) { record.Method = "DELETE" },
+		func(record *Record) { record.Method = "PATCH" },
 		func(record *Record) { record.TraceID = strings.Repeat("f", 31) },
 	}
 	for _, mutate := range tests {

@@ -10,9 +10,10 @@
 - **Audit date:** 2026-07-23
 - **Audited base revision:** `2884484a99eeb2b846a56c90177163e37e419d11`
 - **Base tree:** `b921b93cb8341e28344b97e1202d37f0376dff19`
-- **Current evidence posture:** pre-commit. S01 is planning evidence, S02 is contract/decision
-  evidence, S03 is real PostgreSQL persistence/recovery evidence, and S04 core is synthetic
-  OIDC/application-session runtime evidence. No IAM row is closed phase-wide.
+- **Current evidence posture:** the S01-S04 core checkpoint is committed at `d276ad4`. S01 is
+  planning evidence, S02 is contract/decision evidence, S03 is real PostgreSQL
+  persistence/recovery evidence, and S04 core has revision-bound synthetic
+  OIDC/application-session static/live evidence. No IAM row is closed phase-wide.
 - **Allowed environment:** synthetic local/reference identities and data only under ADR 0008 and ADR 0012.
 
 S04 composes the ratified `atlas_identity`/`atlas_audit` persistence foundations into the approved

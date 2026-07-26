@@ -2,7 +2,7 @@
 
 - **Status date:** 2026-07-26
 - **Current phase:** [Phase 01 — Identity, access, tenancy, and privileged workforce controls](../atlas-prd/02-phases/PHASE-01_IDENTITY_ACCESS_TENANCY.md)
-- **Current slice:** `P01-S04` synthetic OIDC BFF and durable session lifecycle is underway in the pre-commit worktree on base `2884484a99eeb2b846a56c90177163e37e419d11`. The core checkpoint adds exact OIDC validation, server-side login transactions, encrypted durable application sessions, rotation/revocation/audit behavior, synthetic customer/merchant flows, workforce baseline denial, bounded identity telemetry, real PostgreSQL concurrency proof, and product-state PITR revalidation.
+- **Current slice:** `P01-S04` synthetic OIDC BFF and durable session lifecycle is underway. The core checkpoint is committed at `d276ad457e1ce7e3863cbd4717dfb5c432e2e29d` with revision-bound static/live evidence. It adds exact OIDC validation, server-side login transactions, encrypted durable application sessions, rotation/revocation/audit behavior, synthetic customer/merchant flows, workforce baseline denial, bounded identity telemetry, real PostgreSQL concurrency proof, and product-state PITR revalidation.
 - **Implementation state:** Phase 00 remains historically complete for its bounded synthetic feature-free foundation, P01-S03 consumed the `first-product-schema`/`first-product-durable-state` triggers, and the S04 core runtime now exposes the eight approved identity/session routes alongside the three operational routes. All 30 IAM rows remain `Planned`: step-up still lacks the contracted idempotency/replay boundary and a successful live higher-assurance completion, admin security revocation is absent, and the remaining enumeration/browser/cache/storage evidence is open. No authorization evaluator, credential, approval, event, worker job, financial workflow, managed production secret provider, or wallet UI exists.
 
 ## Repository baseline
@@ -113,6 +113,7 @@ These are missing implementation decisions, not contradictory product semantics.
 - [Phase 01 S02 contract/decision evidence](../../evidence/phase-01/architecture/S02-contract-and-security-decisions.md)
 - [Phase 01 S03 persistence/recovery evidence](../../evidence/phase-01/persistence/S03-identity-audit-persistence-report.md)
 - [Phase 01 S04 identity/session core evidence](../../evidence/phase-01/identity-session/S04-identity-session-core-report.md)
+- [Phase 01 S04 post-commit verification](../../evidence/phase-01/identity-session/S04-post-commit-verification.md)
 - [Phase 01 S02 pre-commit evidence catalogue](../../evidence/phase-01/architecture/P01-evidence-catalogue-precommit.json)
 - [Phase 01 S03 pre-commit evidence catalogue](../../evidence/phase-01/persistence/P01-S03-evidence-catalogue-precommit.json)
 - [Phase 01 S04 pre-commit evidence catalogue](../../evidence/phase-01/identity-session/P01-S04-evidence-catalogue-precommit.json)

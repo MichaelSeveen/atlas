@@ -112,6 +112,7 @@ func allowedCORSHeaders(value string) ([]string, bool) {
 	if strings.TrimSpace(value) == "" {
 		return nil, true
 	}
+	// #nosec G101 -- these are public HTTP header names, not credential values.
 	allowlist := map[string]string{
 		"content-type":       "Content-Type",
 		"idempotency-key":    "Idempotency-Key",

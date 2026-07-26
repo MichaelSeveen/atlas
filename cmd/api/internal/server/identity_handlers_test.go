@@ -132,7 +132,9 @@ func TestIdentityMutationCORSPreflightAndRouteInventory(t *testing.T) {
 	app.Handler().ServeHTTP(response, preflight)
 	if response.Code != http.StatusNoContent ||
 		response.Header().Get("Access-Control-Allow-Methods") != http.MethodPost ||
-		response.Header().Get("Access-Control-Allow-Credentials") != "true" {
+		response.Header().Get("Access-Control-Allow-Credentials") != "true" ||
+		response.Header().Get("Access-Control-Allow-Headers") !=
+			"Content-Type, Idempotency-Key, X-Atlas-CSRF-Token" {
 		t.Fatalf("credentialed mutation preflight failed: status=%d headers=%v body=%s",
 			response.Code, response.Header(), response.Body)
 	}

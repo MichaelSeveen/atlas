@@ -413,6 +413,29 @@
       "wallet.beneficiary.activate"
     ]
   },
+  "admin_session_revocation": {
+    "decision": "ADR-0015",
+    "owner": "identity",
+    "operation": "POST /v1/security/sessions/{session_id}/revocations",
+    "actor_population": "workforce",
+    "permission": "identity.sessions.revoke_admin",
+    "purpose": "security_review",
+    "reasons": [
+      "compromised_session",
+      "suspected_account_takeover",
+      "workforce_security_response"
+    ],
+    "required_assurance": "phishing_resistant",
+    "required_step_up_action": "identity.session.admin_revoke",
+    "freshness_minutes": 5,
+    "target_population": "customer-or-merchant-or-workforce",
+    "target_absence": "not-found-or-concealed-after-actor-authorization",
+    "idempotency": "actor-principal-and-operation-scoped-request-hash",
+    "mutation_recheck": "locked-authority-version-and-session-before-commit",
+    "decision_id": "success-and-denied-high-risk",
+    "audit_atomicity": "same-postgresql-transaction",
+    "audit_outage": "deny-and-service-unavailable"
+  },
   "approvals": {
     "owner": "operations",
     "payload_canonicalization": "rfc8785",

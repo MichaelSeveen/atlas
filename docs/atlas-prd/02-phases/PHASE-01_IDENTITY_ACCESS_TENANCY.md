@@ -103,6 +103,10 @@ Customer/session:
 - `POST /v1/sessions/revoke-all`
 - `POST /v1/step-up/challenges`
 
+Workforce security:
+
+- `POST /v1/security/sessions/{session_id}/revocations`
+
 Merchant organizations:
 
 - `GET /v1/organizations`

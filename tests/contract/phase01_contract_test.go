@@ -16,16 +16,17 @@ func TestPhase01OpenAPISurface(t *testing.T) {
 	document := readOpenAPIDocument(t)
 	paths := objectAt(t, document, "paths")
 	expected := map[string]map[string]string{
-		"/v1/auth/login":             {"get": "beginBrowserLogin"},
-		"/v1/auth/callback":          {"get": "completeBrowserLogin"},
-		"/v1/logout":                 {"post": "logoutCurrentSession"},
-		"/v1/me":                     {"get": "getCurrentPrincipal"},
-		"/v1/sessions":               {"get": "listPrincipalSessions"},
-		"/v1/sessions/{session_id}":  {"delete": "revokePrincipalSession"},
-		"/v1/sessions/revoke-all":    {"post": "revokeAllPrincipalSessions"},
-		"/v1/step-up/challenges":     {"post": "createStepUpChallenge"},
-		"/v1/me/active-organization": {"put": "setActiveOrganization"},
-		"/v1/organizations":          {"get": "listPrincipalOrganizations"},
+		"/v1/auth/login":            {"get": "beginBrowserLogin"},
+		"/v1/auth/callback":         {"get": "completeBrowserLogin"},
+		"/v1/logout":                {"post": "logoutCurrentSession"},
+		"/v1/me":                    {"get": "getCurrentPrincipal"},
+		"/v1/sessions":              {"get": "listPrincipalSessions"},
+		"/v1/sessions/{session_id}": {"delete": "revokePrincipalSession"},
+		"/v1/sessions/revoke-all":   {"post": "revokeAllPrincipalSessions"},
+		"/v1/security/sessions/{session_id}/revocations":          {"post": "revokeSessionForSecurity"},
+		"/v1/step-up/challenges":                                  {"post": "createStepUpChallenge"},
+		"/v1/me/active-organization":                              {"put": "setActiveOrganization"},
+		"/v1/organizations":                                       {"get": "listPrincipalOrganizations"},
 		"/v1/organizations/{organization_id}/members":             {"get": "listOrganizationMembers"},
 		"/v1/organizations/{organization_id}/invitations":         {"post": "createOrganizationInvitation"},
 		"/v1/organization-invitations/{invitation_id}/acceptance": {"post": "acceptOrganizationInvitation"},
@@ -93,6 +94,7 @@ func TestPhase01CookieMutationsRequireCSRF(t *testing.T) {
 		{"post", "/v1/logout"},
 		{"delete", "/v1/sessions/{session_id}"},
 		{"post", "/v1/sessions/revoke-all"},
+		{"post", "/v1/security/sessions/{session_id}/revocations"},
 		{"post", "/v1/step-up/challenges"},
 		{"put", "/v1/me/active-organization"},
 		{"post", "/v1/organizations/{organization_id}/invitations"},
@@ -151,6 +153,7 @@ func TestPhase01SchemasAreClosedAndOneTimeSecretsAreNotReplayable(t *testing.T) 
 	for _, schema := range []string{
 		"Session",
 		"RevokeAllSessionsRequest",
+		"AdminSessionRevocationRequest",
 		"StepUpChallengeRequest",
 		"StepUpChallenge",
 		"SetActiveOrganizationRequest",
@@ -270,6 +273,17 @@ func TestPhase01IdentityAccessPolicyIsClosedAndConsistent(t *testing.T) {
 	purposeSchema := objectAt(t, schemas, "Purpose")
 	if got, want := sortedKeys(stringSetAt(t, purposeSchema, "enum")), sortedKeys(stringSetAt(t, policy, "purposes")); strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Errorf("OpenAPI purposes = %v, policy purposes = %v", got, want)
+	}
+	adminRevocation := objectAt(t, policy, "admin_session_revocation")
+	assertString(t, adminRevocation, "decision", "ADR-0015")
+	assertString(t, adminRevocation, "actor_population", "workforce")
+	assertString(t, adminRevocation, "permission", "identity.sessions.revoke_admin")
+	assertString(t, adminRevocation, "purpose", "security_review")
+	assertString(t, adminRevocation, "required_assurance", "phishing_resistant")
+	assertString(t, adminRevocation, "required_step_up_action", "identity.session.admin_revoke")
+	assertString(t, adminRevocation, "audit_atomicity", "same-postgresql-transaction")
+	if got := intAt(t, adminRevocation, "freshness_minutes"); got != 5 {
+		t.Errorf("administrator revocation freshness = %d minutes, want 5", got)
 	}
 
 	approvals := objectAt(t, policy, "approvals")

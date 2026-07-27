@@ -37,6 +37,7 @@ wait_for_archive() {
 }
 
 [ "$(run_migration_sql "SELECT count(*) FROM atlas_foundation.seed_applications WHERE seed_id = 'atlas-phase01-identity-v1'")" = '1' ]
+[ "$(run_migration_sql "SELECT count(*) FROM atlas_foundation.seed_applications WHERE seed_id = 'atlas-phase01-identity-policy-v2'")" = '1' ]
 [ "$(run_migration_sql "SELECT count(*) FROM atlas_identity.sessions WHERE session_id = '$session_id' AND status = 'revoked' AND revoked_at IS NOT NULL")" = '1' ]
 run_migration_sql "INSERT INTO atlas_foundation.recovery_probe(marker_id, marker_value) VALUES ('$marker_id', 'present-at-recovery-target') ON CONFLICT (marker_id) DO UPDATE SET marker_value = EXCLUDED.marker_value, recorded_at = transaction_timestamp()" >/dev/null
 insert_wal="$(run_bootstrap_sql "SELECT pg_walfile_name(pg_switch_wal())")"

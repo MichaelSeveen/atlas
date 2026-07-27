@@ -71,7 +71,12 @@ function Stop-WebWithinDeadline {
     }
 
     $started = [DateTimeOffset]::UtcNow
-    Invoke-Compose -Arguments @('stop', '--timeout', '5', 'web')
+    # Measure the target container's bounded SIGTERM handling directly. Compose
+    # startup/provider overhead is unrelated to the web process shutdown SLO and
+    # can exceed the deadline even after the container has exited cleanly.
+    Invoke-AtlasContainer -ContainerRuntime $ContainerRuntime -RepositoryRoot $repositoryRoot -Arguments @(
+        'stop', '--time', '5', $containerID
+    )
     $elapsedMilliseconds = [Math]::Ceiling(([DateTimeOffset]::UtcNow - $started).TotalMilliseconds)
     $exitCode = (Invoke-AtlasContainer -ContainerRuntime $ContainerRuntime -RepositoryRoot $repositoryRoot -Arguments @('inspect', '--format', '{{.State.ExitCode}}', $containerID) | Out-String).Trim()
     if ($exitCode -ne '0') {

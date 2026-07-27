@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"net/http"
@@ -172,10 +173,56 @@ func TestIdentityMutationCORSPreflightAndRouteInventory(t *testing.T) {
 	want := []string{
 		"/v1/me", "/v1/auth/login", "/v1/auth/callback", "/v1/logout",
 		"/v1/sessions", "/v1/sessions/{session_id}", "/v1/sessions/revoke-all",
+		"/v1/security/sessions/{session_id}/revocations",
 		"/v1/step-up/challenges",
 	}
 	if strings.Join(identityRoutes, ",") != strings.Join(want, ",") {
 		t.Fatalf("identity route inventory=%v", identityRoutes)
+	}
+}
+
+func TestAdministratorSessionRevocationHTTPContract(t *testing.T) {
+	service, store, _ := newHTTPIdentityService(t)
+	cookieValue := strings.Repeat("T", 43)
+	principalID, _ := identifier.Parse("usr_00000000000000000071")
+	sessionID, _ := identifier.Parse("ses_00000000000000000070")
+	store.sessions[sha256.Sum256([]byte(cookieValue))] = identity.Session{
+		SessionID: sessionID, PrincipalID: principalID,
+		PrincipalType: "workforce", DisplayName: "Synthetic Platform Administrator",
+		Population: identity.PopulationWorkforce, Assurance: identity.AssurancePhishingResistant,
+		AuthorizationVersion: 1, RotationVersion: 2,
+		CreatedAt: testBuildTime, LastSeenAt: testBuildTime,
+		IdleExpiresAt:     testBuildTime.Add(10 * time.Minute),
+		AbsoluteExpiresAt: testBuildTime.Add(time.Hour),
+		StepUpAction:      "identity.session.admin_revoke", StepUpVerifiedAt: testBuildTime,
+		Permissions: []string{"identity.sessions.revoke_admin"},
+	}
+	_, csrf, err := service.Current(context.Background(), cookieValue)
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := newTestApp(t, ReadinessState{DependenciesReady: true, MigrationsCurrent: true}, func(options *Options) {
+		options.Identity = service
+		options.WebOrigin = "https://web.test.invalid"
+	})
+	target := "ses_00000000000000000073"
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/security/sessions/"+target+"/revocations",
+		strings.NewReader(`{"purpose":"security_review","reason":"compromised_session"}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set(identity.CSRFHeaderName, csrf)
+	request.Header.Set("Idempotency-Key", "http-admin-revocation-0001")
+	request.AddCookie(&http.Cookie{Name: identity.SessionCookieName, Value: cookieValue})
+	response := httptest.NewRecorder()
+	app.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusNoContent ||
+		response.Header().Get("Idempotency-Replayed") != "false" ||
+		!strings.HasPrefix(response.Header().Get("X-Authorization-Decision-Id"), "dec_") ||
+		store.revocations != 1 {
+		t.Fatalf("administrator revocation status=%d headers=%v revocations=%d body=%s",
+			response.Code, response.Header(), store.revocations, response.Body)
 	}
 }
 
@@ -485,6 +532,14 @@ func (store *httpIdentityStore) RevokeAll(
 ) (identity.RevocationResult, error) {
 	store.revocations++
 	return identity.RevocationResult{}, nil
+}
+
+func (store *httpIdentityStore) RevokeForSecurity(
+	_ context.Context,
+	command identity.AdminRevocationCommand,
+) (identity.AdminRevocationResult, error) {
+	store.revocations++
+	return identity.AdminRevocationResult{DecisionID: command.AuditEvent.DecisionID}, nil
 }
 
 func newHTTPIdentityService(t *testing.T) (*identity.Service, *httpIdentityStore, *httpIdentityProvider) {

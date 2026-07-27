@@ -2,25 +2,28 @@
 
 ## Status and scope
 
-- **Completed slices:** `P01-S01 — identity/access/tenancy audit and execution plan`; `P01-S02 — canonical contract, ownership, and security-decision closure`; `P01-S03 — identity/audit persistence, deterministic seeds, roles, and recovery revalidation`
-- **Current slice:** `P01-S04 — synthetic OIDC BFF and durable session lifecycle` is underway; the
-  core session checkpoint plus idempotent step-up execution and live higher-assurance completion
-  now pass, while admin security revocation and remaining browser/differential evidence are open.
+- **Completed slices:** `P01-S01 — identity/access/tenancy audit and execution plan`; `P01-S02 — canonical contract, ownership, and security-decision closure`; `P01-S03 — identity/audit persistence, deterministic seeds, roles, and recovery revalidation`; `P01-S04 — synthetic OIDC BFF and durable session lifecycle`
+- **Current slice:** `P01-S05 — merchant organizations, memberships, invitations, and
+  active-tenant switching` is next and has not started. S04 core sessions, idempotent
+  step-up/live higher-assurance completion, bounded three-population account-enumeration,
+  real-browser logout/navigation protection, audit-atomic administrator security revocation,
+  additive seed evolution, and the complete live gate pass.
 - **Audit date:** 2026-07-23
 - **Audited base revision:** `2884484a99eeb2b846a56c90177163e37e419d11`
 - **Base tree:** `b921b93cb8341e28344b97e1202d37f0376dff19`
 - **Current evidence posture:** the S01-S04 core checkpoint is committed at `d276ad4`. S01 is
   planning evidence, S02 is contract/decision evidence, S03 is real PostgreSQL
   persistence/recovery evidence, and S04 core has revision-bound synthetic
-  OIDC/application-session static/live evidence. No IAM row is closed phase-wide.
+  OIDC/application-session static/live evidence. S04 changes only its directly evidenced IAM
+  rows; Phase 01 acceptance remains open.
 - **Allowed environment:** synthetic local/reference identities and data only under ADR 0008 and ADR 0012.
 
 S04 composes the ratified `atlas_identity`/`atlas_audit` persistence foundations into the approved
 OIDC BFF and durable application-session routes only. Synthetic customer/merchant login and
-session lifecycle work; workforce baseline login fails closed. It adds no event, worker job,
-authorization evaluator, credential, approval, or financial behavior. All 30 Phase 01
-requirement rows remain `Planned`; exact checkpoint evidence is attached without overstating
-phase-wide completion.
+session lifecycle work; workforce baseline login fails closed. ADR 0015 adds only the closed
+workforce administrator-revocation command. It adds no event, worker job, organization
+authorization evaluator, credential, approval, or financial behavior. Exact checkpoint evidence
+is attached without overstating phase-wide completion.
 
 The financial boundary is closed for the whole phase: Phase 01 may define authorization and approval foundations that later financial phases call, but it must not create a wallet, balance, hold, journal, payment, refund, payout, transfer, beneficiary, or other money-moving state or operation.
 
@@ -71,7 +74,11 @@ No handoff assertion was used to override repository state. Git confirms a clean
 
 ### Traceability quality
 
-`REQUIREMENTS_TRACEABILITY.csv` contains exactly 30 Phase 01 rows and all are correctly still `Planned`. However, all 30 rows currently repeat the same eight-threat bundle and the same broad verification text. That is planning-pack traceability, not an implementable per-requirement test map. Before a row can leave `Planned`, its threats, exact tests, evidence ID, owner, and limitations must be narrowed to the implemented behavior.
+At the initial audit, `REQUIREMENTS_TRACEABILITY.csv` contained exactly 30 Phase 01 rows and all
+were correctly `Planned`. They repeated the same eight-threat bundle and broad verification text.
+That was planning-pack traceability, not an implementable per-requirement test map. Each
+implemented slice now narrows only its own rows with exact tests, evidence IDs, owner, and
+limitations before changing status.
 
 The relevant threat set is wider and more specific than the repeated bundle:
 
@@ -170,11 +177,11 @@ The intended PostgreSQL namespaces are `atlas_identity`, `atlas_operations`, and
 
 These were specification gaps, not implementation discretion. S02 resolved `P01-D01..D09`,
 `P01-D11`, `P01-D12`, and `P01-D14` in ADR 0014, OpenAPI, and
-`identity-access-policy.json`. `P01-D10` remains an explicit block on S04’s synthetic OIDC
-configuration, and the exact package/version portion of `P01-D13` remains an explicit block on
-S09’s first web product consumer; the Bun/OpenAPI/no-hand-edits strategy is resolved. Neither
-deferred owner-slice decision authorizes implementation in S03. The table preserves the original
-question each owning slice must continue to satisfy.
+`identity-access-policy.json`. S04 resolved `P01-D10` with the three-realm synthetic Keycloak
+profile. The exact package/version portion of `P01-D13` remains an explicit block on S09’s first
+web product consumer; the Bun/OpenAPI/no-hand-edits strategy is resolved. The table preserves the
+original question each owning slice must continue to satisfy. S04 implementation review added
+`P01-D15`; ADR 0015 resolves it additively without changing the self-owned route.
 
 | Decision | Required resolution |
 |---|---|
@@ -192,6 +199,7 @@ question each owning slice must continue to satisfy.
 | `P01-D12` future-surface requirements | Record how `IAM-006` future financial/customer actions and `IAM-026` future restriction changes remain fail-closed and trigger revalidation without fabricating those later-phase endpoints. |
 | `P01-D13` generated client | Select a deterministic OpenAPI-to-TypeScript client/docs path compatible with Bun before the web becomes the first product API consumer. Do not create a second hand-edited contract. |
 | `P01-D14` cross-phase evidence continuity | Preserve the final Phase 00 catalogue and define a versioned Phase 01 catalogue/integrity policy that supports dirty/pre-commit and committed descendant verification without treating unrelated code/config drift as evidence-only. Retain tamper/stale-source canaries; do not refresh a source revision without owning evidence. |
+| `P01-D15` administrator session-revocation transport | Additively define the administrator operation, target and concealment semantics, required purpose/reason, idempotency, fresh-step-up binding, authorization-decision response, and atomic Audit behavior. `DELETE /v1/sessions/{session_id}` remains self-owned and must not be silently overloaded. |
 
 ## Phase 00 revalidation obligations
 
@@ -423,16 +431,17 @@ No hosted release, merge, production/reference deployment, real identity provide
 
 ## Exact next implementation checkpoint
 
-The next checkpoint remains within **P01-S04 — synthetic OIDC BFF and durable session
-lifecycle**: implement administrator security revocation with audit and concurrency proof before
-moving to S05. Contracted step-up `Idempotency-Key` replay/conflict semantics and live
-higher-assurance rotation are committed at `015911fdc586b4e7b65a80d29cdf06b799e37fc4`.
+The complete S04 pre-commit verifier has passed. After the S04 closure commit, the next unblocked
+checkpoint is **P01-S05 — merchant organizations, memberships, invitations, and active-tenant
+switching**. Do not begin S05 from a failed or unbound S04 revision.
 
 S03 completed the first Go/database implementation slice. S04 core now composes that boundary
 through the ADR 0014-owned OpenAPI surface. The current checkpoint:
 
 - preserves and revalidates the `FND-011:first-product-schema` and
   `FND-064:first-product-durable-state` controls;
+- preserves released identity seed v1 byte-for-byte and advances the current policy binding only
+  through additive seed v2, with upgrade/fresh/replay/backup/restore proof;
 - uses real PostgreSQL roles for session/revocation concurrency, migration, lock, permission, and
   backup/WAL/PITR checks;
 - validates issuer/audience/state/nonce/PKCE/redirect/timing and rotates durable encrypted
@@ -442,10 +451,21 @@ through the ADR 0014-owned OpenAPI surface. The current checkpoint:
   rejection;
 - keeps workforce baseline authentication fail-closed and existing low-risk sessions available
   during an injected provider outage;
+- bounds known/absent-user response status, generic copy, median delta/ratio, and p95 delta across
+  all three synthetic realms with interleaved fresh OIDC transactions;
+- preserves signed-out state across reload, history traversal, and direct protected-route
+  navigation without storing a browser credential; real browser history traversal reloads instead
+  of restoring a BFCache actor shell;
+- implements ADR 0015’s distinct administrator-revocation command with closed workforce
+  permission/purpose/reason, fresh phishing-resistant action binding, exact replay/conflict,
+  authority recheck, concealed target handling, stable decision IDs, and Audit-outage rollback in
+  one PostgreSQL transaction;
 - preserves historical catalogues and adds source-bound `EVD-P01-S04-*`;
 - adds no Redis authorization truth, event/outbox, worker job, authorization/approval/credential
   behavior, frontend product behavior, or financial state.
 
-S04 remains open until administrator security revocation, enumeration timing, and complete browser
-cache/storage/BFCache evidence are implemented. The checkpoint makes no phase-wide IAM completion
-claim.
+S04 closes only the synthetic local/reference boundary after its full gate passes. The shell is
+not yet a generated product API consumer; Keycloak is not a real provider or MFA/phishing-resistant
+deployment claim; and production recovery, throttling, bot defense, and independent review remain
+later provider/deployment triggers rather than fabricated S04 evidence. The checkpoint makes no
+phase-wide completion claim.

@@ -113,6 +113,8 @@ var (
 	localIssuerPattern = regexp.MustCompile(`^http://keycloak:8080/realms/atlas-(customer|merchant|workforce)-local$`)
 )
 
+const phase01IdentitySeedV1SHA256 = "e5a8ab37437edad69ed655e6589efffd824ca4b9151b6f9d9358632bf1f13d6c"
+
 // LoadSeedManifest validates the deterministic product seed against the canonical access policy.
 func LoadSeedManifest(seedPath, policyPath string) (SeedManifest, string, error) {
 	// #nosec G304 -- repository tests and operators supply repository-owned policy and seed paths.
@@ -132,6 +134,8 @@ func LoadSeedManifest(seedPath, policyPath string) (SeedManifest, string, error)
 	if err := rejectTrailingSeedJSON(decoder); err != nil {
 		return SeedManifest{}, "", err
 	}
+	seedDigest := sha256.Sum256(content)
+	seedDigestText := hex.EncodeToString(seedDigest[:])
 
 	// #nosec G304 -- see seed path rationale above.
 	policyContent, err := os.ReadFile(policyPath)
@@ -139,7 +143,8 @@ func LoadSeedManifest(seedPath, policyPath string) (SeedManifest, string, error)
 		return SeedManifest{}, "", fmt.Errorf("read identity policy: %w", err)
 	}
 	policyDigest := sha256.Sum256(policyContent)
-	if manifest.PolicySHA256 != hex.EncodeToString(policyDigest[:]) {
+	if manifest.PolicySHA256 != hex.EncodeToString(policyDigest[:]) &&
+		(manifest.SeedID != "atlas-phase01-identity-v1" || seedDigestText != phase01IdentitySeedV1SHA256) {
 		return SeedManifest{}, "", errors.New("identity seed is not bound to the canonical access policy")
 	}
 	var policy struct {
@@ -156,8 +161,7 @@ func LoadSeedManifest(seedPath, policyPath string) (SeedManifest, string, error)
 	if err := manifest.Validate(); err != nil {
 		return SeedManifest{}, "", err
 	}
-	digest := sha256.Sum256(content)
-	return manifest, hex.EncodeToString(digest[:]), nil
+	return manifest, seedDigestText, nil
 }
 
 func rejectTrailingSeedJSON(decoder *json.Decoder) error {

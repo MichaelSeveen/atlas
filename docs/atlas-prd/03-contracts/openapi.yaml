@@ -261,6 +261,53 @@ paths:
         '403': {$ref: '#/components/responses/Forbidden'}
         '409': {$ref: '#/components/responses/Conflict'}
 
+  /v1/security/sessions/{session_id}/revocations:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      operationId: revokeSessionForSecurity
+      tags: [Identity]
+      summary: Revoke one application session under workforce security authority
+      description: |
+        Requires the `identity.sessions.revoke_admin` permission, the exact
+        `security_review` purpose, and a fresh phishing-resistant step-up bound to
+        `identity.session.admin_revoke`. The authorization decision, revocation,
+        idempotency result, and Audit fact commit atomically in PostgreSQL. Target
+        absence is concealed until the workforce authorization check succeeds.
+      parameters:
+        - $ref: '#/components/parameters/XAtlasCSRFToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminSessionRevocationRequest'}
+      responses:
+        '204':
+          description: Session revoked or already revoked
+          headers:
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
+        '401': {$ref: '#/components/responses/AuthenticationRequired'}
+        '403':
+          description: Permission is denied or a fresh action-bound step-up is required
+          headers:
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '404':
+          description: Session is absent or concealed after workforce authorization succeeds
+          headers:
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
+
   /v1/step-up/challenges:
     post:
       operationId: createStepUpChallenge
@@ -2221,6 +2268,20 @@ components:
       required: [include_current]
       properties:
         include_current: {type: boolean}
+    AdminSessionRevocationRequest:
+      type: object
+      additionalProperties: false
+      required: [purpose, reason]
+      properties:
+        purpose:
+          type: string
+          const: security_review
+        reason:
+          type: string
+          enum:
+            - compromised_session
+            - suspected_account_takeover
+            - workforce_security_response
     StepUpChallengeRequest:
       type: object
       additionalProperties: false

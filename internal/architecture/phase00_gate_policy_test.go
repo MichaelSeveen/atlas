@@ -204,7 +204,7 @@ func validatePhase00GatePolicy(root string, policy phase00GatePolicy) error {
 	if len(expectedRevalidations) != 0 {
 		return fmt.Errorf("phase gate revalidations missing: %v", expectedRevalidations)
 	}
-	if len(policy.GuardedArtifacts) != 15 || len(policy.GuardedDirs) != 6 {
+	if len(policy.GuardedArtifacts) != 17 || len(policy.GuardedDirs) != 6 {
 		return errors.New("phase gate guarded inventory is incomplete")
 	}
 	seenPaths := map[string]bool{}

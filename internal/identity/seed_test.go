@@ -1,6 +1,9 @@
 package identity
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -18,8 +21,35 @@ func TestCanonicalPhase01IdentitySeed(t *testing.T) {
 		t.Fatal(err)
 	}
 	if manifest.SeedID != "atlas-phase01-identity-v1" ||
-		digest != "e5a8ab37437edad69ed655e6589efffd824ca4b9151b6f9d9358632bf1f13d6c" {
+		digest != phase01IdentitySeedV1SHA256 {
 		t.Fatalf("identity seed release identity drifted: id=%s digest=%s", manifest.SeedID, digest)
+	}
+
+	policyContent, err := os.ReadFile(filepath.Join(root, "docs", "atlas-prd", "03-contracts", "identity-access-policy.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	updateContent, err := os.ReadFile(filepath.Join(root, "db", "seeds", "000002_phase_01_policy.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var update struct {
+		SchemaVersion        int    `json:"schema_version"`
+		SeedID               string `json:"seed_id"`
+		PredecessorSeedID    string `json:"predecessor_seed_id"`
+		PreviousPolicySHA256 string `json:"previous_policy_sha256"`
+		PolicySHA256         string `json:"policy_sha256"`
+	}
+	if err := json.Unmarshal(updateContent, &update); err != nil {
+		t.Fatal(err)
+	}
+	policyDigest := sha256.Sum256(policyContent)
+	if update.SchemaVersion != 1 ||
+		update.SeedID != "atlas-phase01-identity-policy-v2" ||
+		update.PredecessorSeedID != manifest.SeedID ||
+		update.PreviousPolicySHA256 != manifest.PolicySHA256 ||
+		update.PolicySHA256 != hex.EncodeToString(policyDigest[:]) {
+		t.Fatalf("identity policy seed chain drifted: %#v", update)
 	}
 }
 

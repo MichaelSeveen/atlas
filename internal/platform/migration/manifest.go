@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	CurrentVersion  = 7
-	CurrentChecksum = "ac76a225d1a288334eaf502f27fad866a44a8787937ec88a06a5a39a85181f71"
+	CurrentVersion  = 8
+	CurrentChecksum = "1248c6d147f56f93b15b78175804cf740d8c013b2f718275b6ba7dd2fbeca6a0"
 )
 
 var (

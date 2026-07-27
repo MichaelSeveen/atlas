@@ -1,6 +1,16 @@
 import {useEffect, useState, type ReactNode} from "react";
 import {createRoot, type Root} from "react-dom/client";
-import {cacheSyntheticValue, clearSensitiveClientState, isProtectedShell} from "./session";
+import {
+  cacheSyntheticValue,
+  classifyPageRestore,
+  clearSensitiveClientState,
+  clearSyntheticSignedOut,
+  isProtectedShell,
+  isSyntheticSignedOut,
+  markSyntheticSignedOut,
+  summarizeBrowserStorage,
+  type PageRestoreKind,
+} from "./session";
 
 type RuntimeConfig = {
   environment: string;
@@ -32,7 +42,12 @@ function navigate(path: string): void {
 
 function App({config}: {config: RuntimeConfig}): ReactNode {
   const path = usePath();
-  const [sessionActive, setSessionActive] = useState(true);
+  const [sessionActive, setSessionActive] = useState(
+    () => !isSyntheticSignedOut(window.sessionStorage),
+  );
+  const [pageRestore, setPageRestore] = useState<PageRestoreKind>(
+    () => classifyPageRestore(false, currentNavigationType()),
+  );
   const shell = shellLabels[path];
 
   useEffect(() => {
@@ -42,11 +57,15 @@ function App({config}: {config: RuntimeConfig}): ReactNode {
         window.dispatchEvent(new PopStateEvent("popstate"));
       }
     };
-    window.addEventListener("pageshow", enforceSignedOutState);
+    const handlePageShow = (event: PageTransitionEvent) => {
+      setPageRestore(classifyPageRestore(event.persisted, currentNavigationType()));
+      enforceSignedOutState();
+    };
+    window.addEventListener("pageshow", handlePageShow);
     window.addEventListener("popstate", enforceSignedOutState);
     enforceSignedOutState();
     return () => {
-      window.removeEventListener("pageshow", enforceSignedOutState);
+      window.removeEventListener("pageshow", handlePageShow);
       window.removeEventListener("popstate", enforceSignedOutState);
     };
   }, [sessionActive]);
@@ -59,8 +78,24 @@ function App({config}: {config: RuntimeConfig}): ReactNode {
 
   const logout = () => {
     clearSensitiveClientState();
+    try {
+      markSyntheticSignedOut(window.sessionStorage);
+    } catch {
+      // The in-memory state still fails closed for this document.
+    }
     setSessionActive(false);
     navigate("/signed-out");
+  };
+
+  const resetSyntheticShell = () => {
+    clearSensitiveClientState();
+    try {
+      clearSyntheticSignedOut(window.sessionStorage);
+    } catch {
+      // Storage denial leaves the next protected route fail-closed.
+    }
+    setSessionActive(true);
+    navigate("/");
   };
 
   return (
@@ -71,10 +106,10 @@ function App({config}: {config: RuntimeConfig}): ReactNode {
       <main className="shell-frame">
         <header className="masthead">
           <div>
-            <div className="phase-label">Phase 00 foundation</div>
+            <div className="phase-label">Phase 01 foundation</div>
             <h1 className="brand">Atlas</h1>
           </div>
-          <div className="status-row"><span className="status-icon" aria-hidden="true" />No product capability</div>
+          <div className="status-row"><span className="status-icon" aria-hidden="true" />Synthetic shell only</div>
         </header>
         <nav className="route-nav" aria-label="Foundation shells">
           {["/", "/customer", "/merchant", "/workforce"].map((route) => (
@@ -90,7 +125,7 @@ function App({config}: {config: RuntimeConfig}): ReactNode {
         </nav>
         {path === "/" && <Overview />}
         {shell && sessionActive && <ActorShell label={shell} onLogout={logout} />}
-        {path === "/signed-out" && <SignedOut />}
+        {path === "/signed-out" && <SignedOut onReset={resetSyntheticShell} pageRestore={pageRestore} />}
         {path !== "/" && !shell && path !== "/signed-out" && <UnknownRoute />}
       </main>
     </>
@@ -119,8 +154,8 @@ function Overview(): ReactNode {
   return (
     <section className="panel">
       <h2>Environment shell verification</h2>
-      <p>These routes prove separation, accessibility, synthetic labeling, and safe client-state handling before product work begins.</p>
-      <div className="safe-note">No wallet, balance, payment, identity session, or financial command is implemented.</div>
+      <p>These routes prove separation, accessibility, synthetic labeling, and safe client-state handling while remaining detached from product APIs.</p>
+      <div className="safe-note">No wallet, balance, payment, or financial command is implemented. This shell does not consume the Phase 01 identity API.</div>
     </section>
   );
 }
@@ -131,6 +166,7 @@ function ActorShell({label, onLogout}: {label: string; onLogout: () => void}): R
       <h2>{label}</h2>
       <p>This is an isolated route shell with synthetic fixture labels only.</p>
       <div className="safe-note">No authentication token or sensitive value is stored in localStorage or sessionStorage.</div>
+      <BrowserStorageState />
       <div className="actions">
         <button className="button danger" type="button" onClick={onLogout}>Clear client state and sign out</button>
       </div>
@@ -138,13 +174,49 @@ function ActorShell({label, onLogout}: {label: string; onLogout: () => void}): R
   );
 }
 
-function SignedOut(): ReactNode {
+function SignedOut({
+  onReset,
+  pageRestore,
+}: {
+  onReset: () => void;
+  pageRestore: PageRestoreKind;
+}): ReactNode {
   return (
     <section className="panel" data-testid="signed-out">
       <h2>Client state cleared</h2>
-      <p>Protected synthetic shells stay unavailable through browser back/forward navigation until this page is reloaded.</p>
+      <p>Protected synthetic shells stay unavailable through browser back/forward navigation and reload until a new synthetic shell session is explicitly started.</p>
+      <div className="safe-note" data-testid="page-restore" data-page-restore={pageRestore}>
+        Navigation restore: {pageRestore}
+      </div>
+      <BrowserStorageState />
+      <div className="actions">
+        <button className="button" type="button" onClick={onReset}>Start a new synthetic shell session</button>
+      </div>
     </section>
   );
+}
+
+function BrowserStorageState(): ReactNode {
+  const summary = summarizeBrowserStorage(window.localStorage, window.sessionStorage);
+  return (
+    <div
+      className="safe-note"
+      data-testid="browser-storage-state"
+      data-local-atlas-entries={summary.localAtlasEntries}
+      data-session-atlas-entries={summary.sessionAtlasEntries}
+      data-unexpected-atlas-entries={summary.unexpectedAtlasEntries}
+    >
+      Browser credential storage: {summary.unexpectedAtlasEntries ? "unexpected Atlas state detected" : "absent"}
+    </div>
+  );
+}
+
+function currentNavigationType(): string | undefined {
+  const [navigation] = window.performance.getEntriesByType("navigation");
+  if (!navigation || !("type" in navigation)) {
+    return undefined;
+  }
+  return String(navigation.type);
 }
 
 function UnknownRoute(): ReactNode {

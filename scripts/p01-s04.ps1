@@ -17,6 +17,7 @@ try {
     & (Join-Path $PSScriptRoot 'p01-s04-session-repository.ps1') -ContainerRuntime $ContainerRuntime
     & (Join-Path $PSScriptRoot 's04.ps1') -Action Up -ContainerRuntime $ContainerRuntime
     & (Join-Path $PSScriptRoot 'configure-p01-s04-keycloak.ps1')
+    & (Join-Path $PSScriptRoot 'test-p01-s04-account-enumeration.ps1')
     foreach ($population in @('customer', 'merchant', 'workforce')) {
         & (Join-Path $PSScriptRoot 'test-p01-s04-oidc-http.ps1') -Population $population
     }

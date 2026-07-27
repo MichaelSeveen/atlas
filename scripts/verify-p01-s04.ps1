@@ -91,7 +91,7 @@ try {
         Write-Output 'p01_s04_live_verification=NOT_REQUESTED'
     }
 
-    Write-Output 'p01_s04_scope=oidc-bff,durable-session,current-principal,revocation,step-up-boundary'
+    Write-Output 'p01_s04_scope=oidc-bff,durable-session,current-principal,self-and-admin-revocation,step-up-boundary,account-enumeration,browser-navigation'
     Write-Output 'p01_s04_financial_state=ABSENT'
     Write-Output "source_revision=$sourceRevision"
     Write-Output 'p01_s04_verification=PASS'

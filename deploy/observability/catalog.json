@@ -22,6 +22,7 @@
           "/v1/sessions",
           "/v1/sessions/{session_id}",
           "/v1/sessions/revoke-all",
+          "/v1/security/sessions/{session_id}/revocations",
           "/v1/step-up/challenges",
           "unmatched"
         ]
@@ -47,6 +48,7 @@
           "/v1/sessions",
           "/v1/sessions/{session_id}",
           "/v1/sessions/revoke-all",
+          "/v1/security/sessions/{session_id}/revocations",
           "/v1/step-up/challenges",
           "unmatched"
         ]
@@ -58,7 +60,7 @@
       "status": "emitted",
       "owner": "identity-on-call",
       "labels": {
-        "atlas.identity.operation": ["login", "callback", "current", "logout", "session_list", "session_revoke", "session_revoke_all", "step_up"],
+        "atlas.identity.operation": ["login", "callback", "current", "logout", "session_list", "session_revoke", "session_revoke_all", "session_admin_revoke", "step_up"],
         "atlas.outcome": ["ok", "rejected", "error"],
         "http.response.status_code": ["bounded-http-status"]
       }
@@ -69,7 +71,7 @@
       "status": "emitted",
       "owner": "identity-on-call",
       "labels": {
-        "atlas.identity.operation": ["login", "callback", "current", "logout", "session_list", "session_revoke", "session_revoke_all", "step_up"],
+        "atlas.identity.operation": ["login", "callback", "current", "logout", "session_list", "session_revoke", "session_revoke_all", "session_admin_revoke", "step_up"],
         "atlas.outcome": ["ok", "rejected", "error"],
         "http.response.status_code": ["bounded-http-status"]
       }

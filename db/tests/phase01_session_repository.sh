@@ -40,7 +40,7 @@ case "$ATLAS_P01_S04_SESSION_TEST_ACTION" in
       -v ON_ERROR_STOP=1 \
       -Atqc "
         SELECT CASE
-          WHEN (SELECT count(*) FROM atlas_foundation.schema_migrations) = 7
+          WHEN (SELECT count(*) FROM atlas_foundation.schema_migrations) = 8
            AND (SELECT count(*) FROM atlas_identity.principals) = 3
           THEN true
           ELSE false

@@ -15,6 +15,7 @@ var identityRoutes = []string{
 	"/v1/sessions",
 	"/v1/sessions/{session_id}",
 	"/v1/sessions/revoke-all",
+	"/v1/security/sessions/{session_id}/revocations",
 	"/v1/step-up/challenges",
 }
 
@@ -103,6 +104,14 @@ func identityRoute(path string) string {
 			return "/v1/sessions/{session_id}"
 		}
 	}
+	const securityPrefix = "/v1/security/sessions/"
+	const revocationsSuffix = "/revocations"
+	if strings.HasPrefix(path, securityPrefix) && strings.HasSuffix(path, revocationsSuffix) {
+		identifier := strings.TrimSuffix(strings.TrimPrefix(path, securityPrefix), revocationsSuffix)
+		if identifier != "" && !strings.Contains(identifier, "/") {
+			return "/v1/security/sessions/{session_id}/revocations"
+		}
+	}
 	return ""
 }
 
@@ -110,7 +119,8 @@ func allowedMethods(path string) []string {
 	switch identityRoute(path) {
 	case "/v1/me", "/v1/auth/login", "/v1/auth/callback", "/v1/sessions":
 		return []string{http.MethodGet}
-	case "/v1/logout", "/v1/sessions/revoke-all", "/v1/step-up/challenges":
+	case "/v1/logout", "/v1/sessions/revoke-all",
+		"/v1/security/sessions/{session_id}/revocations", "/v1/step-up/challenges":
 		return []string{http.MethodPost}
 	case "/v1/sessions/{session_id}":
 		return []string{http.MethodDelete}

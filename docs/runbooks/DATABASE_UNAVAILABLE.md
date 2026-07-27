@@ -24,7 +24,7 @@ now exist, but automated failover and production recovery are not implemented.
 ## Recovery verification
 
 Restore readiness only after the real application-role checker proves both required dependency
-availability and migration version 6 with its exact released checksum. Then verify, in order:
+availability and migration version 8 with its exact released checksum. Then verify, in order:
 
 1. readiness changes to `200`;
 2. liveness remained healthy unless the process was intentionally restarted;

@@ -8,8 +8,8 @@
     "rebind_for_phase_01": false
   },
   "phase_01_catalogue": {
-    "precommit_path": "evidence/phase-01/identity-session/P01-S04-evidence-catalogue-precommit.json",
-    "postcommit_path": "evidence/phase-01/identity-session/P01-S04-evidence-catalogue-step-up-postcommit.json",
+    "precommit_path": "evidence/phase-01/identity-session/P01-S04-evidence-catalogue-closure-precommit.json",
+    "postcommit_path": "evidence/phase-01/identity-session/P01-S04-evidence-catalogue-closure-postcommit.json",
     "source_identity": "40-hex-commit-or-UNCOMMITTED_WORKTREE(base=40-hex)",
     "artifact_digest": "sha256",
     "historical_update": "add-new-version-never-delete-material-evidence"

@@ -7,6 +7,7 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -40,6 +41,11 @@ type sessionResponse struct {
 
 type revokeAllRequest struct {
 	IncludeCurrent bool `json:"include_current"`
+}
+
+type adminRevokeSessionRequest struct {
+	Purpose string `json:"purpose"`
+	Reason  string `json:"reason"`
 }
 
 type stepUpRequest struct {
@@ -77,6 +83,8 @@ func (a *App) routeIdentity(response http.ResponseWriter, request *http.Request)
 		a.revokeSession(response, request)
 	case "/v1/sessions/revoke-all":
 		a.revokeAllSessions(response, request)
+	case "/v1/security/sessions/{session_id}/revocations":
+		a.revokeSessionForSecurity(response, request)
 	case "/v1/step-up/challenges":
 		a.beginStepUp(response, request)
 	default:
@@ -302,6 +310,67 @@ func (a *App) revokeAllSessions(response http.ResponseWriter, request *http.Requ
 	response.WriteHeader(http.StatusNoContent)
 }
 
+func (a *App) revokeSessionForSecurity(response http.ResponseWriter, request *http.Request) {
+	if request.URL.RawQuery != "" {
+		a.malformed(response, request)
+		return
+	}
+	var body adminRevokeSessionRequest
+	if err := decodeStrictJSON(request, &body); err != nil {
+		a.malformed(response, request)
+		return
+	}
+	cookie, err := sessionCookie(request)
+	if err != nil {
+		a.writeIdentityError(response, request, identity.ErrAuthenticationRequired)
+		return
+	}
+	csrfToken, ok := singleHeader(request.Header, identity.CSRFHeaderName)
+	if !ok {
+		a.writeIdentityError(response, request, identity.ErrCSRFValidationFailed)
+		return
+	}
+	idempotencyKey, ok := singleHeader(request.Header, "Idempotency-Key")
+	if !ok {
+		a.malformed(response, request)
+		return
+	}
+	targetText := strings.TrimSuffix(
+		strings.TrimPrefix(request.URL.Path, "/v1/security/sessions/"),
+		"/revocations",
+	)
+	target, err := identifier.Parse(targetText)
+	if err != nil || target.Prefix() != "ses" {
+		a.writeIdentityError(response, request, identity.ErrSessionNotFound)
+		return
+	}
+	correlationID, ok := requestCorrelationID(request)
+	if !ok {
+		a.writeIdentityError(response, request, identity.ErrIdentityUnavailable)
+		return
+	}
+	result, err := a.identity.RevokeForSecurity(
+		request.Context(),
+		identity.AdminRevokeSessionRequest{
+			CookieValue: cookie, CSRFToken: csrfToken, TargetSessionID: target,
+			Purpose: body.Purpose, Reason: body.Reason,
+			IdempotencyKey: idempotencyKey, CorrelationID: correlationID,
+		},
+	)
+	if !result.DecisionID.IsZero() {
+		response.Header().Set("X-Authorization-Decision-Id", result.DecisionID.String())
+		response.Header().Set("Idempotency-Replayed", strconv.FormatBool(result.Replay))
+	}
+	if err != nil {
+		a.writeIdentityError(response, request, err)
+		return
+	}
+	if result.CurrentRevoked {
+		clearSessionCookie(response)
+	}
+	response.WriteHeader(http.StatusNoContent)
+}
+
 func (a *App) beginStepUp(response http.ResponseWriter, request *http.Request) {
 	if request.URL.RawQuery != "" {
 		a.malformed(response, request)
@@ -407,6 +476,8 @@ func (a *App) writeIdentityError(response http.ResponseWriter, request *http.Req
 		a.writeProblem(response, request, http.StatusForbidden, "csrf-validation-failed", "Action not authorized", "CSRF_VALIDATION_FAILED", false)
 	case errors.Is(err, identity.ErrActionNotAuthorized):
 		a.writeProblem(response, request, http.StatusForbidden, "action-not-authorized", "Action not authorized", "ACTION_NOT_AUTHORIZED", false)
+	case errors.Is(err, identity.ErrStepUpRequired):
+		a.writeProblem(response, request, http.StatusForbidden, "step-up-required", "Additional verification required", "STEP_UP_REQUIRED", false)
 	case errors.Is(err, identity.ErrSessionNotFound):
 		a.writeProblem(response, request, http.StatusNotFound, "not-found-or-concealed", "Not found", "NOT_FOUND_OR_CONCEALED", false)
 	case errors.Is(err, identity.ErrSessionConflict):

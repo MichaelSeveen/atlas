@@ -20,7 +20,9 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 	auditSQL := readPhase01PolicyFile(t, root, "db/migrations/000004_phase_01_audit_persistence.sql")
 	sessionSQL := readPhase01PolicyFile(t, root, "db/migrations/000005_phase_01_oidc_sessions.sql")
 	sessionGrantSQL := readPhase01PolicyFile(t, root, "db/migrations/000006_phase_01_session_authority_lock_grant.sql")
-	allSQL := identitySQL + "\n" + auditSQL + "\n" + sessionSQL + "\n" + sessionGrantSQL
+	adminRevocationSQL := readPhase01PolicyFile(t, root, "db/migrations/000008_phase_01_admin_session_revocation.sql")
+	allSQL := identitySQL + "\n" + auditSQL + "\n" + sessionSQL + "\n" +
+		sessionGrantSQL + "\n" + adminRevocationSQL
 
 	tables := make([]string, 0)
 	for _, match := range phase01ProductTablePattern.FindAllStringSubmatch(allSQL, -1) {
@@ -29,6 +31,7 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 	sort.Strings(tables)
 	wantTables := []string{
 		"atlas_audit.audit_events",
+		"atlas_identity.admin_session_revocation_requests",
 		"atlas_identity.external_subjects",
 		"atlas_identity.memberships",
 		"atlas_identity.oidc_transactions",
@@ -59,12 +62,14 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 		"('atlas_identity', 'sessions', 'mixed', 'tenant_id'",
 		"'atlas_identity',\n        'oidc_transactions',\n        'global'",
 		"'atlas_identity',\n        'session_revocation_requests',\n        'global'",
+		"'atlas_identity',\n    'admin_session_revocation_requests',\n    'global'",
 		"('atlas_audit', 'audit_events', 'mixed', 'tenant_id'",
 		"GRANT INSERT ON atlas_audit.audit_events TO atlas_api;",
 		"GRANT USAGE ON SCHEMA atlas_identity TO atlas_api;",
 		"GRANT USAGE ON SCHEMA atlas_audit TO atlas_api;",
 		"GRANT SELECT, INSERT, UPDATE ON atlas_identity.oidc_transactions TO atlas_api;",
 		"GRANT UPDATE (authorization_version) ON atlas_identity.principals TO atlas_api;",
+		"GRANT SELECT, INSERT ON atlas_identity.admin_session_revocation_requests TO atlas_api;",
 	} {
 		if !strings.Contains(allSQL, required) {
 			t.Errorf("persistence policy is missing %q", required)
@@ -118,7 +123,12 @@ func TestPhase01SeedManifestIsClosedAndChecksumBound(t *testing.T) {
 		}
 	}
 	sort.Strings(actual)
-	expected := []string{"000001_phase_01_identity.json", "load-phase-01-identity.sql"}
+	expected := []string{
+		"000001_phase_01_identity.json",
+		"000002_phase_01_policy.json",
+		"load-phase-01-identity.sql",
+		"load-phase-01-policy.sql",
+	}
 	if !reflect.DeepEqual(actual, expected) || len(want) != len(expected) {
 		t.Fatalf("closed seed inventory = %#v", actual)
 	}

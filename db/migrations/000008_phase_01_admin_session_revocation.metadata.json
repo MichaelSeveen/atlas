@@ -1,0 +1,13 @@
+{
+  "version": 8,
+  "name": "phase_01_admin_session_revocation",
+  "released": true,
+  "lock_timeout_ms": 500,
+  "statement_timeout_ms": 5000,
+  "lock_risk": "Adds two nullable session assurance-binding columns with a metadata-only constraint, then creates one initially empty replay table and one bounded target index.",
+  "representative_data": "Runs against empty, version-two, version-seven, and deterministic three-principal Phase 01 migration lanes; integration evidence exercises concurrent identical and mismatched administrator revocation requests.",
+  "query_plan_review": "The unique actor/idempotency index serializes replay lookup while the session primary key locks actor and target authority rows; the target index supports bounded security review.",
+  "space_risk": "Adds nullable step-up evidence to each application session and one hash-only replay fact per administrator revocation attempt.",
+  "forward_fix": "Correct constraints, grants, or replay semantics with a new ordered migration while preserving session assurance evidence, authorization decisions, and audit facts.",
+  "rollback": "Disable the administrator route before a forward fix; do not erase revocation replay records, restore revoked sessions, or weaken action-bound step-up and audit atomicity."
+}

@@ -179,6 +179,8 @@ func identityOperation(route string) string {
 		return "session_revoke"
 	case "/v1/sessions/revoke-all":
 		return "session_revoke_all"
+	case "/v1/security/sessions/{session_id}/revocations":
+		return "session_admin_revoke"
 	case "/v1/step-up/challenges":
 		return "step_up"
 	default:

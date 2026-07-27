@@ -57,6 +57,11 @@ var (
 		domainerror.KindPermissionDenied,
 		false,
 	)
+	ErrStepUpRequired = domainerror.New(
+		domainerror.MustCode("STEP_UP_REQUIRED"),
+		domainerror.KindPermissionDenied,
+		false,
+	)
 	ErrIdentityUnavailable = domainerror.New(
 		domainerror.MustCode("IDENTITY_UNAVAILABLE"),
 		domainerror.KindUnavailable,
@@ -209,6 +214,8 @@ type Session struct {
 	IdleExpiresAt        time.Time
 	AbsoluteExpiresAt    time.Time
 	RevokedAt            time.Time
+	StepUpAction         string
+	StepUpVerifiedAt     time.Time
 	ClientLabel          string
 	Permissions          []string
 }
@@ -236,6 +243,8 @@ type CreateSessionCommand struct {
 	VerifierDigest    [32]byte
 	Assurance         Assurance
 	AuthorizationAt   time.Time
+	StepUpAction      string
+	StepUpVerifiedAt  time.Time
 	IdleExpiresAt     time.Time
 	AbsoluteExpiresAt time.Time
 	ClientLabel       string
@@ -254,6 +263,24 @@ type RevocationCommand struct {
 }
 
 type RevocationResult struct {
+	CurrentRevoked bool
+	Replay         bool
+}
+
+type AdminRevocationCommand struct {
+	Actor               Session
+	TargetSessionID     identifier.ID
+	RevocationRequestID identifier.ID
+	IdempotencyDigest   [32]byte
+	RequestDigest       [32]byte
+	Purpose             string
+	Reason              string
+	Now                 time.Time
+	AuditEvent          audit.Event
+}
+
+type AdminRevocationResult struct {
+	DecisionID     identifier.ID
 	CurrentRevoked bool
 	Replay         bool
 }
@@ -299,6 +326,7 @@ type Store interface {
 	RevokeCurrent(context.Context, Session, time.Time, audit.Event) error
 	RevokeOne(context.Context, RevocationCommand) (RevocationResult, error)
 	RevokeAll(context.Context, RevocationCommand) (RevocationResult, error)
+	RevokeForSecurity(context.Context, AdminRevocationCommand) (AdminRevocationResult, error)
 }
 
 type TransactionCryptor interface {
@@ -641,11 +669,17 @@ func (service *Service) CompleteLogin(ctx context.Context, request CompleteLogin
 	}
 	idleExpiry := now.Add(policy.Idle)
 	absoluteExpiry := now.Add(policy.Absolute)
+	stepUpVerifiedAt := time.Time{}
+	if transaction.Kind == TransactionStepUp {
+		stepUpVerifiedAt = claims.AuthenticatedAt.UTC()
+	}
 	session, err := service.store.CreateSession(ctx, CreateSessionCommand{
 		Claims: claims, Population: transaction.Population, Kind: transaction.Kind,
 		ExpectedPrincipal: transaction.PrincipalID, ReplacedSessionID: transaction.ReplacedSessionID,
 		SessionID: sessionID, VerifierDigest: verifierDigest, Assurance: assurance,
-		AuthorizationAt: now, IdleExpiresAt: idleExpiry, AbsoluteExpiresAt: absoluteExpiry,
+		AuthorizationAt: now, StepUpAction: transaction.RequestedAction,
+		StepUpVerifiedAt: stepUpVerifiedAt,
+		IdleExpiresAt:    idleExpiry, AbsoluteExpiresAt: absoluteExpiry,
 		ClientLabel: sanitizeClientLabel(request.ClientLabel), AuditEvent: auditEvent,
 	})
 	if err != nil {
@@ -780,6 +814,82 @@ func (service *Service) RevokeAll(
 		Actor: session, IncludeCurrent: includeCurrent, RevocationRequestID: revocationRequestID,
 		IdempotencyDigest: idempotencyDigest, RequestDigest: requestDigest,
 		Now: now, AuditEvent: event,
+	})
+}
+
+type AdminRevokeSessionRequest struct {
+	CookieValue     string
+	CSRFToken       string
+	TargetSessionID identifier.ID
+	Purpose         string
+	Reason          string
+	IdempotencyKey  string
+	CorrelationID   identifier.ID
+}
+
+var adminRevocationReasons = map[string]struct{}{
+	"compromised_session":         {},
+	"suspected_account_takeover":  {},
+	"workforce_security_response": {},
+}
+
+func (service *Service) RevokeForSecurity(
+	ctx context.Context,
+	request AdminRevokeSessionRequest,
+) (AdminRevocationResult, error) {
+	session, expectedCSRF, err := service.Current(ctx, request.CookieValue)
+	if err != nil {
+		return AdminRevocationResult{}, err
+	}
+	if !constantTimeStringEqual(expectedCSRF, request.CSRFToken) {
+		return AdminRevocationResult{}, ErrCSRFValidationFailed
+	}
+	if request.TargetSessionID.IsZero() || request.TargetSessionID.Prefix() != "ses" {
+		return AdminRevocationResult{}, ErrSessionNotFound
+	}
+	if request.Purpose != "security_review" {
+		return AdminRevocationResult{}, ErrInputInvalid
+	}
+	if _, allowed := adminRevocationReasons[request.Reason]; !allowed {
+		return AdminRevocationResult{}, ErrInputInvalid
+	}
+	if !validIdempotencyKey(request.IdempotencyKey) ||
+		request.CorrelationID.IsZero() || request.CorrelationID.Prefix() != "cor" {
+		return AdminRevocationResult{}, ErrInputInvalid
+	}
+	requestID, err := service.generatedID("asr")
+	if err != nil {
+		return AdminRevocationResult{}, ErrIdentityUnavailable
+	}
+	auditID, err := service.generatedID("aud")
+	if err != nil {
+		return AdminRevocationResult{}, ErrIdentityUnavailable
+	}
+	decisionID, err := service.generatedID("dec")
+	if err != nil {
+		return AdminRevocationResult{}, ErrIdentityUnavailable
+	}
+	now := service.clock.Now().UTC()
+	idempotencyDigest := sha256.Sum256([]byte(request.IdempotencyKey))
+	requestDigest := sha256.Sum256([]byte(
+		"v1\ntarget=" + request.TargetSessionID.String() +
+			"\npurpose=" + request.Purpose +
+			"\nreason=" + request.Reason,
+	))
+	return service.store.RevokeForSecurity(ctx, AdminRevocationCommand{
+		Actor: session, TargetSessionID: request.TargetSessionID,
+		RevocationRequestID: requestID, IdempotencyDigest: idempotencyDigest,
+		RequestDigest: requestDigest, Purpose: request.Purpose, Reason: request.Reason,
+		Now: now,
+		AuditEvent: audit.Event{
+			AuditEventID: auditID, ActorID: session.PrincipalID,
+			ActorType: session.PrincipalType, GlobalScope: "identity-security",
+			SessionAssurance: string(session.Assurance),
+			Action:           "identity.session.admin_revoke", TargetType: "session",
+			TargetID: request.TargetSessionID.String(), DecisionID: decisionID,
+			Decision: "executed", ReasonCode: request.Reason,
+			CorrelationID: request.CorrelationID, OccurredAt: now,
+		},
 	})
 }
 

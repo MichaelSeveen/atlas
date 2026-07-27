@@ -262,6 +262,157 @@ WHERE membership_id = 'mem_01JAT1AS00000000000001'`); err != nil {
 		t.Fatalf("changed idempotent request error=%v", err)
 	}
 
+	adminActorCorrelation := newIntegrationID(t, "cor")
+	adminTargetCorrelation := newIntegrationID(t, "cor")
+	adminDecisionCorrelation := newIntegrationID(t, "cor")
+	if _, err := migrationPool.Exec(ctx, `
+UPDATE atlas_identity.principal_roles
+SET role_id = 'platform_administrator',
+    authorization_version = 2,
+    version = version + 1,
+    updated_at = $1
+WHERE principal_role_id = 'prr_01JAT1AS00000000000001'`,
+		now.Add(7*time.Minute),
+	); err != nil {
+		t.Fatal(err)
+	}
+	_, adminActorDigest := integrationToken(t)
+	adminActor := createWorkforceIntegrationSession(
+		t, ctx, store, adminActorDigest, newIntegrationID(t, "ses"),
+		adminActorCorrelation, now.Add(7*time.Minute), "identity.session.admin_revoke",
+	)
+	_, adminTargetDigest := integrationToken(t)
+	adminTarget := createIntegrationSession(
+		t, ctx, store, adminTargetDigest, newIntegrationID(t, "ses"),
+		adminTargetCorrelation, now.Add(7*time.Minute),
+	)
+	adminKey := sha256.Sum256([]byte("real-postgres-admin-revocation-key"))
+	adminRequestDigest := sha256.Sum256([]byte(
+		"v1\ntarget=" + adminTarget.SessionID.String() +
+			"\npurpose=security_review\nreason=compromised_session",
+	))
+	adminCommand := identity.AdminRevocationCommand{
+		Actor: adminActor, TargetSessionID: adminTarget.SessionID,
+		RevocationRequestID: newIntegrationID(t, "asr"),
+		IdempotencyDigest:   adminKey, RequestDigest: adminRequestDigest,
+		Purpose: "security_review", Reason: "compromised_session",
+		Now: now.Add(8 * time.Minute),
+		AuditEvent: adminIntegrationAuditEvent(
+			t, adminActor, adminTarget.SessionID, adminDecisionCorrelation,
+			now.Add(8*time.Minute), "compromised_session",
+		),
+	}
+	type adminConcurrentResult struct {
+		result identity.AdminRevocationResult
+		err    error
+	}
+	adminResults := make(chan adminConcurrentResult, 2)
+	var adminWait sync.WaitGroup
+	adminWait.Add(2)
+	for range 2 {
+		go func() {
+			defer adminWait.Done()
+			result, revokeErr := store.RevokeForSecurity(ctx, adminCommand)
+			adminResults <- adminConcurrentResult{result: result, err: revokeErr}
+		}()
+	}
+	adminWait.Wait()
+	close(adminResults)
+	adminOriginalCount := 0
+	adminReplayCount := 0
+	var adminDecisionID identifier.ID
+	for concurrent := range adminResults {
+		if concurrent.err != nil || concurrent.result.DecisionID.IsZero() {
+			t.Fatalf("concurrent administrator revocation result=%+v err=%v", concurrent.result, concurrent.err)
+		}
+		if adminDecisionID.IsZero() {
+			adminDecisionID = concurrent.result.DecisionID
+		} else if concurrent.result.DecisionID != adminDecisionID {
+			t.Fatalf("administrator revocation decision drifted: %s != %s",
+				concurrent.result.DecisionID, adminDecisionID)
+		}
+		if concurrent.result.Replay {
+			adminReplayCount++
+		} else {
+			adminOriginalCount++
+		}
+	}
+	if adminOriginalCount != 1 || adminReplayCount != 1 {
+		t.Fatalf("concurrent administrator revocation original=%d replay=%d",
+			adminOriginalCount, adminReplayCount)
+	}
+	if _, err := store.Authenticate(
+		ctx, adminTargetDigest, now.Add(9*time.Minute), 30*time.Minute,
+	); !errors.Is(err, identity.ErrSessionRevoked) {
+		t.Fatalf("administrator-revoked target error=%v", err)
+	}
+	changedAdmin := adminCommand
+	changedAdmin.RequestDigest = sha256.Sum256([]byte("changed-administrator-request"))
+	if _, err := store.RevokeForSecurity(
+		ctx, changedAdmin,
+	); !errors.Is(err, identity.ErrIdempotencyConflict) {
+		t.Fatalf("changed administrator idempotency request error=%v", err)
+	}
+
+	staleActorCorrelation := newIntegrationID(t, "cor")
+	deniedCorrelation := newIntegrationID(t, "cor")
+	_, staleActorDigest := integrationToken(t)
+	staleActor := createWorkforceIntegrationSession(
+		t, ctx, store, staleActorDigest, newIntegrationID(t, "ses"),
+		staleActorCorrelation, now.Add(9*time.Minute), "",
+	)
+	deniedCommand := adminCommand
+	deniedCommand.Actor = staleActor
+	deniedCommand.RevocationRequestID = newIntegrationID(t, "asr")
+	deniedCommand.IdempotencyDigest = sha256.Sum256([]byte("stale-admin-revocation-key"))
+	deniedCommand.RequestDigest = sha256.Sum256([]byte("stale-admin-revocation-request"))
+	deniedCommand.Now = now.Add(10 * time.Minute)
+	deniedCommand.AuditEvent = adminIntegrationAuditEvent(
+		t, staleActor, adminTarget.SessionID, deniedCorrelation,
+		now.Add(10*time.Minute), "compromised_session",
+	)
+	denied, err := store.RevokeForSecurity(ctx, deniedCommand)
+	if !errors.Is(err, identity.ErrStepUpRequired) || denied.DecisionID.IsZero() {
+		t.Fatalf("stale administrator step-up result=%+v err=%v", denied, err)
+	}
+	deniedReplay, err := store.RevokeForSecurity(ctx, deniedCommand)
+	if !errors.Is(err, identity.ErrStepUpRequired) || !deniedReplay.Replay ||
+		deniedReplay.DecisionID != denied.DecisionID {
+		t.Fatalf("stale administrator replay result=%+v err=%v", deniedReplay, err)
+	}
+
+	rollbackTargetCorrelation := newIntegrationID(t, "cor")
+	failedDecisionCorrelation := newIntegrationID(t, "cor")
+	_, rollbackTargetDigest := integrationToken(t)
+	rollbackTarget := createIntegrationSession(
+		t, ctx, store, rollbackTargetDigest, newIntegrationID(t, "ses"),
+		rollbackTargetCorrelation, now.Add(10*time.Minute),
+	)
+	failingStore, err := NewSessionStore(apiPool, failingAuditRecorder{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	failedCommand := adminCommand
+	failedCommand.TargetSessionID = rollbackTarget.SessionID
+	failedCommand.RevocationRequestID = newIntegrationID(t, "asr")
+	failedCommand.IdempotencyDigest = sha256.Sum256([]byte("audit-outage-admin-revocation-key"))
+	failedCommand.RequestDigest = sha256.Sum256([]byte("audit-outage-admin-revocation-request"))
+	failedCommand.Now = now.Add(11 * time.Minute)
+	failedCommand.AuditEvent = adminIntegrationAuditEvent(
+		t, adminActor, rollbackTarget.SessionID, failedDecisionCorrelation,
+		now.Add(11*time.Minute), "workforce_security_response",
+	)
+	if _, err := failingStore.RevokeForSecurity(
+		ctx, failedCommand,
+	); !errors.Is(err, identity.ErrIdentityUnavailable) {
+		t.Fatalf("Audit-outage administrator revocation error=%v", err)
+	}
+	if _, err := store.Authenticate(
+		ctx, rollbackTargetDigest, now.Add(11*time.Minute), 30*time.Minute,
+	); err != nil {
+		t.Fatalf("Audit-outage revocation committed target mutation: %v", err)
+	}
+
 	var auditCount int
 	if err := migrationPool.QueryRow(ctx, `
 SELECT count(*)
@@ -274,11 +425,50 @@ WHERE correlation_id = ANY($1)`,
 	if auditCount != 4 {
 		t.Fatalf("atomic session audit count=%d, want 4", auditCount)
 	}
+	var adminAuditCount int
+	if err := migrationPool.QueryRow(ctx, `
+SELECT count(*)
+FROM atlas_audit.audit_events
+WHERE correlation_id = ANY($1)`,
+		[]string{
+			adminDecisionCorrelation.String(),
+			deniedCorrelation.String(),
+			failedDecisionCorrelation.String(),
+		},
+	).Scan(&adminAuditCount); err != nil {
+		t.Fatal(err)
+	}
+	if adminAuditCount != 2 {
+		t.Fatalf("administrator decision audit count=%d, want 2", adminAuditCount)
+	}
+	if _, err := migrationPool.Exec(ctx, `
+UPDATE atlas_identity.principal_roles
+SET role_id = 'operations',
+    authorization_version = 1,
+    version = 1,
+    updated_at = '2026-07-26T00:00:00Z'
+WHERE principal_role_id = 'prr_01JAT1AS00000000000001'`); err != nil {
+		t.Fatal(err)
+	}
 
 	cleanupIntegrationState(
 		t, ctx, migrationPool, []identifier.ID{transactionID, stepUpTransactionID},
-		[]identifier.ID{first.SessionID, second.SessionID}, correlationIDs,
+		[]identifier.ID{
+			first.SessionID, second.SessionID, adminActor.SessionID, adminTarget.SessionID,
+			staleActor.SessionID, rollbackTarget.SessionID,
+		},
+		append(correlationIDs,
+			adminActorCorrelation, adminTargetCorrelation, adminDecisionCorrelation,
+			staleActorCorrelation, deniedCorrelation, rollbackTargetCorrelation,
+			failedDecisionCorrelation,
+		),
 	)
+}
+
+type failingAuditRecorder struct{}
+
+func (failingAuditRecorder) Record(context.Context, audit.Transaction, audit.Event) error {
+	return errors.New("synthetic Audit outage")
 }
 
 func createIntegrationSession(
@@ -317,6 +507,74 @@ func createIntegrationSession(
 		t.Fatal(err)
 	}
 	return session
+}
+
+func createWorkforceIntegrationSession(
+	t *testing.T,
+	ctx context.Context,
+	store *SessionStore,
+	verifierDigest [32]byte,
+	sessionID identifier.ID,
+	correlationID identifier.ID,
+	now time.Time,
+	stepUpAction string,
+) identity.Session {
+	t.Helper()
+	kind := identity.TransactionLogin
+	auditAction := "identity.session.login"
+	auditReason := "oidc_login"
+	stepUpVerifiedAt := time.Time{}
+	if stepUpAction != "" {
+		kind = identity.TransactionStepUp
+		auditAction = "identity.session.step_up"
+		auditReason = "oidc_step_up"
+		stepUpVerifiedAt = now
+	}
+	command := identity.CreateSessionCommand{
+		Claims: identity.ProviderClaims{
+			Issuer:  "http://keycloak:8080/realms/atlas-workforce-local",
+			Subject: "00000000-0000-4000-8000-000000000301",
+			Nonce:   "not-persisted", Assurance: identity.AssurancePhishingResistant,
+			AuthenticatedAt: now,
+		},
+		Population: identity.PopulationWorkforce, Kind: kind,
+		SessionID: sessionID, VerifierDigest: verifierDigest,
+		Assurance: identity.AssurancePhishingResistant, AuthorizationAt: now,
+		StepUpAction: stepUpAction, StepUpVerifiedAt: stepUpVerifiedAt,
+		IdleExpiresAt: now.Add(10 * time.Minute), AbsoluteExpiresAt: now.Add(time.Hour),
+		ClientLabel: "integration-workforce-browser",
+		AuditEvent: audit.Event{
+			AuditEventID: newIntegrationID(t, "aud"), ActorType: "workforce",
+			GlobalScope: "identity-security", SessionAssurance: "phishing-resistant",
+			Action: auditAction, TargetType: "session", TargetID: sessionID.String(),
+			DecisionID: newIntegrationID(t, "dec"), Decision: "executed",
+			ReasonCode: auditReason, CorrelationID: correlationID, OccurredAt: now,
+		},
+	}
+	session, err := store.CreateSession(ctx, command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return session
+}
+
+func adminIntegrationAuditEvent(
+	t *testing.T,
+	actor identity.Session,
+	target identifier.ID,
+	correlationID identifier.ID,
+	now time.Time,
+	reason string,
+) audit.Event {
+	t.Helper()
+	return audit.Event{
+		AuditEventID: newIntegrationID(t, "aud"), ActorID: actor.PrincipalID,
+		ActorType: actor.PrincipalType, GlobalScope: "identity-security",
+		SessionAssurance: string(actor.Assurance), Action: "identity.session.admin_revoke",
+		TargetType: "session", TargetID: target.String(),
+		DecisionID: newIntegrationID(t, "dec"), Decision: "executed",
+		ReasonCode: reason, CorrelationID: correlationID, OccurredAt: now,
+	}
 }
 
 func integrationAuditEvent(
@@ -381,6 +639,11 @@ WHERE principal_id = 'usr_01JAT1AS00000000000001'`); err != nil {
 	if _, err := pool.Exec(ctx, `
 DELETE FROM atlas_identity.step_up_challenge_requests
 WHERE principal_id = 'usr_01JAT1AS00000000000001'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+DELETE FROM atlas_identity.admin_session_revocation_requests
+WHERE actor_principal_id = 'usr_01JAT1AS00000000000003'`); err != nil {
 		t.Fatal(err)
 	}
 	transactionTexts := make([]string, 0, len(transactionIDs))

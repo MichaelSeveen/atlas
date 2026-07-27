@@ -82,11 +82,12 @@ ORDER BY permission_id`
 INSERT INTO atlas_identity.sessions (
     session_id, principal_id, population, tenant_id, global_scope, verifier_sha256,
     assurance, status, authorization_version, rotation_version, version, created_at,
-    last_seen_at, idle_expires_at, absolute_expires_at, client_label
+    last_seen_at, idle_expires_at, absolute_expires_at, client_label,
+    step_up_action, step_up_verified_at
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, 'active', $8, $9, 1, $10,
-    $10, $11, $12, $13
+    $10, $11, $12, $13, $14, $15
 )`
 
 	activeSessionCountSQL = `
@@ -101,7 +102,8 @@ WHERE principal_id = $1
 SELECT session.session_id, session.principal_id, principal.principal_type, principal.display_name,
        session.population, session.tenant_id, session.assurance, session.authorization_version,
        session.rotation_version, session.created_at, session.last_seen_at, session.idle_expires_at,
-       session.absolute_expires_at, session.revoked_at, session.client_label, session.status
+       session.absolute_expires_at, session.revoked_at, session.step_up_action,
+       session.step_up_verified_at, session.client_label, session.status
 FROM atlas_identity.sessions AS session
 JOIN atlas_identity.principals AS principal
   ON principal.principal_id = session.principal_id
@@ -530,12 +532,18 @@ WHERE session_id = $1
 	if command.ClientLabel != "" {
 		clientLabel = command.ClientLabel
 	}
+	var stepUpAction any
+	var stepUpVerifiedAt any
+	if command.StepUpAction != "" && !command.StepUpVerifiedAt.IsZero() {
+		stepUpAction = command.StepUpAction
+		stepUpVerifiedAt = command.StepUpVerifiedAt
+	}
 	_, err = transaction.Exec(
 		ctx, insertSessionSQL,
 		command.SessionID.String(), principalID.String(), string(command.Population),
 		tenantValue, globalScope, command.VerifierDigest[:], string(command.Assurance),
 		authorizationVersion, rotationVersion, command.AuthorizationAt, command.IdleExpiresAt,
-		command.AbsoluteExpiresAt, clientLabel,
+		command.AbsoluteExpiresAt, clientLabel, stepUpAction, stepUpVerifiedAt,
 	)
 	if err != nil {
 		return identity.Session{}, identity.ErrIdentityUnavailable
@@ -562,7 +570,9 @@ WHERE session_id = $1
 		Assurance: command.Assurance, AuthorizationVersion: authorizationVersion,
 		RotationVersion: rotationVersion, CreatedAt: command.AuthorizationAt,
 		LastSeenAt: command.AuthorizationAt, IdleExpiresAt: command.IdleExpiresAt,
-		AbsoluteExpiresAt: command.AbsoluteExpiresAt, ClientLabel: command.ClientLabel,
+		AbsoluteExpiresAt: command.AbsoluteExpiresAt,
+		StepUpAction:      command.StepUpAction, StepUpVerifiedAt: command.StepUpVerifiedAt,
+		ClientLabel: command.ClientLabel,
 		Permissions: permissions,
 	}, nil
 }
@@ -823,6 +833,249 @@ INSERT INTO atlas_identity.session_revocation_requests (
 	return identity.RevocationResult{CurrentRevoked: currentRevoked}, nil
 }
 
+func (store *SessionStore) RevokeForSecurity(
+	ctx context.Context,
+	command identity.AdminRevocationCommand,
+) (identity.AdminRevocationResult, error) {
+	transaction, err := store.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
+	if err != nil {
+		return identity.AdminRevocationResult{}, identity.ErrIdentityUnavailable
+	}
+	defer func() { _ = transaction.Rollback(ctx) }()
+
+	if _, err := transaction.Exec(ctx, `
+SELECT pg_advisory_xact_lock(
+    hashtextextended($1 || ':' || encode($2::bytea, 'hex'), 0)
+)`,
+		command.Actor.PrincipalID.String(), command.IdempotencyDigest[:],
+	); err != nil {
+		return identity.AdminRevocationResult{}, identity.ErrIdentityUnavailable
+	}
+
+	var storedRequest []byte
+	var storedOutcome, storedDecisionID string
+	var storedCurrentRevoked bool
+	err = transaction.QueryRow(ctx, `
+SELECT request_sha256, outcome, current_revoked, decision_id
+FROM atlas_identity.admin_session_revocation_requests
+WHERE actor_principal_id = $1 AND idempotency_key_sha256 = $2`,
+		command.Actor.PrincipalID.String(), command.IdempotencyDigest[:],
+	).Scan(&storedRequest, &storedOutcome, &storedCurrentRevoked, &storedDecisionID)
+	if err == nil {
+		if len(storedRequest) != 32 || !equalDigest(storedRequest, command.RequestDigest) {
+			return identity.AdminRevocationResult{}, identity.ErrIdempotencyConflict
+		}
+		decisionID, parseErr := identifier.Parse(storedDecisionID)
+		if parseErr != nil {
+			return identity.AdminRevocationResult{}, identity.ErrIdentityUnavailable
+		}
+		if err := transaction.Commit(ctx); err != nil {
+			return identity.AdminRevocationResult{}, identity.ErrIdentityUnavailable
+		}
+		result := identity.AdminRevocationResult{
+			DecisionID: decisionID, CurrentRevoked: storedCurrentRevoked, Replay: true,
+		}
+		return adminRevocationOutcome(result, storedOutcome)
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return identity.AdminRevocationResult{}, identity.ErrIdentityUnavailable
+	}
+
+	var actorPopulation, actorStatus, actorAssurance string
+	var actorAuthorizationVersion int64
+	var stepUpAction *string
+	var stepUpVerifiedAt *time.Time
+	err = transaction.QueryRow(ctx, `
+SELECT population, status, assurance, authorization_version,
+       step_up_action, step_up_verified_at
+FROM atlas_identity.sessions
+WHERE session_id = $1 AND principal_id = $2
+FOR UPDATE`,
+		command.Actor.SessionID.String(), command.Actor.PrincipalID.String(),
+	).Scan(
+		&actorPopulation, &actorStatus, &actorAssurance, &actorAuthorizationVersion,
+		&stepUpAction, &stepUpVerifiedAt,
+	)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return identity.AdminRevocationResult{}, identity.ErrIdentityUnavailable
+	}
+
+	authorized := err == nil &&
+		actorPopulation == string(identity.PopulationWorkforce) &&
+		actorStatus == "active"
+	denialReason := "authority_stale_or_revoked"
+	roleID := ""
+	if authorized {
+		_, role, currentAuthorizationVersion, authorityErr := authorityForPrincipal(
+			ctx, transaction, command.Actor.PrincipalID, identity.PopulationWorkforce,
+		)
+		switch {
+		case authorityErr == nil:
+			roleID = role
+			authorized = currentAuthorizationVersion == actorAuthorizationVersion &&
+				currentAuthorizationVersion == command.Actor.AuthorizationVersion
+		case errors.Is(authorityErr, identity.ErrAuthenticationRequired):
+			authorized = false
+		default:
+			return identity.AdminRevocationResult{}, identity.ErrIdentityUnavailable
+		}
+	}
+	hasPermission := false
+	if authorized {
+		permissions, permissionErr := permissionsForRole(ctx, transaction, roleID)
+		if permissionErr != nil {
+			return identity.AdminRevocationResult{}, permissionErr
+		}
+		hasPermission = containsPermission(permissions, "identity.sessions.revoke_admin")
+		if !hasPermission {
+			authorized = false
+			denialReason = "permission_denied"
+		}
+	}
+	stepUpSatisfied := actorAssurance == string(identity.AssurancePhishingResistant) &&
+		stepUpAction != nil && *stepUpAction == "identity.session.admin_revoke" &&
+		stepUpVerifiedAt != nil &&
+		!stepUpVerifiedAt.Before(command.Now.Add(-5*time.Minute)) &&
+		!stepUpVerifiedAt.After(command.Now.Add(time.Minute))
+	if authorized && !stepUpSatisfied {
+		authorized = false
+		denialReason = "step_up_required"
+	}
+	if !authorized {
+		event := command.AuditEvent
+		event.Decision = "denied"
+		event.ReasonCode = denialReason
+		event.SafeBeforeReference = "session:unchanged"
+		event.SafeAfterReference = "session:unchanged"
+		result := identity.AdminRevocationResult{DecisionID: event.DecisionID}
+		outcome := "denied"
+		if denialReason == "step_up_required" {
+			outcome = "step_up_required"
+		}
+		if err := store.recordAdminRevocation(
+			ctx, transaction, command, event, outcome, false,
+		); err != nil {
+			return identity.AdminRevocationResult{}, err
+		}
+		if err := transaction.Commit(ctx); err != nil {
+			return identity.AdminRevocationResult{}, identity.ErrIdentityUnavailable
+		}
+		if denialReason == "step_up_required" {
+			return result, identity.ErrStepUpRequired
+		}
+		return result, identity.ErrActionNotAuthorized
+	}
+
+	var targetStatus string
+	err = transaction.QueryRow(ctx, `
+SELECT status
+FROM atlas_identity.sessions
+WHERE session_id = $1
+FOR UPDATE`,
+		command.TargetSessionID.String(),
+	).Scan(&targetStatus)
+	if errors.Is(err, pgx.ErrNoRows) {
+		event := command.AuditEvent
+		event.Decision = "denied"
+		event.ReasonCode = "not_found_or_concealed"
+		event.SafeBeforeReference = "session:concealed"
+		event.SafeAfterReference = "session:concealed"
+		result := identity.AdminRevocationResult{DecisionID: event.DecisionID}
+		if err := store.recordAdminRevocation(
+			ctx, transaction, command, event, "not_found", false,
+		); err != nil {
+			return identity.AdminRevocationResult{}, err
+		}
+		if err := transaction.Commit(ctx); err != nil {
+			return identity.AdminRevocationResult{}, identity.ErrIdentityUnavailable
+		}
+		return result, identity.ErrSessionNotFound
+	}
+	if err != nil {
+		return identity.AdminRevocationResult{}, identity.ErrIdentityUnavailable
+	}
+
+	currentRevoked := false
+	if targetStatus != "revoked" {
+		tag, updateErr := transaction.Exec(ctx, `
+UPDATE atlas_identity.sessions
+SET status = 'revoked', revoked_at = $2, version = version + 1
+WHERE session_id = $1 AND status <> 'revoked'`,
+			command.TargetSessionID.String(), command.Now,
+		)
+		if updateErr != nil || tag.RowsAffected() != 1 {
+			return identity.AdminRevocationResult{}, identity.ErrIdentityUnavailable
+		}
+		currentRevoked = command.TargetSessionID == command.Actor.SessionID
+	}
+	event := command.AuditEvent
+	event.SafeBeforeReference = "session:" + targetStatus
+	event.SafeAfterReference = "session:revoked"
+	result := identity.AdminRevocationResult{
+		DecisionID: event.DecisionID, CurrentRevoked: currentRevoked,
+	}
+	if err := store.recordAdminRevocation(
+		ctx, transaction, command, event, "executed", currentRevoked,
+	); err != nil {
+		return identity.AdminRevocationResult{}, err
+	}
+	if err := transaction.Commit(ctx); err != nil {
+		return identity.AdminRevocationResult{}, identity.ErrIdentityUnavailable
+	}
+	return result, nil
+}
+
+func (store *SessionStore) recordAdminRevocation(
+	ctx context.Context,
+	transaction pgx.Tx,
+	command identity.AdminRevocationCommand,
+	event audit.Event,
+	outcome string,
+	currentRevoked bool,
+) error {
+	if err := store.recorder.Record(ctx, transaction, event); err != nil {
+		return identity.ErrIdentityUnavailable
+	}
+	_, err := transaction.Exec(ctx, `
+INSERT INTO atlas_identity.admin_session_revocation_requests (
+    revocation_request_id, actor_principal_id, actor_session_id, target_session_id,
+    idempotency_key_sha256, request_sha256, purpose, reason_code, outcome,
+    current_revoked, decision_id, committed_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+		command.RevocationRequestID.String(), command.Actor.PrincipalID.String(),
+		command.Actor.SessionID.String(), command.TargetSessionID.String(),
+		command.IdempotencyDigest[:], command.RequestDigest[:], command.Purpose,
+		command.Reason, outcome, currentRevoked, event.DecisionID.String(), command.Now,
+	)
+	if err != nil {
+		return identity.ErrIdentityUnavailable
+	}
+	return nil
+}
+
+func adminRevocationOutcome(
+	result identity.AdminRevocationResult,
+	outcome string,
+) (identity.AdminRevocationResult, error) {
+	switch outcome {
+	case "executed":
+		return result, nil
+	case "denied":
+		return result, identity.ErrActionNotAuthorized
+	case "step_up_required":
+		return result, identity.ErrStepUpRequired
+	case "not_found":
+		return result, identity.ErrSessionNotFound
+	default:
+		return identity.AdminRevocationResult{}, identity.ErrIdentityUnavailable
+	}
+}
+
+func containsPermission(permissions []string, wanted string) bool {
+	index := sort.SearchStrings(permissions, wanted)
+	return index < len(permissions) && permissions[index] == wanted
+}
+
 func authorityForPrincipal(
 	ctx context.Context,
 	transaction pgx.Tx,
@@ -913,13 +1166,14 @@ func permissionsForRole(ctx context.Context, transaction pgx.Tx, roleID string) 
 func scanSession(row pgx.Row) (identity.Session, string, error) {
 	var session identity.Session
 	var sessionID, principalID, population, assurance, status string
-	var tenantID, clientLabel *string
-	var revokedAt *time.Time
+	var tenantID, clientLabel, stepUpAction *string
+	var revokedAt, stepUpVerifiedAt *time.Time
 	err := row.Scan(
 		&sessionID, &principalID, &session.PrincipalType, &session.DisplayName,
 		&population, &tenantID, &assurance, &session.AuthorizationVersion,
 		&session.RotationVersion, &session.CreatedAt, &session.LastSeenAt,
-		&session.IdleExpiresAt, &session.AbsoluteExpiresAt, &revokedAt, &clientLabel, &status,
+		&session.IdleExpiresAt, &session.AbsoluteExpiresAt, &revokedAt,
+		&stepUpAction, &stepUpVerifiedAt, &clientLabel, &status,
 	)
 	if err != nil {
 		return identity.Session{}, "", err
@@ -945,6 +1199,12 @@ func scanSession(row pgx.Row) (identity.Session, string, error) {
 	}
 	if revokedAt != nil {
 		session.RevokedAt = revokedAt.UTC()
+	}
+	if stepUpAction != nil {
+		session.StepUpAction = *stepUpAction
+	}
+	if stepUpVerifiedAt != nil {
+		session.StepUpVerifiedAt = stepUpVerifiedAt.UTC()
 	}
 	return session, status, nil
 }

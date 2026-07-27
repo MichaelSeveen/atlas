@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -274,6 +275,60 @@ func TestWorkforceAndStepUpAssuranceAreMandatory(t *testing.T) {
 	}
 }
 
+func TestAdministratorRevocationBuildsClosedPurposeBoundCommand(t *testing.T) {
+	now := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
+	store := newFakeSessionStore(t, now)
+	store.session = Session{
+		SessionID: mustTestID(t, "ses", 70), PrincipalID: mustTestID(t, "usr", 71),
+		PrincipalType: "workforce", DisplayName: "Synthetic Platform Administrator",
+		Population: PopulationWorkforce, Assurance: AssurancePhishingResistant,
+		AuthorizationVersion: 1, RotationVersion: 2,
+		CreatedAt: now, LastSeenAt: now, IdleExpiresAt: now.Add(10 * time.Minute),
+		AbsoluteExpiresAt: now.Add(time.Hour), StepUpAction: "identity.session.admin_revoke",
+		StepUpVerifiedAt: now,
+		Permissions:      []string{"identity.sessions.revoke_admin"},
+	}
+	cookie := strings.Repeat("S", 43)
+	store.sessions[sha256.Sum256([]byte(cookie))] = store.session
+	service := newTestService(t, store, &fakeProvider{}, now)
+	_, csrf, err := service.Current(context.Background(), cookie)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := mustTestID(t, "ses", 73)
+	result, err := service.RevokeForSecurity(context.Background(), AdminRevokeSessionRequest{
+		CookieValue: cookie, CSRFToken: csrf, TargetSessionID: target,
+		Purpose: "security_review", Reason: "suspected_account_takeover",
+		IdempotencyKey: "admin-revocation-key-0001",
+		CorrelationID:  mustTestID(t, "cor", 74),
+	})
+	if err != nil || result.DecisionID != store.adminResult.DecisionID {
+		t.Fatalf("administrator revocation result=%+v err=%v", result, err)
+	}
+	command := store.adminCommand
+	if command.Actor.SessionID != store.session.SessionID ||
+		command.TargetSessionID != target ||
+		command.Purpose != "security_review" ||
+		command.Reason != "suspected_account_takeover" ||
+		command.IdempotencyDigest == ([32]byte{}) ||
+		command.RequestDigest == ([32]byte{}) ||
+		command.AuditEvent.Action != "identity.session.admin_revoke" ||
+		command.AuditEvent.DecisionID != result.DecisionID {
+		t.Fatalf("unsafe administrator revocation command: %+v", command)
+	}
+
+	before := store.revocations
+	_, err = service.RevokeForSecurity(context.Background(), AdminRevokeSessionRequest{
+		CookieValue: cookie, CSRFToken: csrf, TargetSessionID: target,
+		Purpose: "self_service", Reason: "free form reason",
+		IdempotencyKey: "admin-revocation-key-0002",
+		CorrelationID:  mustTestID(t, "cor", 75),
+	})
+	if !errors.Is(err, ErrInputInvalid) || store.revocations != before {
+		t.Fatalf("open purpose/reason reached store: err=%v revocations=%d", err, store.revocations)
+	}
+}
+
 func TestVersionedTransactionEncryptionAndCSRFTamperResistance(t *testing.T) {
 	keyOne := bytes.Repeat([]byte{1}, 32)
 	keyTwo := bytes.Repeat([]byte{2}, 32)
@@ -371,6 +426,9 @@ type fakeSessionStore struct {
 	session         Session
 	sessions        map[[32]byte]Session
 	revocations     int
+	adminCommand    AdminRevocationCommand
+	adminResult     AdminRevocationResult
+	adminErr        error
 	stepUps         map[[32]byte]fakeStepUpClaim
 }
 
@@ -483,6 +541,8 @@ func (store *fakeSessionStore) CreateSession(_ context.Context, command CreateSe
 	session.LastSeenAt = command.AuthorizationAt
 	session.IdleExpiresAt = command.IdleExpiresAt
 	session.AbsoluteExpiresAt = command.AbsoluteExpiresAt
+	session.StepUpAction = command.StepUpAction
+	session.StepUpVerifiedAt = command.StepUpVerifiedAt
 	session.ClientLabel = command.ClientLabel
 	if command.Kind == TransactionStepUp {
 		session.RotationVersion++
@@ -521,6 +581,18 @@ func (store *fakeSessionStore) RevokeOne(context.Context, RevocationCommand) (Re
 func (store *fakeSessionStore) RevokeAll(context.Context, RevocationCommand) (RevocationResult, error) {
 	store.revocations++
 	return RevocationResult{}, nil
+}
+
+func (store *fakeSessionStore) RevokeForSecurity(
+	_ context.Context,
+	command AdminRevocationCommand,
+) (AdminRevocationResult, error) {
+	store.revocations++
+	store.adminCommand = command
+	if store.adminResult.DecisionID.IsZero() {
+		store.adminResult.DecisionID = command.AuditEvent.DecisionID
+	}
+	return store.adminResult, store.adminErr
 }
 
 func newTestService(

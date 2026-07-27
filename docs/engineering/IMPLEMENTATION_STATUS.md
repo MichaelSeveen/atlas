@@ -2,7 +2,7 @@
 
 - **Status date:** 2026-07-27
 - **Current phase:** [Phase 01 — Identity, access, tenancy, and privileged workforce controls](../atlas-prd/02-phases/PHASE-01_IDENTITY_ACCESS_TENANCY.md)
-- **Current slice:** `P01-S04` synthetic OIDC BFF and durable session lifecycle is underway. The core checkpoint is committed at `d276ad457e1ce7e3863cbd4717dfb5c432e2e29d`; the current pre-commit checkpoint adds durable scoped step-up idempotency, exact replay/conflict semantics, supported synthetic Keycloak LoA flows, and live customer/merchant higher-assurance session rotation while preserving workforce baseline denial.
+- **Current slice:** `P01-S04` synthetic OIDC BFF and durable session lifecycle is underway. The core checkpoint is committed at `d276ad457e1ce7e3863cbd4717dfb5c432e2e29d`; the step-up checkpoint is committed at `015911fdc586b4e7b65a80d29cdf06b799e37fc4` and adds durable scoped idempotency, exact replay/conflict semantics, supported synthetic Keycloak LoA flows, and live customer/merchant higher-assurance session rotation while preserving workforce baseline denial.
 - **Implementation state:** Phase 00 remains historically complete for its bounded synthetic feature-free foundation, P01-S03 consumed the `first-product-schema`/`first-product-durable-state` triggers, and the S04 runtime exposes the eight approved identity/session routes alongside the three operational routes. All 30 IAM rows remain `Planned`: admin security revocation is absent, and the remaining enumeration/browser/cache/storage evidence is open. No authorization evaluator, credential, approval, event, worker job, financial workflow, managed production secret provider, or wallet UI exists.
 
 ## Repository baseline
@@ -119,6 +119,8 @@ These are missing implementation decisions, not contradictory product semantics.
 - [Phase 01 S04 pre-commit evidence catalogue](../../evidence/phase-01/identity-session/P01-S04-evidence-catalogue-precommit.json)
 - [Phase 01 S04 step-up idempotency and assurance evidence](../../evidence/phase-01/identity-session/S04-step-up-idempotency-and-assurance-precommit.md)
 - [Phase 01 S04 step-up evidence catalogue](../../evidence/phase-01/identity-session/P01-S04-evidence-catalogue-step-up-precommit.json)
+- [Phase 01 S04 step-up post-commit verification](../../evidence/phase-01/identity-session/S04-step-up-idempotency-and-assurance-post-commit.md)
+- [Phase 01 S04 step-up post-commit catalogue](../../evidence/phase-01/identity-session/P01-S04-evidence-catalogue-step-up-postcommit.json)
 - [ADR 0014 identity/access contract boundary](../atlas-prd/06-governance/adrs/0014-phase-01-identity-access-contract-boundary.md)
 - [Machine-readable identity/access policy](../atlas-prd/03-contracts/identity-access-policy.json)
 - [Current S01 boundary report](../../evidence/phase-00/architecture/S01-boundary-report-v3.md)

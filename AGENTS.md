@@ -4,7 +4,7 @@
 
 Atlas is a portfolio-grade, security-first multi-currency wallet and financial-operations platform. Its value is demonstrated by financial correctness, recoverable failure handling, strict authorization and tenancy, deterministic provider simulation, reconciliation, operational tooling, and reproducible evidence—not by feature count or visual polish.
 
-This repository is currently in **Phase 01 — Identity, access, tenancy, and privileged workforce controls**. P01-S01 planning, P01-S02 contract/decision closure, P01-S03 identity/audit persistence plus recovery revalidation, and the P01-S04 core OIDC/session checkpoint are committed at `d276ad4` with revision-bound local evidence. P01-S04 remains underway: durable idempotent step-up and live higher-assurance rotation now pass in the pre-commit worktree; admin security revocation and remaining browser/differential evidence are still open. Do not implement wallet or money-movement features before their prerequisite phases pass.
+This repository is currently in **Phase 01 — Identity, access, tenancy, and privileged workforce controls**. P01-S01 planning, P01-S02 contract/decision closure, P01-S03 identity/audit persistence plus recovery revalidation, and the P01-S04 core OIDC/session checkpoint are committed at `d276ad4` with revision-bound local evidence. Durable idempotent step-up and live higher-assurance rotation are committed at `015911f`; P01-S04 remains underway because admin security revocation and remaining browser/differential evidence are still open. Do not implement wallet or money-movement features before their prerequisite phases pass.
 
 ## Stack and commands discovered
 

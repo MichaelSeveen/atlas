@@ -426,7 +426,7 @@ No hosted release, merge, production/reference deployment, real identity provide
 The next checkpoint remains within **P01-S04 — synthetic OIDC BFF and durable session
 lifecycle**: implement administrator security revocation with audit and concurrency proof before
 moving to S05. Contracted step-up `Idempotency-Key` replay/conflict semantics and live
-higher-assurance rotation now pass in the pre-commit worktree.
+higher-assurance rotation are committed at `015911fdc586b4e7b65a80d29cdf06b799e37fc4`.
 
 S03 completed the first Go/database implementation slice. S04 core now composes that boundary
 through the ADR 0014-owned OpenAPI surface. The current checkpoint:

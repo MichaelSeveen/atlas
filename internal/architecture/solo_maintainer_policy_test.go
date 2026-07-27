@@ -75,11 +75,14 @@ func TestSoloMaintainerPolicyIsClosedScopedAndHonest(t *testing.T) {
 		}
 	}
 
-	workflow := readText(t, filepath.Join(root, ".github", "workflows", "pr.yml"))
-	for _, marker := range []string{"test-solo-maintainer-governance.ps1", "ATLAS_PR_BODY", "ATLAS_BASE_SHA", "ATLAS_HEAD_SHA"} {
+	workflow := readText(t, filepath.Join(root, ".github", "workflows", "ci.yml"))
+	for _, marker := range []string{"push:", "'**'", "test-solo-maintainer-governance.ps1", "ATLAS_EVENT_BEFORE", "ATLAS_CHANGE_DECLARATION", "ATLAS_BASE_SHA", "ATLAS_HEAD_SHA"} {
 		if !strings.Contains(workflow, marker) {
-			t.Errorf("PR workflow omits solo-governance marker %s", marker)
+			t.Errorf("push workflow omits solo-governance marker %s", marker)
 		}
+	}
+	if strings.Contains(workflow, "pull_request:") {
+		t.Error("CI workflow must run on branch pushes instead of pull-request events")
 	}
 	script := readText(t, filepath.Join(root, "scripts", "test-solo-maintainer-governance.ps1"))
 	for _, marker := range []string{"Sensitive-path seeded canary", "Incomplete-attestation seeded canary", "UNAVAILABLE_NOT_CLAIMED"} {

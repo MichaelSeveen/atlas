@@ -54,7 +54,7 @@ c0b5f5bf1894a204a8ec0073e9e2ae5e6f96777420f8bc1d4284c300ad5e963e  ./06-governanc
 c2a68baba612d562e6a9f68f491fa36dea55c8b446f2b269734306123f52d6a6  ./06-governance/adrs/0009-react-bun-route-shells.md
 129d46cf9b2525772afdc5a0ac66775cd027f43f3de50a37ef7e44e5a139bfd5  ./06-governance/adrs/0010-native-postgresql-migrations-and-recovery.md
 02965bb3ad81516fa411e05ec5740dee2091b5826c2db87b018ffe01f028936e  ./06-governance/adrs/0011-github-actions-keyless-release-integrity.md
-2a5e6acf700c6254cad9b4c1b232fd4054abacf8ce9da2c516e2f8ddafb03b35  ./06-governance/adrs/0012-solo-maintainer-sensitive-change-governance.md
+60d7ed14a7b71d8af660966dfb657de8285cd7b26ce55c5fcbe79c379a341562  ./06-governance/adrs/0012-solo-maintainer-sensitive-change-governance.md
 04d72b1caaa59eb8d61eb154cf7c7359f0a1cf665c53288fa0af1c306084dc05  ./06-governance/adrs/0013-phase-00-closed-world-completion.md
 fb13b70784eeac5bab2e3e355ed294b893d4ba2d58dd5b1cc997aae8f6b5a64c  ./06-governance/adrs/0014-phase-01-identity-access-contract-boundary.md
 3a22f9c8ab6cb831f3b9796568e29915cc845cc762a279e2b71e974664803917  ./06-governance/adrs/0015-admin-session-revocation-boundary.md

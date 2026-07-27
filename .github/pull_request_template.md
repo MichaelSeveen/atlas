@@ -10,7 +10,7 @@
 
 ## Solo-maintainer sensitive-change declaration
 
-Complete every item when this PR changes a path listed in `.github/solo-maintainer-policy.json`.
+Complete every item when this PR changes a path listed in `.github/solo-maintainer-policy.json`. Push CI reads these exact checked lines from the pushed commit messages; include them in a commit message body before pushing and mirror them here for review.
 
 - [ ] requirements-and-threats-reviewed — The named requirements, threats, affected contexts, and deferred behavior are accurate.
 - [ ] financial-and-authorization-boundaries-reviewed — Financial and authorization boundaries are unchanged or explicitly tested and documented.

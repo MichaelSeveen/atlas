@@ -87,6 +87,35 @@ function Invoke-NoRedirect {
     }
 }
 
+function Update-CookieHeader {
+    param(
+        [Parameter()][AllowEmptyString()][string]$Existing = '',
+        [Parameter(Mandatory)][Net.Http.HttpResponseMessage]$Response
+    )
+
+    $cookies = @{}
+    foreach ($pair in $Existing.Split(';', [StringSplitOptions]::RemoveEmptyEntries)) {
+        $parts = $pair.Trim().Split('=', 2)
+        if ($parts.Count -eq 2 -and -not [String]::IsNullOrWhiteSpace($parts[0])) {
+            $cookies[$parts[0]] = $parts[1]
+        }
+    }
+    if ($Response.Headers.Contains('Set-Cookie')) {
+        foreach ($header in $Response.Headers.GetValues('Set-Cookie')) {
+            $pair = ([string]$header).Split(';', 2)[0]
+            $parts = $pair.Split('=', 2)
+            if ($parts.Count -eq 2 -and -not [String]::IsNullOrWhiteSpace($parts[0])) {
+                $cookies[$parts[0]] = $parts[1]
+            }
+        }
+    }
+    return @(
+        $cookies.GetEnumerator() |
+            Sort-Object -Property Key |
+            ForEach-Object { "$($_.Key)=$($_.Value)" }
+    ) -join '; '
+}
+
 $runtime = Read-RuntimeEnvironment
 if (-not $runtime.ContainsKey('ATLAS_SYNTHETIC_OIDC_TEST_PASSWORD') -or
     [String]::IsNullOrWhiteSpace($runtime['ATLAS_SYNTHETIC_OIDC_TEST_PASSWORD'])) {
@@ -149,6 +178,9 @@ try {
         $null -eq $credentialResponse.Headers.Location) {
         throw "Synthetic identity credential submission returned status $([int]$credentialResponse.StatusCode)"
     }
+    $providerCookies = Update-CookieHeader `
+        -Existing $authorizationCookies `
+        -Response $credentialResponse
 
     $callback = $credentialResponse.Headers.Location
     if ($callback.Scheme -ne 'http' -or $callback.Host -ne '127.0.0.1' -or
@@ -238,6 +270,7 @@ try {
     Write-Output "p01_s04_session_inventory=PASS(population=$Population,current=1)"
 
     $stepUpBody = '{"action":"identity.approval.decide"}'
+    $stepUpKey = "p01-s04-$Population-" + [Guid]::NewGuid().ToString('N')
     $missingCSRF = Invoke-NoRedirect `
         -Method Post `
         -Uri "$apiOrigin/v1/step-up/challenges" `
@@ -254,7 +287,7 @@ try {
         -Cookie $sessionCookiePair `
         -JSON $stepUpBody `
         -Headers @{
-            'Idempotency-Key' = "p01-s04-$Population-step-up-live"
+            'Idempotency-Key' = $stepUpKey
             'X-Atlas-CSRF-Token' = $csrfToken
         }
     $stepUpBodyText = $stepUp.Content.ReadAsStringAsync().GetAwaiter().GetResult()
@@ -271,13 +304,150 @@ try {
         $stepUpQuery['acr_values'] -ne '2 3') {
         throw 'Atlas step-up initiation did not force a fresh higher-assurance synthetic authentication'
     }
-    Write-Output "p01_s04_step_up=PASS(population=$Population,csrf_missing=403,prompt=login,max_age=0,acr_values=2_3)"
+    $stepUpReplay = Invoke-NoRedirect `
+        -Method Post `
+        -Uri "$apiOrigin/v1/step-up/challenges" `
+        -Cookie $sessionCookiePair `
+        -JSON $stepUpBody `
+        -Headers @{
+            'Idempotency-Key' = $stepUpKey
+            'X-Atlas-CSRF-Token' = $csrfToken
+        }
+    $stepUpReplayBody = $stepUpReplay.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+    if ([int]$stepUpReplay.StatusCode -ne 201 -or
+        $stepUpReplayBody -cne $stepUpBodyText -or
+        [string]$stepUpReplay.Headers.Location -cne [string]$stepUp.Headers.Location) {
+        throw 'Atlas step-up idempotency replay did not return the exact stored response'
+    }
+    $stepUpConflict = Invoke-NoRedirect `
+        -Method Post `
+        -Uri "$apiOrigin/v1/step-up/challenges" `
+        -Cookie $sessionCookiePair `
+        -JSON '{"action":"identity.approval.execute"}' `
+        -Headers @{
+            'Idempotency-Key' = $stepUpKey
+            'X-Atlas-CSRF-Token' = $csrfToken
+        }
+    $stepUpConflictBody = $stepUpConflict.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+    if ([int]$stepUpConflict.StatusCode -ne 409 -or
+        $stepUpConflictBody -notmatch '"code"\s*:\s*"IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST"') {
+        throw 'Atlas step-up idempotency key accepted a different normalized request'
+    }
+    Write-Output "p01_s04_step_up_idempotency=PASS(population=$Population,replay=exact,changed_request=409)"
+
+    $stepUpProviderResponse = Invoke-NoRedirect `
+        -Method Get `
+        -Uri $stepUpAuthorization `
+        -Cookie $providerCookies
+    $providerCookies = Update-CookieHeader `
+        -Existing $providerCookies `
+        -Response $stepUpProviderResponse
+    $stepUpCallback = $null
+    for ($attempt = 0; $attempt -lt 2; $attempt++) {
+        if ([int]$stepUpProviderResponse.StatusCode -in @(302, 303) -and
+            $null -ne $stepUpProviderResponse.Headers.Location) {
+            $candidate = $stepUpProviderResponse.Headers.Location
+            if ($candidate.Scheme -ne 'http' -or $candidate.Host -ne '127.0.0.1' -or
+                $candidate.Port -ne 18080 -or $candidate.AbsolutePath -ne '/v1/auth/callback') {
+                throw 'Synthetic step-up callback escaped the Atlas API'
+            }
+            $stepUpCallback = $candidate
+            break
+        }
+        if ([int]$stepUpProviderResponse.StatusCode -ne 200) {
+            throw "Synthetic step-up form $attempt returned status $([int]$stepUpProviderResponse.StatusCode)"
+        }
+        $stepUpHTML = $stepUpProviderResponse.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+        $stepUpFormMatch = [regex]::Match(
+            $stepUpHTML,
+            '<form\b[^>]*\bid="kc-form-login"[^>]*\baction="(?<action>[^"]+)"',
+            [Text.RegularExpressions.RegexOptions]::IgnoreCase
+        )
+        if (-not $stepUpFormMatch.Success) {
+            throw 'Synthetic step-up credential form action was absent'
+        }
+        $stepUpFormAction = [Uri][Net.WebUtility]::HtmlDecode(
+            $stepUpFormMatch.Groups['action'].Value
+        )
+        if ($stepUpFormAction.Scheme -ne 'http' -or
+            $stepUpFormAction.Host -ne '127.0.0.1' -or
+            $stepUpFormAction.Port -ne 18081 -or
+            -not $stepUpFormAction.AbsolutePath.StartsWith(
+                "/realms/atlas-$Population-local/login-actions/"
+            )) {
+            throw 'Synthetic step-up credential form escaped the allow-listed realm'
+        }
+        $stepUpProviderResponse = Invoke-NoRedirect `
+            -Method Post `
+            -Uri $stepUpFormAction `
+            -Cookie $providerCookies `
+            -Form @{
+                username = $usernames[$Population]
+                password = $runtime['ATLAS_SYNTHETIC_OIDC_TEST_PASSWORD']
+                credentialId = ''
+                login = 'Sign In'
+            }
+        $providerCookies = Update-CookieHeader `
+            -Existing $providerCookies `
+            -Response $stepUpProviderResponse
+    }
+    if ($null -eq $stepUpCallback -and
+        [int]$stepUpProviderResponse.StatusCode -in @(302, 303) -and
+        $null -ne $stepUpProviderResponse.Headers.Location) {
+        $candidate = $stepUpProviderResponse.Headers.Location
+        if ($candidate.Scheme -ne 'http' -or $candidate.Host -ne '127.0.0.1' -or
+            $candidate.Port -ne 18080 -or $candidate.AbsolutePath -ne '/v1/auth/callback') {
+            throw 'Synthetic step-up callback escaped the Atlas API'
+        }
+        $stepUpCallback = $candidate
+    }
+    if ($null -eq $stepUpCallback) {
+        throw 'Synthetic step-up did not complete within the bounded credential flow'
+    }
+
+    $stepUpComplete = Invoke-NoRedirect -Method Get -Uri $stepUpCallback
+    if ([int]$stepUpComplete.StatusCode -ne 303 -or
+        [string]$stepUpComplete.Headers.Location -ne "http://127.0.0.1:13000/$Population") {
+        $stepUpDenial = $stepUpComplete.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+        throw "Atlas step-up callback failed with status $([int]$stepUpComplete.StatusCode): $stepUpDenial"
+    }
+    $rotatedCookies = @($stepUpComplete.Headers.GetValues('Set-Cookie'))
+    if ($rotatedCookies.Count -ne 1) {
+        throw 'Atlas step-up callback did not issue exactly one rotated session cookie'
+    }
+    $rotatedCookiePair = ([string]$rotatedCookies[0]).Split(';', 2)[0]
+    if ($rotatedCookiePair -eq $sessionCookiePair) {
+        throw 'Atlas step-up callback did not rotate the opaque session cookie'
+    }
+    $rotatedCurrent = Invoke-NoRedirect `
+        -Method Get `
+        -Uri "$apiOrigin/v1/me" `
+        -Cookie $rotatedCookiePair
+    $rotatedBody = $rotatedCurrent.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+    $rotatedDocument = $rotatedBody | ConvertFrom-Json
+    if ([int]$rotatedCurrent.StatusCode -ne 200 -or
+        $rotatedDocument.assurance -ne 'stepped_up' -or
+        -not $rotatedCurrent.Headers.Contains('X-Atlas-CSRF-Token')) {
+        throw 'Atlas rotated session did not carry the verified stepped-up assurance'
+    }
+    $rotatedCSRF = @($rotatedCurrent.Headers.GetValues('X-Atlas-CSRF-Token'))[0]
+    if ($rotatedCSRF.Length -ne 43 -or $rotatedCSRF -eq $csrfToken) {
+        throw 'Atlas rotated session did not issue a rotation-bound CSRF token'
+    }
+    $oldSession = Invoke-NoRedirect `
+        -Method Get `
+        -Uri "$apiOrigin/v1/me" `
+        -Cookie $sessionCookiePair
+    if ([int]$oldSession.StatusCode -ne 401) {
+        throw "Atlas pre-step-up session remained authoritative with status $([int]$oldSession.StatusCode)"
+    }
+    Write-Output "p01_s04_step_up_rotation=PASS(population=$Population,loa=2,assurance=stepped_up,old_cookie=401,mfa_claim=false)"
 
     $logout = Invoke-NoRedirect `
         -Method Post `
         -Uri "$apiOrigin/v1/logout" `
-        -Cookie $sessionCookiePair `
-        -Headers @{'X-Atlas-CSRF-Token' = $csrfToken}
+        -Cookie $rotatedCookiePair `
+        -Headers @{'X-Atlas-CSRF-Token' = $rotatedCSRF}
     if ([int]$logout.StatusCode -ne 204) {
         throw "Atlas logout returned status $([int]$logout.StatusCode)"
     }
@@ -290,7 +460,7 @@ try {
     $revoked = Invoke-NoRedirect `
         -Method Get `
         -Uri "$apiOrigin/v1/me" `
-        -Cookie $sessionCookiePair
+        -Cookie $rotatedCookiePair
     if ([int]$revoked.StatusCode -ne 401) {
         throw "Revoked Atlas session remained authoritative with status $([int]$revoked.StatusCode)"
     }

@@ -4,9 +4,8 @@
 
 - **Completed slices:** `P01-S01 — identity/access/tenancy audit and execution plan`; `P01-S02 — canonical contract, ownership, and security-decision closure`; `P01-S03 — identity/audit persistence, deterministic seeds, roles, and recovery revalidation`
 - **Current slice:** `P01-S04 — synthetic OIDC BFF and durable session lifecycle` is underway; the
-  core session checkpoint is implemented, while idempotent step-up execution, live
-  higher-assurance completion, admin security revocation, and remaining browser/differential
-  evidence are open.
+  core session checkpoint plus idempotent step-up execution and live higher-assurance completion
+  now pass, while admin security revocation and remaining browser/differential evidence are open.
 - **Audit date:** 2026-07-23
 - **Audited base revision:** `2884484a99eeb2b846a56c90177163e37e419d11`
 - **Base tree:** `b921b93cb8341e28344b97e1202d37f0376dff19`
@@ -82,9 +81,12 @@ The relevant threat set is wider and more specific than the repeated bundle:
 
 Threat rows remain `Open`. This planning audit does not lower residual risk.
 
-## Requirement-by-requirement audit
+## S01 baseline requirement-by-requirement audit (historical)
 
-“Planned” below means no implementation or evidence exists. The named slice is the earliest slice allowed to claim implementation progress; phase closure remains `P01-S09`.
+The findings below preserve the pre-S02 audit baseline and are not the current implementation
+status. “Planned” meant no implementation or evidence existed at that audit revision. Use
+`IMPLEMENTATION_STATUS.md`, canonical traceability, and the exact-next-checkpoint section below
+for current progress; phase closure remains `P01-S09`.
 
 | Requirement | Audit finding | Earliest slice | Primary threats and proof |
 |---|---|---|---|
@@ -119,7 +121,7 @@ Threat rows remain `Open`. This planning audit does not lower residual risk.
 | `IAM-043` | No one-time secret response or non-recovery control exists. | S02/S08 | `THR-020`, `THR-023`; response-loss, read/list, database/log/browser inspection tests |
 | `IAM-044` | Rate-limit/anomaly dimensions and authoritative/ephemeral split are unspecified. | S02/S08 | `THR-023`, `THR-044`, `THR-057`; per-credential/tenant isolation, Redis-loss, bounded-cardinality tests |
 
-## Contract and event audit
+## S01 baseline contract and event audit (historical)
 
 ### OpenAPI coverage
 
@@ -422,8 +424,9 @@ No hosted release, merge, production/reference deployment, real identity provide
 ## Exact next implementation checkpoint
 
 The next checkpoint remains within **P01-S04 — synthetic OIDC BFF and durable session
-lifecycle**: implement the contracted `Idempotency-Key` replay/conflict semantics for step-up and
-prove a successful live higher-assurance rotation before moving to S05.
+lifecycle**: implement administrator security revocation with audit and concurrency proof before
+moving to S05. Contracted step-up `Idempotency-Key` replay/conflict semantics and live
+higher-assurance rotation now pass in the pre-commit worktree.
 
 S03 completed the first Go/database implementation slice. S04 core now composes that boundary
 through the ADR 0014-owned OpenAPI surface. The current checkpoint:
@@ -434,12 +437,15 @@ through the ADR 0014-owned OpenAPI surface. The current checkpoint:
   backup/WAL/PITR checks;
 - validates issuer/audience/state/nonce/PKCE/redirect/timing and rotates durable encrypted
   application sessions through customer/merchant flows;
+- persists scoped hash-only step-up replay state, returns the exact stored response for matching
+  retries, rejects changed requests, and proves live LoA 2 session/CSRF rotation with old-cookie
+  rejection;
 - keeps workforce baseline authentication fail-closed and existing low-risk sessions available
   during an injected provider outage;
 - preserves historical catalogues and adds source-bound `EVD-P01-S04-*`;
 - adds no Redis authorization truth, event/outbox, worker job, authorization/approval/credential
   behavior, frontend product behavior, or financial state.
 
-S04 remains open until its contracted step-up idempotency and live higher-assurance boundary,
-admin security revocation, enumeration timing, and complete browser cache/storage/BFCache evidence
-are implemented. The checkpoint makes no phase-wide IAM completion claim.
+S04 remains open until administrator security revocation, enumeration timing, and complete browser
+cache/storage/BFCache evidence are implemented. The checkpoint makes no phase-wide IAM completion
+claim.

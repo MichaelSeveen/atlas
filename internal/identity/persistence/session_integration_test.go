@@ -78,6 +78,107 @@ func TestSessionStoreRealPostgresOIDCRevocationAndAuthorityInvalidation(t *testi
 		t.Fatalf("unexpected authenticated authority: %+v", authenticated)
 	}
 
+	stepUpScope := sha256.Sum256([]byte("real-postgres-step-up-scope"))
+	stepUpRequest := sha256.Sum256([]byte("v1\naction=identity.approval.decide"))
+	stepUpClaim := identity.StepUpClaimCommand{
+		ChallengeRequestID: newIntegrationID(t, "idr"), Actor: authenticated,
+		IdempotencyScope: stepUpScope, RequestDigest: stepUpRequest,
+		Action: "identity.approval.decide", CorrelationID: newIntegrationID(t, "cor"),
+		Now: now.Add(time.Minute), ProcessingExpiresAt: now.Add(90 * time.Second),
+		RetainedUntil: now.Add(24 * time.Hour),
+	}
+	type claimResult struct {
+		result identity.StepUpClaimResult
+		err    error
+	}
+	claims := make(chan claimResult, 2)
+	var claimWait sync.WaitGroup
+	claimWait.Add(2)
+	for range 2 {
+		go func() {
+			defer claimWait.Done()
+			result, claimErr := store.ClaimStepUp(ctx, stepUpClaim)
+			claims <- claimResult{result: result, err: claimErr}
+		}()
+	}
+	claimWait.Wait()
+	close(claims)
+	ownerCount := 0
+	inProgressCount := 0
+	for claim := range claims {
+		switch {
+		case claim.err == nil && claim.result.Owner:
+			ownerCount++
+		case errors.Is(claim.err, identity.ErrIdempotencyInProgress):
+			inProgressCount++
+		default:
+			t.Fatalf("concurrent step-up claim=%+v err=%v", claim.result, claim.err)
+		}
+	}
+	if ownerCount != 1 || inProgressCount != 1 {
+		t.Fatalf("concurrent step-up owner=%d in_progress=%d", ownerCount, inProgressCount)
+	}
+	reclaimedStepUp := stepUpClaim
+	reclaimedStepUp.ChallengeRequestID = newIntegrationID(t, "idr")
+	reclaimedStepUp.CorrelationID = newIntegrationID(t, "cor")
+	reclaimedStepUp.Now = now.Add(2 * time.Minute)
+	reclaimedStepUp.ProcessingExpiresAt = now.Add(3 * time.Minute)
+	reclaimed, err := store.ClaimStepUp(ctx, reclaimedStepUp)
+	if err != nil || !reclaimed.Owner ||
+		reclaimed.ChallengeRequestID != reclaimedStepUp.ChallengeRequestID {
+		t.Fatalf("reclaimed step-up=%+v err=%v", reclaimed, err)
+	}
+	staleTransaction := identity.OIDCTransaction{
+		TransactionID: newIntegrationID(t, "oid"), Kind: identity.TransactionStepUp,
+		Population:    identity.PopulationCustomer,
+		StateDigest:   sha256.Sum256([]byte("real-postgres-stale-step-up-state")),
+		NonceDigest:   sha256.Sum256([]byte("real-postgres-stale-step-up-nonce")),
+		EncryptedPKCE: make([]byte, 64), EncryptionKeyVersion: 1,
+		ReturnTo: "/customer", PrincipalID: authenticated.PrincipalID,
+		ReplacedSessionID: authenticated.SessionID,
+		RequestedAction:   "identity.approval.decide",
+		CreatedAt:         now.Add(2 * time.Minute), ExpiresAt: now.Add(7 * time.Minute),
+	}
+	if err := store.CompleteStepUp(ctx, identity.CompleteStepUpCommand{
+		ChallengeRequestID: stepUpClaim.ChallengeRequestID,
+		IdempotencyScope:   stepUpScope, Transaction: staleTransaction,
+		AuthorizationURL: "https://identity.test.invalid/authorize?stale=1",
+		CompletedAt:      now.Add(2 * time.Minute),
+	}); !errors.Is(err, identity.ErrIdentityUnavailable) {
+		t.Fatalf("stale step-up owner completion error=%v", err)
+	}
+	stepUpTransactionID := newIntegrationID(t, "oid")
+	stepUpTransaction := identity.OIDCTransaction{
+		TransactionID: stepUpTransactionID, Kind: identity.TransactionStepUp,
+		Population:    identity.PopulationCustomer,
+		StateDigest:   sha256.Sum256([]byte("real-postgres-step-up-state")),
+		NonceDigest:   sha256.Sum256([]byte("real-postgres-step-up-nonce")),
+		EncryptedPKCE: make([]byte, 64), EncryptionKeyVersion: 1,
+		ReturnTo: "/customer", PrincipalID: authenticated.PrincipalID,
+		ReplacedSessionID: authenticated.SessionID,
+		RequestedAction:   "identity.approval.decide",
+		CreatedAt:         now.Add(time.Minute), ExpiresAt: now.Add(6 * time.Minute),
+	}
+	if err := store.CompleteStepUp(ctx, identity.CompleteStepUpCommand{
+		ChallengeRequestID: reclaimedStepUp.ChallengeRequestID,
+		IdempotencyScope:   stepUpScope, Transaction: stepUpTransaction,
+		AuthorizationURL: "https://identity.test.invalid/authorize?step-up=1",
+		CompletedAt:      now.Add(2 * time.Minute),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	stepUpReplay, err := store.ClaimStepUp(ctx, stepUpClaim)
+	if err != nil || !stepUpReplay.Replay ||
+		stepUpReplay.TransactionID != stepUpTransactionID ||
+		stepUpReplay.AuthorizationURL != "https://identity.test.invalid/authorize?step-up=1" {
+		t.Fatalf("step-up replay=%+v err=%v", stepUpReplay, err)
+	}
+	changedStepUp := stepUpClaim
+	changedStepUp.RequestDigest = sha256.Sum256([]byte("v1\naction=identity.approval.execute"))
+	if _, err := store.ClaimStepUp(ctx, changedStepUp); !errors.Is(err, identity.ErrIdempotencyConflict) {
+		t.Fatalf("changed step-up request error=%v", err)
+	}
+
 	if _, err := migrationPool.Exec(ctx, `
 UPDATE atlas_identity.memberships
 SET authorization_version = authorization_version + 1, version = version + 1
@@ -175,7 +276,7 @@ WHERE correlation_id = ANY($1)`,
 	}
 
 	cleanupIntegrationState(
-		t, ctx, migrationPool, transactionID,
+		t, ctx, migrationPool, []identifier.ID{transactionID, stepUpTransactionID},
 		[]identifier.ID{first.SessionID, second.SessionID}, correlationIDs,
 	)
 }
@@ -259,7 +360,7 @@ func cleanupIntegrationState(
 	t *testing.T,
 	ctx context.Context,
 	pool *pgxpool.Pool,
-	transactionID identifier.ID,
+	transactionIDs []identifier.ID,
 	sessionIDs []identifier.ID,
 	correlationIDs []identifier.ID,
 ) {
@@ -277,10 +378,19 @@ DELETE FROM atlas_identity.session_revocation_requests
 WHERE principal_id = 'usr_01JAT1AS00000000000001'`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `DELETE FROM atlas_identity.sessions WHERE session_id = ANY($1)`, sessionTexts); err != nil {
+	if _, err := pool.Exec(ctx, `
+DELETE FROM atlas_identity.step_up_challenge_requests
+WHERE principal_id = 'usr_01JAT1AS00000000000001'`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `DELETE FROM atlas_identity.oidc_transactions WHERE transaction_id = $1`, transactionID.String()); err != nil {
+	transactionTexts := make([]string, 0, len(transactionIDs))
+	for _, transactionID := range transactionIDs {
+		transactionTexts = append(transactionTexts, transactionID.String())
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM atlas_identity.oidc_transactions WHERE transaction_id = ANY($1)`, transactionTexts); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM atlas_identity.sessions WHERE session_id = ANY($1)`, sessionTexts); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `DELETE FROM atlas_audit.audit_events WHERE correlation_id = ANY($1)`, correlationTexts); err != nil {

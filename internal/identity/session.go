@@ -21,6 +21,9 @@ import (
 const (
 	SessionCookieName = "__Host-atlas_session"
 	CSRFHeaderName    = "X-Atlas-CSRF-Token"
+	stepUpClaimLease  = 30 * time.Second
+	stepUpRetention   = 24 * time.Hour
+	stepUpFreshness   = 5 * time.Minute
 )
 
 var (
@@ -63,6 +66,16 @@ var (
 		domainerror.MustCode("SESSION_CONFLICT"),
 		domainerror.KindConflict,
 		false,
+	)
+	ErrIdempotencyConflict = domainerror.New(
+		domainerror.MustCode("IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST"),
+		domainerror.KindConflict,
+		false,
+	)
+	ErrIdempotencyInProgress = domainerror.New(
+		domainerror.MustCode("IDEMPOTENCY_REQUEST_IN_PROGRESS"),
+		domainerror.KindConflict,
+		true,
 	)
 	ErrSessionNotFound = domainerror.New(
 		domainerror.MustCode("SESSION_NOT_FOUND"),
@@ -245,9 +258,41 @@ type RevocationResult struct {
 	Replay         bool
 }
 
+type StepUpClaimCommand struct {
+	ChallengeRequestID  identifier.ID
+	Actor               Session
+	IdempotencyScope    [32]byte
+	RequestDigest       [32]byte
+	Action              string
+	CorrelationID       identifier.ID
+	Now                 time.Time
+	ProcessingExpiresAt time.Time
+	RetainedUntil       time.Time
+}
+
+type StepUpClaimResult struct {
+	ChallengeRequestID identifier.ID
+	Owner              bool
+	Replay             bool
+	TransactionID      identifier.ID
+	AuthorizationURL   string
+	ExpiresAt          time.Time
+}
+
+type CompleteStepUpCommand struct {
+	ChallengeRequestID identifier.ID
+	IdempotencyScope   [32]byte
+	Transaction        OIDCTransaction
+	AuthorizationURL   string
+	CompletedAt        time.Time
+}
+
 type Store interface {
 	PutOIDCTransaction(context.Context, OIDCTransaction) error
 	TakeOIDCTransaction(context.Context, [32]byte, time.Time) (OIDCTransaction, error)
+	ClaimStepUp(context.Context, StepUpClaimCommand) (StepUpClaimResult, error)
+	CompleteStepUp(context.Context, CompleteStepUpCommand) error
+	FailStepUp(context.Context, identifier.ID, [32]byte, time.Time) error
 	CreateSession(context.Context, CreateSessionCommand) (Session, error)
 	Authenticate(context.Context, [32]byte, time.Time, time.Duration) (Session, error)
 	ListSessions(context.Context, Session, time.Time) ([]SessionSummary, error)
@@ -362,9 +407,11 @@ func (service *Service) BeginLogin(ctx context.Context, request BeginLoginReques
 }
 
 type BeginStepUpRequest struct {
-	CookieValue string
-	CSRFToken   string
-	Action      string
+	CookieValue    string
+	CSRFToken      string
+	Action         string
+	IdempotencyKey string
+	CorrelationID  identifier.ID
 }
 
 var stepUpActions = map[string]struct{}{
@@ -390,40 +437,122 @@ func (service *Service) BeginStepUp(ctx context.Context, request BeginStepUpRequ
 	if _, allowed := stepUpActions[request.Action]; !allowed {
 		return BeginLoginResult{}, ErrInputInvalid
 	}
+	if !validIdempotencyKey(request.IdempotencyKey) ||
+		request.CorrelationID.IsZero() || request.CorrelationID.Prefix() != "cor" {
+		return BeginLoginResult{}, ErrInputInvalid
+	}
 	policy := service.sessionPolicies[session.Population]
-	return service.beginTransaction(ctx, OIDCTransaction{
+	now := service.clock.Now().UTC()
+	challengeRequestID, err := service.generatedID("idr")
+	if err != nil {
+		return BeginLoginResult{}, ErrIdentityUnavailable
+	}
+	scope := "v1\n" + session.PrincipalID.String() + "\n"
+	if session.TenantID.IsZero() {
+		scope += "global:identity-security\n"
+	} else {
+		scope += "tenant:" + session.TenantID.String() + "\n"
+	}
+	scope += "POST\n/v1/step-up/challenges\n" + request.IdempotencyKey
+	idempotencyScope := sha256.Sum256([]byte(scope))
+	requestDigest := sha256.Sum256([]byte("v1\naction=" + request.Action))
+	claim, err := service.store.ClaimStepUp(ctx, StepUpClaimCommand{
+		ChallengeRequestID: challengeRequestID, Actor: session,
+		IdempotencyScope: idempotencyScope, RequestDigest: requestDigest,
+		Action: request.Action, CorrelationID: request.CorrelationID, Now: now,
+		ProcessingExpiresAt: now.Add(stepUpClaimLease),
+		RetainedUntil:       now.Add(stepUpRetention),
+	})
+	if err != nil {
+		return BeginLoginResult{}, err
+	}
+	if claim.Replay {
+		return BeginLoginResult{
+			TransactionID: claim.TransactionID, Population: session.Population,
+			AuthorizationURL: claim.AuthorizationURL, ExpiresAt: claim.ExpiresAt,
+		}, nil
+	}
+	if !claim.Owner {
+		return BeginLoginResult{}, ErrIdempotencyInProgress
+	}
+	transaction, authorizationURL, err := service.prepareTransaction(ctx, OIDCTransaction{
 		Kind: TransactionStepUp, Population: session.Population,
 		ReturnTo: policy.AllowedReturnTo, PrincipalID: session.PrincipalID,
 		ReplacedSessionID: session.SessionID, RequestedAction: request.Action,
 	})
+	if err != nil {
+		_ = service.store.FailStepUp(
+			ctx,
+			claim.ChallengeRequestID,
+			idempotencyScope,
+			service.clock.Now().UTC(),
+		)
+		return BeginLoginResult{}, err
+	}
+	err = service.store.CompleteStepUp(ctx, CompleteStepUpCommand{
+		ChallengeRequestID: claim.ChallengeRequestID, IdempotencyScope: idempotencyScope,
+		Transaction: transaction, AuthorizationURL: authorizationURL,
+		CompletedAt: service.clock.Now().UTC(),
+	})
+	if err != nil {
+		_ = service.store.FailStepUp(
+			ctx,
+			claim.ChallengeRequestID,
+			idempotencyScope,
+			service.clock.Now().UTC(),
+		)
+		return BeginLoginResult{}, err
+	}
+	return BeginLoginResult{
+		TransactionID: transaction.TransactionID, Population: transaction.Population,
+		AuthorizationURL: authorizationURL, ExpiresAt: transaction.ExpiresAt,
+	}, nil
 }
 
 func (service *Service) beginTransaction(ctx context.Context, transaction OIDCTransaction) (BeginLoginResult, error) {
+	prepared, authorizationURL, err := service.prepareTransaction(ctx, transaction)
+	if err != nil {
+		return BeginLoginResult{}, err
+	}
+	if err := service.store.PutOIDCTransaction(ctx, prepared); err != nil {
+		return BeginLoginResult{}, err
+	}
+	return BeginLoginResult{
+		TransactionID: prepared.TransactionID, Population: prepared.Population,
+		AuthorizationURL: authorizationURL,
+		ExpiresAt:        prepared.ExpiresAt,
+	}, nil
+}
+
+func (service *Service) prepareTransaction(
+	ctx context.Context,
+	transaction OIDCTransaction,
+) (OIDCTransaction, string, error) {
 	state, stateDigest, err := randomToken(service.entropy)
 	if err != nil {
-		return BeginLoginResult{}, ErrIdentityUnavailable
+		return OIDCTransaction{}, "", ErrIdentityUnavailable
 	}
 	nonce, nonceDigest, err := randomToken(service.entropy)
 	if err != nil {
-		return BeginLoginResult{}, ErrIdentityUnavailable
+		return OIDCTransaction{}, "", ErrIdentityUnavailable
 	}
 	pkce, _, err := randomToken(service.entropy)
 	if err != nil {
-		return BeginLoginResult{}, ErrIdentityUnavailable
+		return OIDCTransaction{}, "", ErrIdentityUnavailable
 	}
 	encrypted, version, err := service.cryptor.Encrypt([]byte(pkce))
 	if err != nil {
-		return BeginLoginResult{}, ErrIdentityUnavailable
+		return OIDCTransaction{}, "", ErrIdentityUnavailable
 	}
 	authorizationURL, err := service.provider.AuthorizationURL(
 		ctx, transaction.Population, state, nonce, pkce, transaction.Kind,
 	)
 	if err != nil {
-		return BeginLoginResult{}, ErrIdentityUnavailable
+		return OIDCTransaction{}, "", ErrIdentityUnavailable
 	}
 	transactionID, err := service.generatedID("oid")
 	if err != nil {
-		return BeginLoginResult{}, ErrIdentityUnavailable
+		return OIDCTransaction{}, "", ErrIdentityUnavailable
 	}
 	now := service.clock.Now().UTC()
 	transaction.TransactionID = transactionID
@@ -433,14 +562,7 @@ func (service *Service) beginTransaction(ctx context.Context, transaction OIDCTr
 	transaction.EncryptionKeyVersion = version
 	transaction.CreatedAt = now
 	transaction.ExpiresAt = now.Add(defaultOIDCTransactionExpiry)
-	if err := service.store.PutOIDCTransaction(ctx, transaction); err != nil {
-		return BeginLoginResult{}, err
-	}
-	return BeginLoginResult{
-		TransactionID: transactionID, Population: transaction.Population,
-		AuthorizationURL: authorizationURL,
-		ExpiresAt:        transaction.ExpiresAt,
-	}, nil
+	return transaction, authorizationURL, nil
 }
 
 type CompleteLoginRequest struct {
@@ -494,6 +616,10 @@ func (service *Service) CompleteLogin(ctx context.Context, request CompleteLogin
 	policy := service.sessionPolicies[transaction.Population]
 	assurance := claims.Assurance
 	if transaction.Kind == TransactionStepUp && assurance == AssuranceBaseline {
+		return CompleteLoginResult{}, ErrOIDCTransactionInvalid
+	}
+	if transaction.Kind == TransactionStepUp &&
+		!claims.AuthenticatedAt.After(now.Add(-stepUpFreshness)) {
 		return CompleteLoginResult{}, ErrOIDCTransactionInvalid
 	}
 	if !assuranceSatisfies(assurance, policy.Minimum) {
@@ -739,6 +865,23 @@ func validProtocolToken(value string) bool {
 	}
 	decoded, err := base64.RawURLEncoding.DecodeString(value)
 	return err == nil && len(decoded) >= 32
+}
+
+func validIdempotencyKey(value string) bool {
+	if len(value) < 16 || len(value) > 128 {
+		return false
+	}
+	for index := range value {
+		character := value[index]
+		if (character >= 'A' && character <= 'Z') ||
+			(character >= 'a' && character <= 'z') ||
+			(character >= '0' && character <= '9') ||
+			character == '.' || character == '_' || character == ':' || character == '-' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func constantTimeStringEqual(left, right string) bool {

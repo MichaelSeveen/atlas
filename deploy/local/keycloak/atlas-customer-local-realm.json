@@ -8,6 +8,57 @@
   "ssoSessionIdleTimeout": 1800,
   "ssoSessionMaxLifespan": 43200,
   "accessTokenLifespan": 300,
+  "browserFlow": "atlas-browser-step-up",
+  "authenticationFlows": [
+    {
+      "alias": "atlas-browser-step-up",
+      "description": "Atlas deterministic synthetic LoA flow; level 2 is fresh password confirmation, not MFA.",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {"authenticator": "auth-cookie", "authenticatorFlow": false, "requirement": "ALTERNATIVE", "priority": 0, "userSetupAllowed": false},
+        {"authenticatorFlow": true, "requirement": "ALTERNATIVE", "priority": 1, "flowAlias": "atlas-step-up-authentication", "userSetupAllowed": false}
+      ]
+    },
+    {
+      "alias": "atlas-step-up-authentication",
+      "description": "Atlas deterministic synthetic step-up flow",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {"authenticatorFlow": true, "requirement": "CONDITIONAL", "priority": 0, "flowAlias": "atlas-step-up-level-1", "userSetupAllowed": false},
+        {"authenticatorFlow": true, "requirement": "CONDITIONAL", "priority": 1, "flowAlias": "atlas-step-up-level-2", "userSetupAllowed": false}
+      ]
+    },
+    {
+      "alias": "atlas-step-up-level-1",
+      "description": "Atlas deterministic synthetic step-up flow",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {"authenticatorConfig": "Atlas synthetic LoA 1", "authenticator": "conditional-level-of-authentication", "authenticatorFlow": false, "requirement": "REQUIRED", "priority": 0, "userSetupAllowed": false},
+        {"authenticator": "auth-username-password-form", "authenticatorFlow": false, "requirement": "REQUIRED", "priority": 1, "userSetupAllowed": false}
+      ]
+    },
+    {
+      "alias": "atlas-step-up-level-2",
+      "description": "Atlas deterministic synthetic step-up flow",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {"authenticatorConfig": "Atlas synthetic LoA 2", "authenticator": "conditional-level-of-authentication", "authenticatorFlow": false, "requirement": "REQUIRED", "priority": 0, "userSetupAllowed": false},
+        {"authenticator": "auth-username-password-form", "authenticatorFlow": false, "requirement": "REQUIRED", "priority": 1, "userSetupAllowed": false}
+      ]
+    }
+  ],
+  "authenticatorConfig": [
+    {"alias": "Atlas synthetic LoA 1", "config": {"loa-condition-level": "1", "loa-max-age": "36000"}},
+    {"alias": "Atlas synthetic LoA 2", "config": {"loa-condition-level": "2", "loa-max-age": "0"}}
+  ],
   "clients": [
     {
       "clientId": "atlas-bff-local",

@@ -101,7 +101,8 @@ func TestMostAgentsSkip08SessionFixationAndStepUpRotation(t *testing.T) {
 	provider.claims.Assurance = AssuranceSteppedUp
 	step, err := service.BeginStepUp(context.Background(), BeginStepUpRequest{
 		CookieValue: login.CookieValue, CSRFToken: csrf,
-		Action: "identity.approval.decide",
+		Action: "identity.approval.decide", IdempotencyKey: "step-up-rotation-0001",
+		CorrelationID: mustTestID(t, "cor", 31),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -173,11 +174,79 @@ func TestProviderOutagePreservesExistingLowRiskSessionAndDeniesNewAuthentication
 		t.Fatalf("new login did not fail closed during provider outage: %v", err)
 	}
 	if _, err := service.BeginStepUp(context.Background(), BeginStepUpRequest{
-		CookieValue: cookie,
-		CSRFToken:   csrf,
-		Action:      "identity.approval.decide",
+		CookieValue:    cookie,
+		CSRFToken:      csrf,
+		Action:         "identity.approval.decide",
+		IdempotencyKey: "provider-outage-0001",
+		CorrelationID:  mustTestID(t, "cor", 61),
 	}); !errors.Is(err, ErrIdentityUnavailable) {
 		t.Fatalf("new step-up did not fail closed during provider outage: %v", err)
+	}
+}
+
+func TestStepUpIdempotencyReplaysExactlyAndRejectsChangedAction(t *testing.T) {
+	now := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
+	store := newFakeSessionStore(t, now)
+	cookie := "IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII"
+	store.sessions[sha256.Sum256([]byte(cookie))] = store.session
+	provider := &fakeProvider{}
+	service := newTestService(t, store, provider, now)
+	_, csrf, err := service.Current(context.Background(), cookie)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := BeginStepUpRequest{
+		CookieValue: cookie, CSRFToken: csrf, Action: "identity.approval.decide",
+		IdempotencyKey: "stable-step-up-key-0001",
+		CorrelationID:  mustTestID(t, "cor", 62),
+	}
+	first, err := service.BeginStepUp(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider.err = ErrProviderUnavailable
+	replay, err := service.BeginStepUp(context.Background(), request)
+	if err != nil {
+		t.Fatalf("stored replay depended on provider availability: %v", err)
+	}
+	if replay != first || provider.authorizationCalls != 1 {
+		t.Fatalf("replay=%+v first=%+v authorization_calls=%d", replay, first, provider.authorizationCalls)
+	}
+	request.Action = "identity.approval.execute"
+	if _, err := service.BeginStepUp(context.Background(), request); !errors.Is(err, ErrIdempotencyConflict) {
+		t.Fatalf("changed request error = %v, want idempotency conflict", err)
+	}
+}
+
+func TestStepUpRejectsStaleHigherAssuranceAuthentication(t *testing.T) {
+	now := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
+	store := newFakeSessionStore(t, now)
+	cookie := "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+	store.sessions[sha256.Sum256([]byte(cookie))] = store.session
+	provider := &fakeProvider{claims: ProviderClaims{
+		Issuer:    "https://identity.test.invalid/realms/customer",
+		Subject:   "00000000-0000-4000-8000-000000000101",
+		Assurance: AssuranceSteppedUp, AuthenticatedAt: now.Add(-stepUpFreshness),
+	}}
+	service := newTestService(t, store, provider, now)
+	_, csrf, err := service.Current(context.Background(), cookie)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.BeginStepUp(context.Background(), BeginStepUpRequest{
+		CookieValue: cookie, CSRFToken: csrf, Action: "identity.approval.decide",
+		IdempotencyKey: "stale-authentication-0001", CorrelationID: mustTestID(t, "cor", 63),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider.claims.Nonce = provider.nonce
+	_, err = service.CompleteLogin(context.Background(), CompleteLoginRequest{
+		State: provider.state, Code: "synthetic-code-0005",
+		CorrelationID: mustTestID(t, "cor", 64),
+	})
+	if !errors.Is(err, ErrOIDCTransactionInvalid) {
+		t.Fatalf("stale step-up authentication error = %v", err)
 	}
 }
 
@@ -239,12 +308,13 @@ func TestVersionedTransactionEncryptionAndCSRFTamperResistance(t *testing.T) {
 }
 
 type fakeProvider struct {
-	state  string
-	nonce  string
-	pkce   string
-	kind   TransactionKind
-	claims ProviderClaims
-	err    error
+	state              string
+	nonce              string
+	pkce               string
+	kind               TransactionKind
+	claims             ProviderClaims
+	err                error
+	authorizationCalls int
 }
 
 func (provider *fakeProvider) AuthorizationURL(
@@ -255,6 +325,7 @@ func (provider *fakeProvider) AuthorizationURL(
 	pkce string,
 	kind TransactionKind,
 ) (string, error) {
+	provider.authorizationCalls++
 	if provider.err != nil {
 		return "", provider.err
 	}
@@ -300,11 +371,22 @@ type fakeSessionStore struct {
 	session         Session
 	sessions        map[[32]byte]Session
 	revocations     int
+	stepUps         map[[32]byte]fakeStepUpClaim
+}
+
+type fakeStepUpClaim struct {
+	requestID     identifier.ID
+	requestDigest [32]byte
+	lifecycle     string
+	transaction   OIDCTransaction
+	url           string
+	retainedUntil time.Time
 }
 
 func newFakeSessionStore(t *testing.T, now time.Time) *fakeSessionStore {
 	return &fakeSessionStore{
 		t: t, now: now, sessions: make(map[[32]byte]Session),
+		stepUps: make(map[[32]byte]fakeStepUpClaim),
 		session: Session{
 			SessionID: mustTestID(t, "ses", 50), PrincipalID: mustTestID(t, "usr", 51),
 			PrincipalType: "customer", DisplayName: "Synthetic Customer",
@@ -333,6 +415,62 @@ func (store *fakeSessionStore) TakeOIDCTransaction(
 	}
 	store.transactionUsed = true
 	return store.transaction, nil
+}
+
+func (store *fakeSessionStore) ClaimStepUp(
+	_ context.Context,
+	command StepUpClaimCommand,
+) (StepUpClaimResult, error) {
+	claim, found := store.stepUps[command.IdempotencyScope]
+	if found && command.Now.Before(claim.retainedUntil) {
+		if claim.requestDigest != command.RequestDigest {
+			return StepUpClaimResult{}, ErrIdempotencyConflict
+		}
+		if claim.lifecycle == "completed" {
+			return StepUpClaimResult{
+				ChallengeRequestID: claim.requestID, Replay: true,
+				TransactionID:    claim.transaction.TransactionID,
+				AuthorizationURL: claim.url, ExpiresAt: claim.transaction.ExpiresAt,
+			}, nil
+		}
+	}
+	claim = fakeStepUpClaim{
+		requestID: command.ChallengeRequestID, requestDigest: command.RequestDigest,
+		lifecycle: "processing", retainedUntil: command.RetainedUntil,
+	}
+	store.stepUps[command.IdempotencyScope] = claim
+	return StepUpClaimResult{ChallengeRequestID: claim.requestID, Owner: true}, nil
+}
+
+func (store *fakeSessionStore) CompleteStepUp(
+	_ context.Context,
+	command CompleteStepUpCommand,
+) error {
+	claim, found := store.stepUps[command.IdempotencyScope]
+	if !found || claim.requestID != command.ChallengeRequestID || claim.lifecycle != "processing" {
+		return ErrIdentityUnavailable
+	}
+	claim.lifecycle = "completed"
+	claim.transaction = command.Transaction
+	claim.url = command.AuthorizationURL
+	store.stepUps[command.IdempotencyScope] = claim
+	store.transaction = command.Transaction
+	store.transactionUsed = false
+	return nil
+}
+
+func (store *fakeSessionStore) FailStepUp(
+	_ context.Context,
+	requestID identifier.ID,
+	scope [32]byte,
+	_ time.Time,
+) error {
+	claim, found := store.stepUps[scope]
+	if found && claim.requestID == requestID && claim.lifecycle == "processing" {
+		claim.lifecycle = "failed-retryable"
+		store.stepUps[scope] = claim
+	}
+	return nil
 }
 
 func (store *fakeSessionStore) CreateSession(_ context.Context, command CreateSessionCommand) (Session, error) {

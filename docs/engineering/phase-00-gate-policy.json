@@ -97,6 +97,8 @@
         "evidence/phase-00/acceptance/S08-hosted-release-success.md",
         "evidence/phase-01/persistence/S03-identity-audit-persistence-report.md",
         "evidence/phase-01/identity-session/S04-identity-session-core-report.md",
+        "db/migrations/000007_phase_01_step_up_idempotency.sql",
+        "db/migrations/000007_phase_01_step_up_idempotency.metadata.json",
         "scripts/s05.ps1",
         "docs/atlas-prd/06-governance/adrs/0013-phase-00-closed-world-completion.md"
       ],
@@ -126,6 +128,8 @@
       "result": "satisfied-synthetic-product-recovery",
       "evidence": [
         "db/recovery/verify-restore.sh",
+        "db/migrations/000007_phase_01_step_up_idempotency.sql",
+        "db/tests/role_matrix.sh",
         "evidence/phase-01/persistence/S03-identity-audit-persistence-report.md",
         "evidence/phase-01/identity-session/S04-identity-session-core-report.md"
       ]
@@ -135,7 +139,7 @@
     {"path": ".github/solo-maintainer-policy.json", "sha256": "4524d7cae2b0575a6ebe0669f6e44db4cbbecad6ecdd696ad534233c7c993d96"},
     {"path": "cmd/worker/main.go", "sha256": "64781eb8f4d3148f0165e85a6ff04fc492ed89fd28949fdc99e7463f4b049453"},
     {"path": "cmd/simulator/main.go", "sha256": "a52a3f919146c72e30ee0aae16757c0aa5042a6972218341244230897a8c84e6"},
-    {"path": "db/migrations/MANIFEST.sha256", "sha256": "3e4820502d41f2d5fb5b5724db1760feb957f63712ef8eb8f8cc10b4af4ff93c"},
+    {"path": "db/migrations/MANIFEST.sha256", "sha256": "3264c26eef0652ab1ebf3c994f9d3db2d45fd4cd30fc85cbdb6836d649ad2c0e"},
     {"path": "db/seeds/MANIFEST.sha256", "sha256": "0314066f1884b7290b8f14f51af90943f41cbe1d0f877994c14bdbd82bcbb80d"},
     {"path": "db/seeds/000001_phase_01_identity.json", "sha256": "e5a8ab37437edad69ed655e6589efffd824ca4b9151b6f9d9358632bf1f13d6c"},
     {"path": "db/seeds/load-phase-01-identity.sql", "sha256": "b6b8b311866cb1ca9209bad991ebf76fca796ce157e26280d166451521787ec1"},
@@ -151,7 +155,7 @@
   "guarded_directories": [
     {"path": "cmd/worker", "files": ["main.go"]},
     {"path": "cmd/simulator", "files": ["main.go"]},
-    {"path": "db/migrations", "files": ["000001_foundation_control_schema.metadata.json", "000001_foundation_control_schema.sql", "000002_recovery_probe.metadata.json", "000002_recovery_probe.sql", "000003_phase_01_identity_persistence.metadata.json", "000003_phase_01_identity_persistence.sql", "000004_phase_01_audit_persistence.metadata.json", "000004_phase_01_audit_persistence.sql", "000005_phase_01_oidc_sessions.metadata.json", "000005_phase_01_oidc_sessions.sql", "000006_phase_01_session_authority_lock_grant.metadata.json", "000006_phase_01_session_authority_lock_grant.sql", "MANIFEST.sha256"]},
+    {"path": "db/migrations", "files": ["000001_foundation_control_schema.metadata.json", "000001_foundation_control_schema.sql", "000002_recovery_probe.metadata.json", "000002_recovery_probe.sql", "000003_phase_01_identity_persistence.metadata.json", "000003_phase_01_identity_persistence.sql", "000004_phase_01_audit_persistence.metadata.json", "000004_phase_01_audit_persistence.sql", "000005_phase_01_oidc_sessions.metadata.json", "000005_phase_01_oidc_sessions.sql", "000006_phase_01_session_authority_lock_grant.metadata.json", "000006_phase_01_session_authority_lock_grant.sql", "000007_phase_01_step_up_idempotency.metadata.json", "000007_phase_01_step_up_idempotency.sql", "MANIFEST.sha256"]},
     {"path": "db/seeds", "files": ["000001_phase_01_identity.json", "MANIFEST.sha256", "load-phase-01-identity.sql"]},
     {"path": "deploy/environments", "files": ["local.json", "production-reference.json", "staging.json", "test.json"]},
     {"path": "internal/platform/secret", "files": ["secret.go", "secret_test.go"]}

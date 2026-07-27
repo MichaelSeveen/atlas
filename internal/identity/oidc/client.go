@@ -123,13 +123,15 @@ func (client *Client) AuthorizationURL(
 		coreoidc.Nonce(nonce),
 		oauth2.S256ChallengeOption(pkceVerifier),
 	}
+	requestedAssurance := "1"
 	if kind == identity.TransactionStepUp {
+		requestedAssurance = "2 3"
 		options = append(options,
 			oauth2.SetAuthURLParam("prompt", "login"),
 			oauth2.SetAuthURLParam("max_age", "0"),
-			oauth2.SetAuthURLParam("acr_values", "2 3"),
 		)
 	}
+	options = append(options, oauth2.SetAuthURLParam("acr_values", requestedAssurance))
 	internalURL := discovered.oauth.AuthCodeURL(state, options...)
 	return rewriteOrigin(internalURL, discovered.config.PublicOrigin)
 }

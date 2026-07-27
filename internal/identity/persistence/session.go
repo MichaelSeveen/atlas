@@ -201,6 +201,247 @@ func (store *SessionStore) TakeOIDCTransaction(
 	return transaction, nil
 }
 
+func (store *SessionStore) ClaimStepUp(
+	ctx context.Context,
+	command identity.StepUpClaimCommand,
+) (identity.StepUpClaimResult, error) {
+	transaction, err := store.pool.Begin(ctx)
+	if err != nil {
+		return identity.StepUpClaimResult{}, identity.ErrIdentityUnavailable
+	}
+	defer func() { _ = transaction.Rollback(ctx) }()
+	inserted, err := insertStepUpClaim(ctx, transaction, command)
+	if err != nil {
+		return identity.StepUpClaimResult{}, err
+	}
+	if inserted {
+		if err := transaction.Commit(ctx); err != nil {
+			return identity.StepUpClaimResult{}, identity.ErrIdentityUnavailable
+		}
+		return identity.StepUpClaimResult{
+			ChallengeRequestID: command.ChallengeRequestID, Owner: true,
+		}, nil
+	}
+
+	var requestID, principalID, lifecycle string
+	var requestDigest []byte
+	var transactionID, authorizationURL *string
+	var expiresAt, processingExpiresAt *time.Time
+	var retainedUntil time.Time
+	err = transaction.QueryRow(ctx, `
+SELECT challenge_request_id, principal_id, request_sha256, lifecycle, transaction_id,
+       authorization_url, challenge_expires_at, processing_expires_at, retained_until
+FROM atlas_identity.step_up_challenge_requests
+WHERE idempotency_scope_sha256 = $1
+FOR UPDATE`,
+		command.IdempotencyScope[:],
+	).Scan(
+		&requestID, &principalID, &requestDigest, &lifecycle, &transactionID,
+		&authorizationURL, &expiresAt, &processingExpiresAt, &retainedUntil,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return identity.StepUpClaimResult{}, identity.ErrIdentityUnavailable
+	}
+	if err != nil {
+		return identity.StepUpClaimResult{}, identity.ErrIdentityUnavailable
+	}
+	if !command.Now.Before(retainedUntil) {
+		tag, updateErr := transaction.Exec(ctx, `
+UPDATE atlas_identity.step_up_challenge_requests
+SET challenge_request_id = $2,
+    principal_id = $3,
+    population = $4,
+    tenant_id = $5,
+    global_scope = $6,
+    request_sha256 = $7,
+    requested_action = $8,
+    lifecycle = 'processing',
+    transaction_id = NULL,
+    authorization_url = NULL,
+    challenge_expires_at = NULL,
+    processing_expires_at = $9,
+    correlation_id = $10,
+    created_at = $11,
+    updated_at = $11,
+    retained_until = $12
+WHERE idempotency_scope_sha256 = $1`,
+			command.IdempotencyScope[:], command.ChallengeRequestID.String(),
+			command.Actor.PrincipalID.String(), string(command.Actor.Population),
+			stepUpTenant(command.Actor), stepUpGlobalScope(command.Actor),
+			command.RequestDigest[:], command.Action, command.ProcessingExpiresAt,
+			command.CorrelationID.String(), command.Now, command.RetainedUntil,
+		)
+		if updateErr != nil || tag.RowsAffected() != 1 {
+			return identity.StepUpClaimResult{}, identity.ErrIdentityUnavailable
+		}
+		if err := transaction.Commit(ctx); err != nil {
+			return identity.StepUpClaimResult{}, identity.ErrIdentityUnavailable
+		}
+		return identity.StepUpClaimResult{
+			ChallengeRequestID: command.ChallengeRequestID, Owner: true,
+		}, nil
+	}
+	if principalID != command.Actor.PrincipalID.String() ||
+		len(requestDigest) != 32 || !equalDigest(requestDigest, command.RequestDigest) {
+		return identity.StepUpClaimResult{}, identity.ErrIdempotencyConflict
+	}
+	parsedRequestID, err := identifier.Parse(requestID)
+	if err != nil {
+		return identity.StepUpClaimResult{}, identity.ErrIdentityUnavailable
+	}
+	if lifecycle == "completed" {
+		if transactionID == nil || authorizationURL == nil || expiresAt == nil {
+			return identity.StepUpClaimResult{}, identity.ErrIdentityUnavailable
+		}
+		parsedTransactionID, parseErr := identifier.Parse(*transactionID)
+		if parseErr != nil {
+			return identity.StepUpClaimResult{}, identity.ErrIdentityUnavailable
+		}
+		if err := transaction.Commit(ctx); err != nil {
+			return identity.StepUpClaimResult{}, identity.ErrIdentityUnavailable
+		}
+		return identity.StepUpClaimResult{
+			ChallengeRequestID: parsedRequestID, Replay: true,
+			TransactionID: parsedTransactionID, AuthorizationURL: *authorizationURL,
+			ExpiresAt: expiresAt.UTC(),
+		}, nil
+	}
+	if lifecycle == "processing" && processingExpiresAt != nil &&
+		command.Now.Before(*processingExpiresAt) {
+		return identity.StepUpClaimResult{}, identity.ErrIdempotencyInProgress
+	}
+	tag, err := transaction.Exec(ctx, `
+UPDATE atlas_identity.step_up_challenge_requests
+SET challenge_request_id = $2,
+    lifecycle = 'processing',
+    processing_expires_at = $4,
+    correlation_id = $5,
+    updated_at = $3,
+    retained_until = GREATEST(retained_until, $6)
+WHERE idempotency_scope_sha256 = $1`,
+		command.IdempotencyScope[:], command.ChallengeRequestID.String(),
+		command.Now, command.ProcessingExpiresAt,
+		command.CorrelationID.String(), command.RetainedUntil,
+	)
+	if err != nil || tag.RowsAffected() != 1 {
+		return identity.StepUpClaimResult{}, identity.ErrIdentityUnavailable
+	}
+	if err := transaction.Commit(ctx); err != nil {
+		return identity.StepUpClaimResult{}, identity.ErrIdentityUnavailable
+	}
+	return identity.StepUpClaimResult{
+		ChallengeRequestID: command.ChallengeRequestID, Owner: true,
+	}, nil
+}
+
+func insertStepUpClaim(
+	ctx context.Context,
+	transaction pgx.Tx,
+	command identity.StepUpClaimCommand,
+) (bool, error) {
+	tag, err := transaction.Exec(ctx, `
+INSERT INTO atlas_identity.step_up_challenge_requests (
+    challenge_request_id, principal_id, population, tenant_id, global_scope,
+    idempotency_scope_sha256, request_sha256, requested_action, lifecycle,
+    processing_expires_at, correlation_id, created_at, updated_at, retained_until
+) VALUES (
+    $1, $2, $3, $4, $5,
+    $6, $7, $8, 'processing',
+    $9, $10, $11, $11, $12
+)
+ON CONFLICT (idempotency_scope_sha256) DO NOTHING`,
+		command.ChallengeRequestID.String(), command.Actor.PrincipalID.String(),
+		string(command.Actor.Population), stepUpTenant(command.Actor),
+		stepUpGlobalScope(command.Actor), command.IdempotencyScope[:],
+		command.RequestDigest[:], command.Action, command.ProcessingExpiresAt,
+		command.CorrelationID.String(), command.Now, command.RetainedUntil,
+	)
+	if err != nil {
+		return false, identity.ErrIdentityUnavailable
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
+func (store *SessionStore) CompleteStepUp(
+	ctx context.Context,
+	command identity.CompleteStepUpCommand,
+) error {
+	transaction, err := store.pool.Begin(ctx)
+	if err != nil {
+		return identity.ErrIdentityUnavailable
+	}
+	defer func() { _ = transaction.Rollback(ctx) }()
+	oidc := command.Transaction
+	_, err = transaction.Exec(
+		ctx, putOIDCTransactionSQL,
+		oidc.TransactionID.String(), string(oidc.Kind), string(oidc.Population),
+		oidc.StateDigest[:], oidc.NonceDigest[:], oidc.EncryptedPKCE,
+		oidc.EncryptionKeyVersion, oidc.ReturnTo, oidc.PrincipalID.String(),
+		oidc.ReplacedSessionID.String(), oidc.RequestedAction, oidc.CreatedAt, oidc.ExpiresAt,
+	)
+	if err != nil {
+		return identity.ErrIdentityUnavailable
+	}
+	tag, err := transaction.Exec(ctx, `
+UPDATE atlas_identity.step_up_challenge_requests
+SET lifecycle = 'completed',
+    transaction_id = $3,
+    authorization_url = $4,
+    challenge_expires_at = $5,
+    processing_expires_at = NULL,
+    updated_at = $6
+WHERE challenge_request_id = $1
+  AND idempotency_scope_sha256 = $2
+  AND lifecycle = 'processing'`,
+		command.ChallengeRequestID.String(), command.IdempotencyScope[:],
+		oidc.TransactionID.String(), command.AuthorizationURL, oidc.ExpiresAt,
+		command.CompletedAt,
+	)
+	if err != nil || tag.RowsAffected() != 1 {
+		return identity.ErrIdentityUnavailable
+	}
+	if err := transaction.Commit(ctx); err != nil {
+		return identity.ErrIdentityUnavailable
+	}
+	return nil
+}
+
+func (store *SessionStore) FailStepUp(
+	ctx context.Context,
+	challengeRequestID identifier.ID,
+	idempotencyScope [32]byte,
+	now time.Time,
+) error {
+	_, err := store.pool.Exec(ctx, `
+UPDATE atlas_identity.step_up_challenge_requests
+SET lifecycle = 'failed-retryable',
+    processing_expires_at = NULL,
+    updated_at = $3
+WHERE challenge_request_id = $1
+  AND idempotency_scope_sha256 = $2
+  AND lifecycle = 'processing'`,
+		challengeRequestID.String(), idempotencyScope[:], now,
+	)
+	if err != nil {
+		return identity.ErrIdentityUnavailable
+	}
+	return nil
+}
+
+func stepUpTenant(actor identity.Session) any {
+	if actor.TenantID.IsZero() {
+		return nil
+	}
+	return actor.TenantID.String()
+}
+
+func stepUpGlobalScope(actor identity.Session) any {
+	if actor.TenantID.IsZero() {
+		return "identity-security"
+	}
+	return nil
+}
+
 func (store *SessionStore) CreateSession(
 	ctx context.Context,
 	command identity.CreateSessionCommand,

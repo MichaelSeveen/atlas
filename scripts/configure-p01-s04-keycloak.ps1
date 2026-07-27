@@ -86,7 +86,7 @@ function Set-ObjectProperty {
 
 function Invoke-IdentityAdmin {
     param(
-        [Parameter(Mandatory)][ValidateSet('Get', 'Post', 'Put')][string]$Method,
+        [Parameter(Mandatory)][ValidateSet('Delete', 'Get', 'Post', 'Put')][string]$Method,
         [Parameter(Mandatory)][string]$Path,
         [Parameter()][AllowNull()][object]$Body
     )
@@ -101,7 +101,320 @@ function Invoke-IdentityAdmin {
         $arguments.ContentType = 'application/json'
         $arguments.Body = $Body | ConvertTo-Json -Depth 20 -Compress
     }
-    return Invoke-RestMethod @arguments
+    try {
+        return Invoke-RestMethod @arguments
+    }
+    catch {
+        $status = if ($null -ne $_.Exception.Response) {
+            [int]$_.Exception.Response.StatusCode
+        }
+        else {
+            0
+        }
+        throw "Synthetic identity admin request $Method $Path failed with status $status"
+    }
+}
+
+function Get-FlowExecutions {
+    param(
+        [Parameter(Mandatory)][string]$Realm,
+        [Parameter(Mandatory)][string]$Alias
+    )
+    $encodedAlias = [Uri]::EscapeDataString($Alias)
+    $response = Invoke-IdentityAdmin `
+        -Method Get `
+        -Path "/admin/realms/$Realm/authentication/flows/$encodedAlias/executions"
+    return @($response)
+}
+
+function Set-ExecutionRequirement {
+    param(
+        [Parameter(Mandatory)][string]$Realm,
+        [Parameter(Mandatory)][string]$ParentAlias,
+        [Parameter(Mandatory)][object]$Execution,
+        [Parameter(Mandatory)][ValidateSet('ALTERNATIVE', 'CONDITIONAL', 'REQUIRED')][string]$Requirement
+    )
+    Set-ObjectProperty -InputObject $Execution -Name 'requirement' -Value $Requirement
+    $encodedParent = [Uri]::EscapeDataString($ParentAlias)
+    Invoke-IdentityAdmin `
+        -Method Put `
+        -Path "/admin/realms/$Realm/authentication/flows/$encodedParent/executions" `
+        -Body $Execution | Out-Null
+}
+
+function Add-FlowExecution {
+    param(
+        [Parameter(Mandatory)][string]$Realm,
+        [Parameter(Mandatory)][string]$ParentAlias,
+        [Parameter(Mandatory)][string]$Provider,
+        [Parameter(Mandatory)][ValidateSet('ALTERNATIVE', 'REQUIRED')][string]$Requirement
+    )
+    $encodedParent = [Uri]::EscapeDataString($ParentAlias)
+    Invoke-IdentityAdmin `
+        -Method Post `
+        -Path "/admin/realms/$Realm/authentication/flows/$encodedParent/executions/execution" `
+        -Body @{ provider = $Provider } | Out-Null
+    $matches = @(
+        Get-FlowExecutions -Realm $Realm -Alias $ParentAlias |
+            Where-Object { $_.providerId -eq $Provider -and [int]$_.level -eq 0 }
+    )
+    if ($matches.Count -ne 1) {
+        throw "Synthetic realm $Realm flow $ParentAlias did not contain exactly one $Provider execution"
+    }
+    Set-ExecutionRequirement `
+        -Realm $Realm `
+        -ParentAlias $ParentAlias `
+        -Execution $matches[0] `
+        -Requirement $Requirement
+    return $matches[0]
+}
+
+function Add-FlowSubFlow {
+    param(
+        [Parameter(Mandatory)][string]$Realm,
+        [Parameter(Mandatory)][string]$ParentAlias,
+        [Parameter(Mandatory)][string]$Alias,
+        [Parameter(Mandatory)][ValidateSet('ALTERNATIVE', 'CONDITIONAL')][string]$Requirement
+    )
+    $encodedParent = [Uri]::EscapeDataString($ParentAlias)
+    Invoke-IdentityAdmin `
+        -Method Post `
+        -Path "/admin/realms/$Realm/authentication/flows/$encodedParent/executions/flow" `
+        -Body @{
+            alias = $Alias
+            description = 'Atlas deterministic synthetic step-up flow'
+            provider = 'registration-page-form'
+            type = 'basic-flow'
+        } | Out-Null
+    $matches = @(
+        Get-FlowExecutions -Realm $Realm -Alias $ParentAlias |
+            Where-Object {
+                $flowProperty = $_.PSObject.Properties['authenticationFlow']
+                $null -ne $flowProperty -and [bool]$flowProperty.Value -and
+                [string]$_.displayName -eq $Alias -and
+                [int]$_.level -eq 0
+            }
+    )
+    if ($matches.Count -ne 1) {
+        throw "Synthetic realm $Realm flow $ParentAlias did not contain exactly one $Alias sub-flow"
+    }
+    Set-ExecutionRequirement `
+        -Realm $Realm `
+        -ParentAlias $ParentAlias `
+        -Execution $matches[0] `
+        -Requirement $Requirement
+}
+
+function Add-LoACondition {
+    param(
+        [Parameter(Mandatory)][string]$Realm,
+        [Parameter(Mandatory)][string]$ParentAlias,
+        [Parameter(Mandatory)][ValidateRange(1, 2)][int]$Level,
+        [Parameter(Mandatory)][ValidateRange(0, 36000)][int]$MaxAge
+    )
+    $execution = Add-FlowExecution `
+        -Realm $Realm `
+        -ParentAlias $ParentAlias `
+        -Provider 'conditional-level-of-authentication' `
+        -Requirement 'REQUIRED'
+    Invoke-IdentityAdmin `
+        -Method Post `
+        -Path "/admin/realms/$Realm/authentication/executions/$($execution.id)/config" `
+        -Body @{
+            alias = "Atlas synthetic LoA $Level"
+            config = @{
+                'loa-condition-level' = [string]$Level
+                'loa-max-age' = [string]$MaxAge
+            }
+        } | Out-Null
+}
+
+function Ensure-BasicFlowProviderTypes {
+    param(
+        [Parameter(Mandatory)][string]$Realm,
+        [Parameter(Mandatory)][string]$TopAlias
+    )
+
+    $subFlows = @(
+        Get-FlowExecutions -Realm $Realm -Alias $TopAlias |
+            Where-Object {
+                $flowProperty = $_.PSObject.Properties['authenticationFlow']
+                $null -ne $flowProperty -and [bool]$flowProperty.Value
+            }
+    )
+    if ($subFlows.Count -ne 3) {
+        throw "Synthetic realm $Realm Atlas step-up sub-flow inventory is invalid"
+    }
+    foreach ($execution in $subFlows) {
+        $flow = Invoke-IdentityAdmin `
+            -Method Get `
+            -Path "/admin/realms/$Realm/authentication/flows/$($execution.flowId)"
+        if ($flow.providerId -eq 'basic') {
+            Set-ObjectProperty -InputObject $flow -Name 'providerId' -Value 'basic-flow'
+            Invoke-IdentityAdmin `
+                -Method Put `
+                -Path "/admin/realms/$Realm/authentication/flows/$($execution.flowId)" `
+                -Body $flow | Out-Null
+            $flow = Invoke-IdentityAdmin `
+                -Method Get `
+                -Path "/admin/realms/$Realm/authentication/flows/$($execution.flowId)"
+        }
+        if ($flow.providerId -ne 'basic-flow') {
+            throw "Synthetic realm $Realm sub-flow $($flow.alias) has an invalid provider type"
+        }
+    }
+}
+
+function Ensure-FreshPasswordExecution {
+    param(
+        [Parameter(Mandatory)][string]$Realm,
+        [Parameter(Mandatory)][string]$LevelTwoAlias
+    )
+
+    $executions = Get-FlowExecutions -Realm $Realm -Alias $LevelTwoAlias
+    $legacyPassword = @($executions | Where-Object {
+        $_.providerId -eq 'auth-password-form' -and [int]$_.level -eq 0
+    })
+    foreach ($execution in $legacyPassword) {
+        Invoke-IdentityAdmin `
+            -Method Delete `
+            -Path "/admin/realms/$Realm/authentication/executions/$($execution.id)" | Out-Null
+    }
+
+    $freshPassword = @(
+        Get-FlowExecutions -Realm $Realm -Alias $LevelTwoAlias |
+            Where-Object {
+                $_.providerId -eq 'auth-username-password-form' -and
+                [int]$_.level -eq 0 -and
+                $_.requirement -eq 'REQUIRED'
+            }
+    )
+    if ($freshPassword.Count -eq 0) {
+        Add-FlowExecution `
+            -Realm $Realm `
+            -ParentAlias $LevelTwoAlias `
+            -Provider 'auth-username-password-form' `
+            -Requirement 'REQUIRED' | Out-Null
+        $freshPassword = @(
+            Get-FlowExecutions -Realm $Realm -Alias $LevelTwoAlias |
+                Where-Object {
+                    $_.providerId -eq 'auth-username-password-form' -and
+                    [int]$_.level -eq 0 -and
+                    $_.requirement -eq 'REQUIRED'
+                }
+        )
+    }
+    if ($freshPassword.Count -ne 1) {
+        throw "Synthetic realm $Realm level-two flow did not contain exactly one fresh-password execution"
+    }
+}
+
+function Ensure-SyntheticStepUpFlow {
+    param([Parameter(Mandatory)][string]$Realm)
+
+    $topAlias = 'atlas-browser-step-up'
+    $authenticationAlias = 'atlas-step-up-authentication'
+    $levelOneAlias = 'atlas-step-up-level-1'
+    $levelTwoAlias = 'atlas-step-up-level-2'
+    $flowResponse = Invoke-IdentityAdmin -Method Get -Path "/admin/realms/$Realm/authentication/flows"
+    $flows = @($flowResponse | Where-Object { $_.alias -eq $topAlias })
+    if ($flows.Count -eq 0) {
+        Invoke-IdentityAdmin `
+            -Method Post `
+            -Path "/admin/realms/$Realm/authentication/flows" `
+            -Body @{
+                alias = $topAlias
+                description = 'Atlas deterministic synthetic LoA flow; level 2 is fresh password confirmation, not MFA.'
+                providerId = 'basic-flow'
+                topLevel = $true
+                builtIn = $false
+            } | Out-Null
+        Add-FlowExecution `
+            -Realm $Realm `
+            -ParentAlias $topAlias `
+            -Provider 'auth-cookie' `
+            -Requirement 'ALTERNATIVE' | Out-Null
+        Add-FlowSubFlow `
+            -Realm $Realm `
+            -ParentAlias $topAlias `
+            -Alias $authenticationAlias `
+            -Requirement 'ALTERNATIVE'
+        Add-FlowSubFlow `
+            -Realm $Realm `
+            -ParentAlias $authenticationAlias `
+            -Alias $levelOneAlias `
+            -Requirement 'CONDITIONAL'
+        Add-LoACondition -Realm $Realm -ParentAlias $levelOneAlias -Level 1 -MaxAge 36000
+        Add-FlowExecution `
+            -Realm $Realm `
+            -ParentAlias $levelOneAlias `
+            -Provider 'auth-username-password-form' `
+            -Requirement 'REQUIRED' | Out-Null
+        Add-FlowSubFlow `
+            -Realm $Realm `
+            -ParentAlias $authenticationAlias `
+            -Alias $levelTwoAlias `
+            -Requirement 'CONDITIONAL'
+        Add-LoACondition -Realm $Realm -ParentAlias $levelTwoAlias -Level 2 -MaxAge 0
+        Add-FlowExecution `
+            -Realm $Realm `
+            -ParentAlias $levelTwoAlias `
+            -Provider 'auth-username-password-form' `
+            -Requirement 'REQUIRED' | Out-Null
+    }
+    elseif ($flows.Count -ne 1) {
+        throw "Synthetic realm $Realm contains an ambiguous Atlas step-up flow inventory"
+    }
+
+    Ensure-BasicFlowProviderTypes -Realm $Realm -TopAlias $topAlias
+    Ensure-FreshPasswordExecution -Realm $Realm -LevelTwoAlias $levelTwoAlias
+    $executions = Get-FlowExecutions -Realm $Realm -Alias $topAlias
+    $cookie = @($executions | Where-Object {
+        $providerProperty = $_.PSObject.Properties['providerId']
+        $null -ne $providerProperty -and $providerProperty.Value -eq 'auth-cookie' -and
+        $_.requirement -eq 'ALTERNATIVE'
+    })
+    $usernamePassword = @($executions | Where-Object {
+        $providerProperty = $_.PSObject.Properties['providerId']
+        $null -ne $providerProperty -and
+        $providerProperty.Value -eq 'auth-username-password-form' -and
+        $_.requirement -eq 'REQUIRED'
+    })
+    $freshPassword = @(
+        Get-FlowExecutions -Realm $Realm -Alias $levelTwoAlias |
+            Where-Object {
+                $_.providerId -eq 'auth-username-password-form' -and
+                [int]$_.level -eq 0 -and
+                $_.requirement -eq 'REQUIRED'
+            }
+    )
+    $conditions = @($executions | Where-Object {
+        $providerProperty = $_.PSObject.Properties['providerId']
+        $configProperty = $_.PSObject.Properties['authenticationConfig']
+        $null -ne $providerProperty -and
+        $providerProperty.Value -eq 'conditional-level-of-authentication' -and
+        $_.requirement -eq 'REQUIRED' -and
+        $null -ne $configProperty -and
+        -not [String]::IsNullOrWhiteSpace([string]$configProperty.Value)
+    })
+    if ($cookie.Count -ne 1 -or $usernamePassword.Count -ne 2 -or
+        $freshPassword.Count -ne 1 -or $conditions.Count -ne 2) {
+        throw "Synthetic realm $Realm Atlas step-up flow structure is invalid"
+    }
+    $configuredLevels = @{}
+    foreach ($condition in $conditions) {
+        $configuration = Invoke-IdentityAdmin `
+            -Method Get `
+            -Path "/admin/realms/$Realm/authentication/config/$($condition.PSObject.Properties['authenticationConfig'].Value)"
+        $configuredLevels[[string]$configuration.config.'loa-condition-level'] =
+            [string]$configuration.config.'loa-max-age'
+    }
+    if ($configuredLevels.Count -ne 2 -or
+        $configuredLevels['1'] -ne '36000' -or
+        $configuredLevels['2'] -ne '0') {
+        throw "Synthetic realm $Realm Atlas step-up LoA configuration is invalid"
+    }
+    return $topAlias
 }
 
 if ($RotateTestCredential) {
@@ -174,12 +487,14 @@ try {
     foreach ($population in $populations) {
         $realmName = $population.Realm
         $realm = Invoke-IdentityAdmin -Method Get -Path "/admin/realms/$realmName"
+        $browserFlow = Ensure-SyntheticStepUpFlow -Realm $realmName
         Set-ObjectProperty -InputObject $realm -Name 'registrationAllowed' -Value $false
         Set-ObjectProperty -InputObject $realm -Name 'resetPasswordAllowed' -Value $false
         Set-ObjectProperty -InputObject $realm -Name 'rememberMe' -Value $false
         Set-ObjectProperty -InputObject $realm -Name 'ssoSessionIdleTimeout' -Value $population.IdleSeconds
         Set-ObjectProperty -InputObject $realm -Name 'ssoSessionMaxLifespan' -Value $population.MaximumSeconds
         Set-ObjectProperty -InputObject $realm -Name 'accessTokenLifespan' -Value 300
+        Set-ObjectProperty -InputObject $realm -Name 'browserFlow' -Value $browserFlow
         Invoke-IdentityAdmin -Method Put -Path "/admin/realms/$realmName" -Body $realm | Out-Null
 
         $clientResponse = Invoke-IdentityAdmin -Method Get -Path "/admin/realms/$realmName/clients?clientId=$clientID"
@@ -255,6 +570,7 @@ try {
     }
 
     Write-Output 'p01_s04_keycloak_clients=PASS(count=3,public=true,pkce=S256,direct_grants=false)'
+    Write-Output 'p01_s04_keycloak_step_up=PASS(count=3,loa1=password,loa2=fresh-password,max-age=0,mfa-claim=false)'
     Write-Output 'p01_s04_keycloak_subjects=PASS(count=3,passwords=runtime-only)'
 }
 finally {

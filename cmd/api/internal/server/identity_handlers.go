@@ -322,8 +322,19 @@ func (a *App) beginStepUp(response http.ResponseWriter, request *http.Request) {
 		a.writeIdentityError(response, request, identity.ErrCSRFValidationFailed)
 		return
 	}
+	idempotencyKey, ok := singleHeader(request.Header, "Idempotency-Key")
+	if !ok {
+		a.malformed(response, request)
+		return
+	}
+	correlationID, ok := requestCorrelationID(request)
+	if !ok {
+		a.writeIdentityError(response, request, identity.ErrIdentityUnavailable)
+		return
+	}
 	result, err := a.identity.BeginStepUp(request.Context(), identity.BeginStepUpRequest{
 		CookieValue: cookie, CSRFToken: csrfToken, Action: body.Action,
+		IdempotencyKey: idempotencyKey, CorrelationID: correlationID,
 	})
 	if err != nil {
 		a.writeIdentityError(response, request, err)
@@ -400,6 +411,10 @@ func (a *App) writeIdentityError(response http.ResponseWriter, request *http.Req
 		a.writeProblem(response, request, http.StatusNotFound, "not-found-or-concealed", "Not found", "NOT_FOUND_OR_CONCEALED", false)
 	case errors.Is(err, identity.ErrSessionConflict):
 		a.writeProblem(response, request, http.StatusConflict, "conflict", "Conflict", "CONFLICT", false)
+	case errors.Is(err, identity.ErrIdempotencyConflict):
+		a.writeProblem(response, request, http.StatusConflict, "idempotency-conflict", "Conflict", "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST", false)
+	case errors.Is(err, identity.ErrIdempotencyInProgress):
+		a.writeProblem(response, request, http.StatusConflict, "idempotency-in-progress", "Conflict", "IDEMPOTENCY_REQUEST_IN_PROGRESS", true)
 	case errors.Is(err, identity.ErrInputInvalid):
 		a.malformed(response, request)
 	default:

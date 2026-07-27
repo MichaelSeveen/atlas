@@ -42,9 +42,9 @@ Source: [product charter §5–6](../atlas-prd/00-master/00_PRODUCT_CHARTER.md),
 Current delivery is Phase 01 after bounded Phase 00 closure. S01 planning, S02
 contract/decision closure, and S03 Identity/Audit persistence plus recovery revalidation are
 complete in the pre-commit worktree. S04 synthetic OIDC BFF/session lifecycle is underway: its
-core customer/merchant session boundary and workforce baseline denial exist, while step-up
-idempotency/live higher assurance, admin revocation, and remaining differential/browser evidence
-are open. Hard order is `00 → {01,03}`,
+core customer/merchant session boundary, workforce baseline denial, durable step-up idempotency,
+and live higher-assurance rotation exist, while admin revocation and remaining
+differential/browser evidence are open. Hard order is `00 → {01,03}`,
 `01 → 02`, `{01,02,04} → 05`,
 `03 → 04`, `05 → 06 → 07`, `{01,07} → 08`, `{07,08} → 09`, `{05,09} → 10 → 11 → 12 → 13`.
 See the [roadmap](../atlas-prd/00-master/04_ROADMAP_AND_DEPENDENCIES.md).

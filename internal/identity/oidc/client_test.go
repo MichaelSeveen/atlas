@@ -47,6 +47,7 @@ func TestAuthorizationCodeFlowValidatesDiscoveryPKCENonceAndTokenClaims(t *testi
 		query.Get("state") != state || query.Get("nonce") != nonce ||
 		query.Get("code_challenge_method") != "S256" ||
 		query.Get("code_challenge") != oauth2.S256ChallengeFromVerifier(verifier) ||
+		query.Get("acr_values") != "1" ||
 		query.Get("redirect_uri") != upstream.server.URL+"/v1/auth/callback" {
 		t.Fatalf("unsafe authorization URL: %s", authorizationURL)
 	}
@@ -69,6 +70,30 @@ func TestAuthorizationCodeFlowValidatesDiscoveryPKCENonceAndTokenClaims(t *testi
 	}
 	if upstream.lastVerifier() != verifier {
 		t.Fatal("token endpoint did not receive the original PKCE verifier")
+	}
+}
+
+func TestStepUpAuthorizationRequestsFreshHigherAssurance(t *testing.T) {
+	now := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
+	upstream := newOIDCTestServer(t, now)
+	client := newTestClient(t, upstream, now)
+	authorizationURL, err := client.AuthorizationURL(
+		context.Background(), identity.PopulationCustomer,
+		tokenCharacter('s'), tokenCharacter('n'), tokenCharacter('v'),
+		identity.TransactionStepUp,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := url.Parse(authorizationURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	query := parsed.Query()
+	if query.Get("acr_values") != "2 3" ||
+		query.Get("prompt") != "login" ||
+		query.Get("max_age") != "0" {
+		t.Fatalf("unsafe step-up authorization URL: %s", authorizationURL)
 	}
 }
 

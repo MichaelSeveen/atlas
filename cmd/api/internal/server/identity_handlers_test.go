@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -87,6 +88,36 @@ func TestIdentityBFFLoginCookieCurrentPrincipalAndLogoutContract(t *testing.T) {
 		strings.Contains(currentResponse.Body.String(), sessionCookie.Value) ||
 		strings.Contains(currentResponse.Body.String(), "token") {
 		t.Fatalf("unsafe current-principal response: headers=%v body=%s", currentResponse.Header(), currentResponse.Body)
+	}
+
+	stepUp := func(action string) *httptest.ResponseRecorder {
+		request := httptest.NewRequest(
+			http.MethodPost, "/v1/step-up/challenges",
+			strings.NewReader(`{"action":"`+action+`"}`),
+		)
+		request.AddCookie(sessionCookie)
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set(identity.CSRFHeaderName, csrfToken)
+		request.Header.Set("Idempotency-Key", "http-step-up-replay-0001")
+		result := httptest.NewRecorder()
+		app.Handler().ServeHTTP(result, request)
+		return result
+	}
+	firstStepUp := stepUp("identity.approval.decide")
+	replayedStepUp := stepUp("identity.approval.decide")
+	if firstStepUp.Code != http.StatusCreated ||
+		replayedStepUp.Code != http.StatusCreated ||
+		replayedStepUp.Body.String() != firstStepUp.Body.String() ||
+		replayedStepUp.Header().Get("Location") != firstStepUp.Header().Get("Location") ||
+		provider.authorizationCalls != 2 {
+		t.Fatalf("step-up replay was not exact: first=%d/%s replay=%d/%s calls=%d",
+			firstStepUp.Code, firstStepUp.Body, replayedStepUp.Code, replayedStepUp.Body,
+			provider.authorizationCalls)
+	}
+	conflictStepUp := stepUp("identity.approval.execute")
+	if conflictStepUp.Code != http.StatusConflict ||
+		!strings.Contains(conflictStepUp.Body.String(), "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST") {
+		t.Fatalf("step-up key mismatch status=%d body=%s", conflictStepUp.Code, conflictStepUp.Body)
 	}
 
 	missingCSRF := httptest.NewRequest(http.MethodPost, "/v1/logout", nil)
@@ -265,6 +296,7 @@ type httpIdentityProvider struct {
 	pkce                string
 	authorizationIssuer string
 	claims              identity.ProviderClaims
+	authorizationCalls  int
 }
 
 func (provider *httpIdentityProvider) AuthorizationURL(
@@ -273,6 +305,7 @@ func (provider *httpIdentityProvider) AuthorizationURL(
 	state, nonce, pkce string,
 	_ identity.TransactionKind,
 ) (string, error) {
+	provider.authorizationCalls++
 	provider.state, provider.nonce, provider.pkce = state, nonce, pkce
 	return "https://identity.test.invalid/authorize?state=" + url.QueryEscape(state), nil
 }
@@ -309,6 +342,15 @@ type httpIdentityStore struct {
 	transactionUsed bool
 	sessions        map[[32]byte]identity.Session
 	revocations     int
+	stepUps         map[[32]byte]httpStepUpClaim
+}
+
+type httpStepUpClaim struct {
+	requestID     identifier.ID
+	requestDigest [32]byte
+	transaction   identity.OIDCTransaction
+	url           string
+	completed     bool
 }
 
 func (store *httpIdentityStore) PutOIDCTransaction(_ context.Context, transaction identity.OIDCTransaction) error {
@@ -327,6 +369,55 @@ func (store *httpIdentityStore) TakeOIDCTransaction(
 	}
 	store.transactionUsed = true
 	return store.transaction, nil
+}
+
+func (store *httpIdentityStore) ClaimStepUp(
+	_ context.Context,
+	command identity.StepUpClaimCommand,
+) (identity.StepUpClaimResult, error) {
+	claim, found := store.stepUps[command.IdempotencyScope]
+	if found {
+		if claim.requestDigest != command.RequestDigest {
+			return identity.StepUpClaimResult{}, identity.ErrIdempotencyConflict
+		}
+		if claim.completed {
+			return identity.StepUpClaimResult{
+				ChallengeRequestID: claim.requestID, Replay: true,
+				TransactionID:    claim.transaction.TransactionID,
+				AuthorizationURL: claim.url, ExpiresAt: claim.transaction.ExpiresAt,
+			}, nil
+		}
+		return identity.StepUpClaimResult{}, identity.ErrIdempotencyInProgress
+	}
+	store.stepUps[command.IdempotencyScope] = httpStepUpClaim{
+		requestID: command.ChallengeRequestID, requestDigest: command.RequestDigest,
+	}
+	return identity.StepUpClaimResult{
+		ChallengeRequestID: command.ChallengeRequestID, Owner: true,
+	}, nil
+}
+
+func (store *httpIdentityStore) CompleteStepUp(
+	_ context.Context,
+	command identity.CompleteStepUpCommand,
+) error {
+	claim := store.stepUps[command.IdempotencyScope]
+	claim.completed = true
+	claim.transaction = command.Transaction
+	claim.url = command.AuthorizationURL
+	store.stepUps[command.IdempotencyScope] = claim
+	store.transaction = command.Transaction
+	store.transactionUsed = false
+	return nil
+}
+
+func (store *httpIdentityStore) FailStepUp(
+	context.Context,
+	identifier.ID,
+	[32]byte,
+	time.Time,
+) error {
+	return nil
 }
 
 func (store *httpIdentityStore) CreateSession(
@@ -398,7 +489,10 @@ func (store *httpIdentityStore) RevokeAll(
 
 func newHTTPIdentityService(t *testing.T) (*identity.Service, *httpIdentityStore, *httpIdentityProvider) {
 	t.Helper()
-	store := &httpIdentityStore{sessions: make(map[[32]byte]identity.Session)}
+	store := &httpIdentityStore{
+		sessions: make(map[[32]byte]identity.Session),
+		stepUps:  make(map[[32]byte]httpStepUpClaim),
+	}
 	provider := &httpIdentityProvider{claims: identity.ProviderClaims{
 		Issuer:          "https://identity.test.invalid/realms/customer",
 		Subject:         "00000000-0000-4000-8000-000000000101",
@@ -415,7 +509,7 @@ func newHTTPIdentityService(t *testing.T) (*identity.Service, *httpIdentityStore
 		Clock: clock.NewFixed(testBuildTime), Entropy: &sequentialReader{next: 40},
 		NewID: func(prefix string) (identifier.ID, error) {
 			counter++
-			return identifier.Parse(prefix + "_" + strings.Repeat("0", 19) + string(rune('0'+counter)))
+			return identifier.Parse(fmt.Sprintf("%s_%020d", prefix, counter))
 		},
 	})
 	if err != nil {

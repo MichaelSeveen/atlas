@@ -3,6 +3,7 @@ package architecture
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -23,12 +24,13 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 	auditSQL := readPhase01PolicyFile(t, root, "db/migrations/000004_phase_01_audit_persistence.sql")
 	sessionSQL := readPhase01PolicyFile(t, root, "db/migrations/000005_phase_01_oidc_sessions.sql")
 	sessionGrantSQL := readPhase01PolicyFile(t, root, "db/migrations/000006_phase_01_session_authority_lock_grant.sql")
+	stepUpSQL := readPhase01PolicyFile(t, root, "db/migrations/000007_phase_01_step_up_idempotency.sql")
 	adminRevocationSQL := readPhase01PolicyFile(t, root, "db/migrations/000008_phase_01_admin_session_revocation.sql")
 	invitationSQL := readPhase01PolicyFile(t, root, "db/migrations/000009_phase_01_organization_invitations.sql")
 	invitationAcceptanceSQL := readPhase01PolicyFile(t, root, "db/migrations/000010_phase_01_invitation_acceptance.sql")
 	membershipRoleChangeSQL := readPhase01PolicyFile(t, root, "db/migrations/000011_phase_01_membership_role_changes.sql")
 	allSQL := identitySQL + "\n" + auditSQL + "\n" + sessionSQL + "\n" +
-		sessionGrantSQL + "\n" + adminRevocationSQL + "\n" + invitationSQL + "\n" +
+		sessionGrantSQL + "\n" + stepUpSQL + "\n" + adminRevocationSQL + "\n" + invitationSQL + "\n" +
 		invitationAcceptanceSQL + "\n" + membershipRoleChangeSQL
 
 	tables := make([]string, 0)
@@ -53,6 +55,7 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 		"atlas_identity.role_permissions",
 		"atlas_identity.session_revocation_requests",
 		"atlas_identity.sessions",
+		"atlas_identity.step_up_challenge_requests",
 	}
 	if !reflect.DeepEqual(tables, wantTables) {
 		t.Fatalf("closed product-table inventory = %#v", tables)
@@ -221,6 +224,40 @@ func TestDatabaseVerificationMigrationCountsTrackManifest(t *testing.T) {
 				t.Errorf("%s does not use the manifest-bound migration count in %q", relative, check)
 			}
 		}
+	}
+}
+
+func TestDatabaseVerificationTracksLatestPolicySeed(t *testing.T) {
+	root := repositoryRoot(t)
+	seedTool := readPhase01PolicyFile(t, root, "db/tools/apply-phase-01-seeds.sh")
+	wantSeedCount := strings.Count(seedTool, "\napply_seed '")
+	if wantSeedCount == 0 {
+		t.Fatal("Phase 01 seed tool does not apply any canonical seeds")
+	}
+	latestSeed := readPhase01PolicyFile(t, root, "db/seeds/000003_phase_01_policy.json")
+	var policy struct {
+		PolicySHA256 string `json:"policy_sha256"`
+	}
+	if err := json.Unmarshal([]byte(latestSeed), &policy); err != nil {
+		t.Fatal(err)
+	}
+	if !regexp.MustCompile(`^[0-9a-f]{64}$`).MatchString(policy.PolicySHA256) {
+		t.Fatal("latest Phase 01 policy seed checksum is invalid")
+	}
+	wantPolicyDeclaration := "expected_policy_checksum='" + policy.PolicySHA256 + "'"
+	for _, relative := range []string{
+		"db/tests/phase01_identity.sh",
+		"db/recovery/verify-restore.sh",
+	} {
+		source := readPhase01PolicyFile(t, root, relative)
+		if !strings.Contains(source, wantPolicyDeclaration) {
+			t.Errorf("%s policy checksum does not match the latest Phase 01 policy seed", relative)
+		}
+	}
+	identityCheck := readPhase01PolicyFile(t, root, "db/tests/phase01_identity.sh")
+	wantSeedDeclaration := "expected_seed_count='" + strconv.Itoa(wantSeedCount) + "'"
+	if !strings.Contains(identityCheck, wantSeedDeclaration) {
+		t.Errorf("Phase 01 identity verification seed count does not match %d canonical seeds", wantSeedCount)
 	}
 }
 

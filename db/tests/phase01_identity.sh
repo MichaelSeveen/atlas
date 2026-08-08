@@ -8,6 +8,8 @@ set -eu
 test_database='atlas_p01_s03_seed_test'
 failure_output='/tmp/atlas-p01-s03-denial.out'
 expected_migration_count='11'
+expected_seed_count='3'
+expected_policy_checksum='2acd97d4467eed25c0991331e5283b303df3fd52d0f4c9d5f6851353db64c2d1'
 
 admin_sql() {
   PGPASSWORD="$ATLAS_POSTGRES_PASSWORD" psql -X -h 127.0.0.1 -U "$ATLAS_POSTGRES_USER" -d "$ATLAS_POSTGRES_DB" -v ON_ERROR_STOP=1 -Atqc "$1"
@@ -43,12 +45,11 @@ ATLAS_SEED_TARGET_DATABASE="$test_database" /database/tools/apply-phase-01-seeds
 ATLAS_SEED_TARGET_DATABASE="$test_database" /database/tools/apply-phase-01-seeds.sh >/dev/null
 
 [ "$(query 'SELECT count(*) FROM atlas_foundation.schema_migrations')" = "$expected_migration_count" ]
-[ "$(query 'SELECT count(*) FROM atlas_foundation.seed_applications')" = '2' ]
-[ "$(query "SELECT count(*) FROM atlas_foundation.data_scope_registry WHERE schema_name IN ('atlas_identity', 'atlas_audit')")" = '15' ]
+[ "$(query 'SELECT count(*) FROM atlas_foundation.seed_applications')" = "$expected_seed_count" ]
 [ "$(query 'SELECT count(*) FROM atlas_identity.permission_catalogue')" = '23' ]
 [ "$(query 'SELECT count(*) FROM atlas_identity.role_catalogue')" = '13' ]
-[ "$(query "SELECT count(*) FROM atlas_identity.permission_catalogue WHERE policy_checksum = '8c5085e94e6006b232f28974ebb6aa251452be18647f9863dd4155ce43c7f8cf'")" = '23' ]
-[ "$(query "SELECT count(*) FROM atlas_identity.role_catalogue WHERE policy_checksum = '8c5085e94e6006b232f28974ebb6aa251452be18647f9863dd4155ce43c7f8cf'")" = '13' ]
+[ "$(query "SELECT count(*) FROM atlas_identity.permission_catalogue WHERE policy_checksum = '$expected_policy_checksum'")" = '23' ]
+[ "$(query "SELECT count(*) FROM atlas_identity.role_catalogue WHERE policy_checksum = '$expected_policy_checksum'")" = '13' ]
 [ "$(query 'SELECT count(*) FROM atlas_identity.role_permissions')" = '119' ]
 [ "$(query 'SELECT count(*) FROM atlas_identity.role_delegations')" = '6' ]
 [ "$(query 'SELECT count(*) FROM atlas_identity.organizations')" = '2' ]

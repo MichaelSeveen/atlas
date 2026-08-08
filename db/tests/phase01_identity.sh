@@ -7,6 +7,7 @@ set -eu
 
 test_database='atlas_p01_s03_seed_test'
 failure_output='/tmp/atlas-p01-s03-denial.out'
+expected_migration_count='11'
 
 admin_sql() {
   PGPASSWORD="$ATLAS_POSTGRES_PASSWORD" psql -X -h 127.0.0.1 -U "$ATLAS_POSTGRES_USER" -d "$ATLAS_POSTGRES_DB" -v ON_ERROR_STOP=1 -Atqc "$1"
@@ -41,7 +42,7 @@ ATLAS_MIGRATION_TARGET_DATABASE="$test_database" /database/tools/apply-migration
 ATLAS_SEED_TARGET_DATABASE="$test_database" /database/tools/apply-phase-01-seeds.sh >/dev/null
 ATLAS_SEED_TARGET_DATABASE="$test_database" /database/tools/apply-phase-01-seeds.sh >/dev/null
 
-[ "$(query 'SELECT count(*) FROM atlas_foundation.schema_migrations')" = '8' ]
+[ "$(query 'SELECT count(*) FROM atlas_foundation.schema_migrations')" = "$expected_migration_count" ]
 [ "$(query 'SELECT count(*) FROM atlas_foundation.seed_applications')" = '2' ]
 [ "$(query "SELECT count(*) FROM atlas_foundation.data_scope_registry WHERE schema_name IN ('atlas_identity', 'atlas_audit')")" = '15' ]
 [ "$(query 'SELECT count(*) FROM atlas_identity.permission_catalogue')" = '23' ]

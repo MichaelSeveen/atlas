@@ -8,8 +8,11 @@ import (
 	"reflect"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/MichaelSeveen/atlas/internal/platform/migration"
 )
 
 var phase01ProductTablePattern = regexp.MustCompile(`(?i)CREATE TABLE (atlas_(?:identity|audit))\.([a-z][a-z0-9_]*)`)
@@ -185,6 +188,38 @@ func TestPhase01TenantRepositorySignatureAndPredicateAreExplicit(t *testing.T) {
 	} {
 		if !strings.Contains(roleChangeSource, required) {
 			t.Errorf("membership role-change repository is missing %q", required)
+		}
+	}
+}
+
+func TestDatabaseVerificationMigrationCountsTrackManifest(t *testing.T) {
+	root := repositoryRoot(t)
+	wantDeclaration := "expected_migration_count='" + strconv.Itoa(migration.CurrentVersion) + "'"
+	wantChecks := map[string][]string{
+		"db/tests/migration_lanes.sh": {
+			`[ "$empty_count" = "$expected_migration_count" ]`,
+			`[ "$upgraded_count" = "$expected_migration_count" ]`,
+			`[ "$rerun_count" = "$expected_migration_count" ]`,
+		},
+		"db/tests/phase01_identity.sh": {
+			`[ "$(query 'SELECT count(*) FROM atlas_foundation.schema_migrations')" = "$expected_migration_count" ]`,
+		},
+		"db/recovery/verify-restore.sh": {
+			`[ "$(query 'SELECT count(*) FROM atlas_foundation.schema_migrations')" = "$expected_migration_count" ]`,
+		},
+		"db/tests/phase01_session_repository.sh": {
+			"WHEN (SELECT count(*) FROM atlas_foundation.schema_migrations) = $expected_migration_count",
+		},
+	}
+	for relative, checks := range wantChecks {
+		source := readPhase01PolicyFile(t, root, relative)
+		if !strings.Contains(source, wantDeclaration) {
+			t.Errorf("%s migration-count declaration does not match version %d", relative, migration.CurrentVersion)
+		}
+		for _, check := range checks {
+			if !strings.Contains(source, check) {
+				t.Errorf("%s does not use the manifest-bound migration count in %q", relative, check)
+			}
 		}
 	}
 }

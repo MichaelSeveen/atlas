@@ -17,6 +17,12 @@ var identityRoutes = []string{
 	"/v1/sessions/revoke-all",
 	"/v1/security/sessions/{session_id}/revocations",
 	"/v1/step-up/challenges",
+	"/v1/me/active-organization",
+	"/v1/organizations",
+	"/v1/organizations/{organization_id}/members",
+	"/v1/organizations/{organization_id}/invitations",
+	"/v1/organization-invitations/{invitation_id}/authentication",
+	"/v1/organization-invitations/{invitation_id}/acceptance",
 }
 
 type statusResponse struct {
@@ -112,15 +118,45 @@ func identityRoute(path string) string {
 			return "/v1/security/sessions/{session_id}/revocations"
 		}
 	}
+	const organizationPrefix = "/v1/organizations/"
+	const membersSuffix = "/members"
+	if strings.HasPrefix(path, organizationPrefix) && strings.HasSuffix(path, membersSuffix) {
+		identifier := strings.TrimSuffix(strings.TrimPrefix(path, organizationPrefix), membersSuffix)
+		if identifier != "" && !strings.Contains(identifier, "/") {
+			return "/v1/organizations/{organization_id}/members"
+		}
+	}
+	const invitationSuffix = "/invitations"
+	if strings.HasPrefix(path, organizationPrefix) && strings.HasSuffix(path, invitationSuffix) {
+		identifier := strings.TrimSuffix(strings.TrimPrefix(path, organizationPrefix), invitationSuffix)
+		if identifier != "" && !strings.Contains(identifier, "/") {
+			return "/v1/organizations/{organization_id}/invitations"
+		}
+	}
+	const organizationInvitationPrefix = "/v1/organization-invitations/"
+	for _, suffix := range []string{"/authentication", "/acceptance"} {
+		if strings.HasPrefix(path, organizationInvitationPrefix) && strings.HasSuffix(path, suffix) {
+			identifier := strings.TrimSuffix(strings.TrimPrefix(path, organizationInvitationPrefix), suffix)
+			if identifier != "" && !strings.Contains(identifier, "/") {
+				return "/v1/organization-invitations/{invitation_id}" + suffix
+			}
+		}
+	}
 	return ""
 }
 
 func allowedMethods(path string) []string {
 	switch identityRoute(path) {
-	case "/v1/me", "/v1/auth/login", "/v1/auth/callback", "/v1/sessions":
+	case "/v1/me", "/v1/auth/login", "/v1/auth/callback", "/v1/sessions",
+		"/v1/organizations", "/v1/organizations/{organization_id}/members":
 		return []string{http.MethodGet}
+	case "/v1/me/active-organization":
+		return []string{http.MethodPut}
 	case "/v1/logout", "/v1/sessions/revoke-all",
-		"/v1/security/sessions/{session_id}/revocations", "/v1/step-up/challenges":
+		"/v1/security/sessions/{session_id}/revocations", "/v1/step-up/challenges",
+		"/v1/organizations/{organization_id}/invitations",
+		"/v1/organization-invitations/{invitation_id}/authentication",
+		"/v1/organization-invitations/{invitation_id}/acceptance":
 		return []string{http.MethodPost}
 	case "/v1/sessions/{session_id}":
 		return []string{http.MethodDelete}

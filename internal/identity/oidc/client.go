@@ -203,10 +203,12 @@ func (client *Client) Exchange(
 		}
 	}
 	var claims struct {
-		Nonce     string `json:"nonce"`
-		ACR       string `json:"acr"`
-		AuthTime  int64  `json:"auth_time"`
-		NotBefore int64  `json:"nbf"`
+		Nonce         string `json:"nonce"`
+		ACR           string `json:"acr"`
+		AuthTime      int64  `json:"auth_time"`
+		NotBefore     int64  `json:"nbf"`
+		Email         string `json:"email"`
+		EmailVerified bool   `json:"email_verified"`
 	}
 	if err := idToken.Claims(&claims); err != nil || claims.Nonce == "" || claims.AuthTime <= 0 {
 		return identity.ProviderClaims{}, identity.ErrProviderInvalid
@@ -223,6 +225,7 @@ func (client *Client) Exchange(
 	return identity.ProviderClaims{
 		Issuer: discovered.config.Issuer, Subject: idToken.Subject, Nonce: claims.Nonce,
 		Assurance: assurance, AuthenticatedAt: time.Unix(claims.AuthTime, 0).UTC(),
+		Email: claims.Email, EmailVerified: claims.EmailVerified,
 	}, nil
 }
 
@@ -262,7 +265,7 @@ func (client *Client) provider(
 		provider: provider,
 		oauth: oauth2.Config{
 			ClientID: config.ClientID, RedirectURL: config.RedirectURL,
-			Endpoint: endpoint, Scopes: []string{coreoidc.ScopeOpenID},
+			Endpoint: endpoint, Scopes: []string{coreoidc.ScopeOpenID, "email"},
 		},
 		config: config,
 	}

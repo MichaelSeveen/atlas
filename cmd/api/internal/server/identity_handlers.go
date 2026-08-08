@@ -60,6 +60,59 @@ type stepUpResponse struct {
 	ExpiresAt         string `json:"expires_at"`
 }
 
+type setActiveOrganizationRequest struct {
+	OrganizationID string `json:"organization_id"`
+}
+
+type organizationResponse struct {
+	ID                string `json:"id"`
+	DisplayName       string `json:"display_name"`
+	PrincipalRole     string `json:"principal_role"`
+	MembershipVersion int64  `json:"membership_version"`
+}
+
+type organizationMemberResponse struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	PrincipalID    string `json:"principal_id"`
+	EmailHint      any    `json:"email_hint"`
+	Role           string `json:"role"`
+	Status         string `json:"status"`
+	Version        int64  `json:"version"`
+	CreatedAt      string `json:"created_at"`
+	RevokedAt      any    `json:"revoked_at"`
+}
+
+type pageInfoResponse struct {
+	NextCursor any  `json:"next_cursor"`
+	HasMore    bool `json:"has_more"`
+}
+
+type createOrganizationInvitationRequest struct {
+	Email string `json:"email"`
+	Role  string `json:"role"`
+}
+
+type invitationTokenRequest struct {
+	AcceptanceToken string `json:"acceptance_token"`
+}
+
+type organizationInvitationResponse struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	EmailHint      string `json:"email_hint"`
+	Role           string `json:"role"`
+	Status         string `json:"status"`
+	ExpiresAt      string `json:"expires_at"`
+	CreatedAt      string `json:"created_at"`
+}
+
+type organizationInvitationCreatedResponse struct {
+	Invitation      organizationInvitationResponse `json:"invitation"`
+	AcceptanceToken any                            `json:"acceptance_token"`
+	SecretDisclosed bool                           `json:"secret_disclosed"`
+}
+
 func (a *App) routeIdentity(response http.ResponseWriter, request *http.Request) {
 	if !a.requireMethod(response, request) {
 		return
@@ -87,9 +140,354 @@ func (a *App) routeIdentity(response http.ResponseWriter, request *http.Request)
 		a.revokeSessionForSecurity(response, request)
 	case "/v1/step-up/challenges":
 		a.beginStepUp(response, request)
+	case "/v1/me/active-organization":
+		a.setActiveOrganization(response, request)
+	case "/v1/organizations":
+		a.listOrganizations(response, request)
+	case "/v1/organizations/{organization_id}/members":
+		a.listOrganizationMembers(response, request)
+	case "/v1/organizations/{organization_id}/invitations":
+		a.createOrganizationInvitation(response, request)
+	case "/v1/organization-invitations/{invitation_id}/authentication":
+		a.beginInvitationAuthentication(response, request)
+	case "/v1/organization-invitations/{invitation_id}/acceptance":
+		a.acceptOrganizationInvitation(response, request)
 	default:
 		a.writeProblem(response, request, http.StatusNotFound, "route-not-found", "Not found", "ROUTE_NOT_FOUND", false)
 	}
+}
+
+func (a *App) beginInvitationAuthentication(response http.ResponseWriter, request *http.Request) {
+	if request.URL.RawQuery != "" {
+		a.malformed(response, request)
+		return
+	}
+	var body invitationTokenRequest
+	if err := decodeStrictJSON(request, &body); err != nil {
+		a.malformed(response, request)
+		return
+	}
+	invitationID, err := invitationIDFromPath(request.URL.Path, "/authentication")
+	if err != nil {
+		a.writeIdentityError(response, request, identity.ErrInvitationNotFound)
+		return
+	}
+	result, err := a.identity.BeginInvitationAuthentication(
+		request.Context(), invitationID, body.AcceptanceToken, optionalSessionCookie(request),
+	)
+	if err != nil {
+		a.writeIdentityError(response, request, err)
+		return
+	}
+	response.Header().Set("Location", result.AuthorizationURL)
+	response.WriteHeader(http.StatusSeeOther)
+}
+
+func (a *App) acceptOrganizationInvitation(response http.ResponseWriter, request *http.Request) {
+	if request.URL.RawQuery != "" {
+		a.malformed(response, request)
+		return
+	}
+	var body invitationTokenRequest
+	if err := decodeStrictJSON(request, &body); err != nil {
+		a.malformed(response, request)
+		return
+	}
+	invitationID, err := invitationIDFromPath(request.URL.Path, "/acceptance")
+	if err != nil {
+		a.writeIdentityError(response, request, identity.ErrInvitationNotFound)
+		return
+	}
+	cookie, err := sessionCookie(request)
+	if err != nil {
+		a.writeIdentityError(response, request, identity.ErrAuthenticationRequired)
+		return
+	}
+	csrfToken, ok := singleHeader(request.Header, identity.CSRFHeaderName)
+	if !ok {
+		a.writeIdentityError(response, request, identity.ErrCSRFValidationFailed)
+		return
+	}
+	idempotencyKey, ok := singleHeader(request.Header, "Idempotency-Key")
+	if !ok {
+		a.malformed(response, request)
+		return
+	}
+	correlationID, ok := requestCorrelationID(request)
+	if !ok {
+		a.writeIdentityError(response, request, identity.ErrIdentityUnavailable)
+		return
+	}
+	result, err := a.identity.AcceptOrganizationInvitation(
+		request.Context(), identity.AcceptInvitationRequest{
+			CookieValue: cookie, CSRFToken: csrfToken, InvitationID: invitationID,
+			AcceptanceToken: body.AcceptanceToken, IdempotencyKey: idempotencyKey,
+			CorrelationID: correlationID,
+		},
+	)
+	if !result.DecisionID.IsZero() {
+		response.Header().Set("X-Authorization-Decision-Id", result.DecisionID.String())
+		response.Header().Set("Idempotency-Replayed", strconv.FormatBool(result.Replay))
+	}
+	if err != nil {
+		a.writeIdentityError(response, request, err)
+		return
+	}
+	if result.CookieValue != "" {
+		setSessionCookie(response, result.CookieValue, result.Session.AbsoluteExpiresAt)
+	}
+	response.Header().Set(identity.CSRFHeaderName, result.CSRFToken)
+	writeJSON(response, http.StatusOK, organizationMemberFromDomain(result.Member))
+}
+
+func invitationIDFromPath(path, suffix string) (identifier.ID, error) {
+	value := strings.TrimSuffix(
+		strings.TrimPrefix(path, "/v1/organization-invitations/"), suffix,
+	)
+	invitationID, err := identifier.Parse(value)
+	if err != nil || invitationID.Prefix() != "inv" {
+		return identifier.ID{}, errors.New("invalid invitation identifier")
+	}
+	return invitationID, nil
+}
+
+func organizationMemberFromDomain(member identity.OrganizationMember) organizationMemberResponse {
+	emailHint := any(nil)
+	if member.EmailHint != nil {
+		emailHint = *member.EmailHint
+	}
+	revokedAt := any(nil)
+	if member.RevokedAt != nil {
+		revokedAt = member.RevokedAt.Format(time.RFC3339)
+	}
+	return organizationMemberResponse{
+		ID: member.MembershipID.String(), OrganizationID: member.OrganizationID.String(),
+		PrincipalID: member.PrincipalID.String(), EmailHint: emailHint,
+		Role: member.Role, Status: member.Status, Version: member.Version,
+		CreatedAt: member.CreatedAt.Format(time.RFC3339), RevokedAt: revokedAt,
+	}
+}
+
+func (a *App) listOrganizationMembers(response http.ResponseWriter, request *http.Request) {
+	if requestHasBody(request) {
+		a.malformed(response, request)
+		return
+	}
+	query, err := url.ParseQuery(request.URL.RawQuery)
+	if err != nil || len(query) > 2 {
+		a.malformed(response, request)
+		return
+	}
+	for key, values := range query {
+		if (key != "page_size" && key != "cursor") || len(values) != 1 {
+			a.malformed(response, request)
+			return
+		}
+	}
+	organizationText := strings.TrimSuffix(
+		strings.TrimPrefix(request.URL.Path, "/v1/organizations/"), "/members",
+	)
+	organizationID, err := identifier.Parse(organizationText)
+	if err != nil || organizationID.Prefix() != "ten" {
+		a.writeIdentityError(response, request, identity.ErrOrganizationNotFound)
+		return
+	}
+	cookie, err := sessionCookie(request)
+	if err != nil {
+		a.writeIdentityError(response, request, identity.ErrAuthenticationRequired)
+		return
+	}
+	correlationID, ok := requestCorrelationID(request)
+	if !ok {
+		a.writeIdentityError(response, request, identity.ErrIdentityUnavailable)
+		return
+	}
+	result, err := a.identity.OrganizationMembers(
+		request.Context(), identity.ListOrganizationMembersRequest{
+			CookieValue: cookie, OrganizationID: organizationID,
+			PageSize: query.Get("page_size"), PageSizeProvided: query.Has("page_size"),
+			Cursor: query.Get("cursor"), CursorProvided: query.Has("cursor"),
+			CorrelationID: correlationID,
+		},
+	)
+	if !result.DecisionID.IsZero() {
+		response.Header().Set("X-Authorization-Decision-Id", result.DecisionID.String())
+	}
+	if err != nil {
+		a.writeIdentityError(response, request, err)
+		return
+	}
+	data := make([]organizationMemberResponse, 0, len(result.Page.Members))
+	for _, member := range result.Page.Members {
+		emailHint := any(nil)
+		if member.EmailHint != nil {
+			emailHint = *member.EmailHint
+		}
+		revokedAt := any(nil)
+		if member.RevokedAt != nil {
+			revokedAt = member.RevokedAt.Format(time.RFC3339)
+		}
+		data = append(data, organizationMemberResponse{
+			ID: member.MembershipID.String(), OrganizationID: member.OrganizationID.String(),
+			PrincipalID: member.PrincipalID.String(), EmailHint: emailHint,
+			Role: member.Role, Status: member.Status, Version: member.Version,
+			CreatedAt: member.CreatedAt.Format(time.RFC3339), RevokedAt: revokedAt,
+		})
+	}
+	nextCursor := any(nil)
+	if result.Page.NextCursor != "" {
+		nextCursor = result.Page.NextCursor
+	}
+	writeJSON(response, http.StatusOK, struct {
+		Data []organizationMemberResponse `json:"data"`
+		Page pageInfoResponse             `json:"page"`
+	}{Data: data, Page: pageInfoResponse{
+		NextCursor: nextCursor, HasMore: result.Page.HasMore,
+	}})
+}
+
+func (a *App) createOrganizationInvitation(response http.ResponseWriter, request *http.Request) {
+	if request.URL.RawQuery != "" {
+		a.malformed(response, request)
+		return
+	}
+	var body createOrganizationInvitationRequest
+	if err := decodeStrictJSON(request, &body); err != nil {
+		a.malformed(response, request)
+		return
+	}
+	organizationText := strings.TrimSuffix(
+		strings.TrimPrefix(request.URL.Path, "/v1/organizations/"), "/invitations",
+	)
+	organizationID, err := identifier.Parse(organizationText)
+	if err != nil || organizationID.Prefix() != "ten" {
+		a.writeIdentityError(response, request, identity.ErrOrganizationNotFound)
+		return
+	}
+	cookie, err := sessionCookie(request)
+	if err != nil {
+		a.writeIdentityError(response, request, identity.ErrAuthenticationRequired)
+		return
+	}
+	csrfToken, ok := singleHeader(request.Header, identity.CSRFHeaderName)
+	if !ok {
+		a.writeIdentityError(response, request, identity.ErrCSRFValidationFailed)
+		return
+	}
+	idempotencyKey, ok := singleHeader(request.Header, "Idempotency-Key")
+	if !ok {
+		a.malformed(response, request)
+		return
+	}
+	correlationID, ok := requestCorrelationID(request)
+	if !ok {
+		a.writeIdentityError(response, request, identity.ErrIdentityUnavailable)
+		return
+	}
+	result, err := a.identity.CreateOrganizationInvitation(
+		request.Context(), identity.CreateInvitationRequest{
+			CookieValue: cookie, CSRFToken: csrfToken, OrganizationID: organizationID,
+			Email: body.Email, Role: body.Role, IdempotencyKey: idempotencyKey,
+			CorrelationID: correlationID,
+		},
+	)
+	if !result.DecisionID.IsZero() {
+		response.Header().Set("X-Authorization-Decision-Id", result.DecisionID.String())
+		response.Header().Set("Idempotency-Replayed", strconv.FormatBool(result.Replay))
+	}
+	if err != nil {
+		a.writeIdentityError(response, request, err)
+		return
+	}
+	acceptanceToken := any(result.AcceptanceToken)
+	if !result.SecretDisclosed {
+		acceptanceToken = nil
+	}
+	response.Header().Set(
+		"Location", "/v1/organization-invitations/"+result.Invitation.InvitationID.String(),
+	)
+	writeJSON(response, http.StatusCreated, organizationInvitationCreatedResponse{
+		Invitation: organizationInvitationResponse{
+			ID:             result.Invitation.InvitationID.String(),
+			OrganizationID: result.Invitation.OrganizationID.String(),
+			EmailHint:      result.Invitation.EmailHint, Role: result.Invitation.Role,
+			Status:    result.Invitation.Status,
+			ExpiresAt: result.Invitation.ExpiresAt.Format(time.RFC3339),
+			CreatedAt: result.Invitation.CreatedAt.Format(time.RFC3339),
+		},
+		AcceptanceToken: acceptanceToken, SecretDisclosed: result.SecretDisclosed,
+	})
+}
+
+func (a *App) listOrganizations(response http.ResponseWriter, request *http.Request) {
+	if request.URL.RawQuery != "" || requestHasBody(request) {
+		a.malformed(response, request)
+		return
+	}
+	cookie, err := sessionCookie(request)
+	if err != nil {
+		a.writeIdentityError(response, request, identity.ErrAuthenticationRequired)
+		return
+	}
+	organizations, err := a.identity.Organizations(request.Context(), cookie)
+	if err != nil {
+		a.writeIdentityError(response, request, err)
+		return
+	}
+	data := make([]organizationResponse, 0, len(organizations))
+	for _, organization := range organizations {
+		data = append(data, organizationResponse{
+			ID: organization.OrganizationID.String(), DisplayName: organization.DisplayName,
+			PrincipalRole:     organization.PrincipalRole,
+			MembershipVersion: organization.MembershipVersion,
+		})
+	}
+	writeJSON(response, http.StatusOK, struct {
+		Data []organizationResponse `json:"data"`
+	}{Data: data})
+}
+
+func (a *App) setActiveOrganization(response http.ResponseWriter, request *http.Request) {
+	if request.URL.RawQuery != "" {
+		a.malformed(response, request)
+		return
+	}
+	var body setActiveOrganizationRequest
+	if err := decodeStrictJSON(request, &body); err != nil {
+		a.malformed(response, request)
+		return
+	}
+	organizationID, err := identifier.Parse(body.OrganizationID)
+	if err != nil || organizationID.Prefix() != "ten" {
+		a.malformed(response, request)
+		return
+	}
+	cookie, err := sessionCookie(request)
+	if err != nil {
+		a.writeIdentityError(response, request, identity.ErrAuthenticationRequired)
+		return
+	}
+	csrfToken, ok := singleHeader(request.Header, identity.CSRFHeaderName)
+	if !ok {
+		a.writeIdentityError(response, request, identity.ErrCSRFValidationFailed)
+		return
+	}
+	correlationID, ok := requestCorrelationID(request)
+	if !ok {
+		a.writeIdentityError(response, request, identity.ErrIdentityUnavailable)
+		return
+	}
+	result, err := a.identity.SwitchActiveOrganization(
+		request.Context(), cookie, csrfToken, organizationID, correlationID,
+	)
+	if err != nil {
+		a.writeIdentityError(response, request, err)
+		return
+	}
+	setSessionCookie(response, result.CookieValue, result.Session.AbsoluteExpiresAt)
+	response.Header().Set(identity.CSRFHeaderName, result.CSRFToken)
+	response.Header().Set("X-Authorization-Decision-Id", result.DecisionID.String())
+	writeJSON(response, http.StatusOK, principalFromSession(result.Session))
 }
 
 func (a *App) beginLogin(response http.ResponseWriter, request *http.Request) {
@@ -434,7 +832,7 @@ func principalFromSession(session identity.Session) principalResponse {
 		ID: session.PrincipalID.String(), Type: principalType,
 		DisplayName: session.DisplayName, ActiveTenantID: tenant,
 		Assurance:            session.Assurance.ContractValue(),
-		Permissions:          append([]string(nil), session.Permissions...),
+		Permissions:          append([]string{}, session.Permissions...),
 		AuthorizationVersion: session.AuthorizationVersion,
 		SessionExpiresAt:     session.AbsoluteExpiresAt.Format(time.RFC3339),
 	}
@@ -480,6 +878,10 @@ func (a *App) writeIdentityError(response http.ResponseWriter, request *http.Req
 		a.writeProblem(response, request, http.StatusForbidden, "step-up-required", "Additional verification required", "STEP_UP_REQUIRED", false)
 	case errors.Is(err, identity.ErrSessionNotFound):
 		a.writeProblem(response, request, http.StatusNotFound, "not-found-or-concealed", "Not found", "NOT_FOUND_OR_CONCEALED", false)
+	case errors.Is(err, identity.ErrOrganizationNotFound):
+		a.writeProblem(response, request, http.StatusNotFound, "not-found-or-concealed", "Not found", "NOT_FOUND_OR_CONCEALED", false)
+	case errors.Is(err, identity.ErrInvitationNotFound):
+		a.writeProblem(response, request, http.StatusNotFound, "not-found-or-concealed", "Not found", "NOT_FOUND_OR_CONCEALED", false)
 	case errors.Is(err, identity.ErrSessionConflict):
 		a.writeProblem(response, request, http.StatusConflict, "conflict", "Conflict", "CONFLICT", false)
 	case errors.Is(err, identity.ErrIdempotencyConflict):
@@ -488,6 +890,8 @@ func (a *App) writeIdentityError(response http.ResponseWriter, request *http.Req
 		a.writeProblem(response, request, http.StatusConflict, "idempotency-in-progress", "Conflict", "IDEMPOTENCY_REQUEST_IN_PROGRESS", true)
 	case errors.Is(err, identity.ErrInputInvalid):
 		a.malformed(response, request)
+	case errors.Is(err, identity.ErrValidationFailed):
+		a.writeProblem(response, request, http.StatusUnprocessableEntity, "validation-failed", "Validation failed", "VALIDATION_FAILED", false)
 	default:
 		a.writeProblem(response, request, http.StatusServiceUnavailable, "service-unavailable", "Service unavailable", "SERVICE_UNAVAILABLE", true)
 	}

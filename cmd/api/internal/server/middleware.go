@@ -156,7 +156,7 @@ func telemetryRoute(path string) string {
 
 func telemetryMethod(method string) string {
 	switch method {
-	case http.MethodGet, http.MethodPost, http.MethodDelete, http.MethodOptions:
+	case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete:
 		return method
 	default:
 		return "OTHER"
@@ -183,6 +183,18 @@ func identityOperation(route string) string {
 		return "session_admin_revoke"
 	case "/v1/step-up/challenges":
 		return "step_up"
+	case "/v1/me/active-organization":
+		return "organization_switch"
+	case "/v1/organizations":
+		return "organization_list"
+	case "/v1/organizations/{organization_id}/members":
+		return "organization_member_list"
+	case "/v1/organizations/{organization_id}/invitations":
+		return "invitation_create"
+	case "/v1/organization-invitations/{invitation_id}/authentication":
+		return "invitation_authenticate"
+	case "/v1/organization-invitations/{invitation_id}/acceptance":
+		return "invitation_accept"
 	default:
 		return ""
 	}

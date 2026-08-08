@@ -43,13 +43,34 @@ func TestCanonicalPhase01IdentitySeed(t *testing.T) {
 	if err := json.Unmarshal(updateContent, &update); err != nil {
 		t.Fatal(err)
 	}
-	policyDigest := sha256.Sum256(policyContent)
 	if update.SchemaVersion != 1 ||
 		update.SeedID != "atlas-phase01-identity-policy-v2" ||
 		update.PredecessorSeedID != manifest.SeedID ||
 		update.PreviousPolicySHA256 != manifest.PolicySHA256 ||
-		update.PolicySHA256 != hex.EncodeToString(policyDigest[:]) {
+		update.PolicySHA256 != "8c5085e94e6006b232f28974ebb6aa251452be18647f9863dd4155ce43c7f8cf" {
 		t.Fatalf("identity policy seed chain drifted: %#v", update)
+	}
+	v3Content, err := os.ReadFile(filepath.Join(root, "db", "seeds", "000003_phase_01_policy.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var v3 struct {
+		SchemaVersion        int    `json:"schema_version"`
+		SeedID               string `json:"seed_id"`
+		PredecessorSeedID    string `json:"predecessor_seed_id"`
+		PreviousPolicySHA256 string `json:"previous_policy_sha256"`
+		PolicySHA256         string `json:"policy_sha256"`
+	}
+	if err := json.Unmarshal(v3Content, &v3); err != nil {
+		t.Fatal(err)
+	}
+	policyDigest := sha256.Sum256(policyContent)
+	if v3.SchemaVersion != 1 ||
+		v3.SeedID != "atlas-phase01-identity-policy-v3" ||
+		v3.PredecessorSeedID != update.SeedID ||
+		v3.PreviousPolicySHA256 != update.PolicySHA256 ||
+		v3.PolicySHA256 != hex.EncodeToString(policyDigest[:]) {
+		t.Fatalf("identity policy seed v3 chain drifted: %#v", v3)
 	}
 }
 

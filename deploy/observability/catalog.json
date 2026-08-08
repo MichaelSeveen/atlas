@@ -9,7 +9,7 @@
       "owner": "platform-on-call",
       "labels": {
         "atlas.outcome": ["ok", "rejected", "error"],
-        "http.request.method": ["GET", "POST", "DELETE", "OPTIONS", "OTHER"],
+        "http.request.method": ["GET", "POST", "PUT", "DELETE", "OTHER"],
         "http.response.status_code": ["bounded-http-status"],
         "http.route": [
           "/health/live",
@@ -24,6 +24,10 @@
           "/v1/sessions/revoke-all",
           "/v1/security/sessions/{session_id}/revocations",
           "/v1/step-up/challenges",
+          "/v1/me/active-organization",
+          "/v1/organizations",
+          "/v1/organizations/{organization_id}/members",
+          "/v1/organizations/{organization_id}/invitations",
           "unmatched"
         ]
       }
@@ -35,7 +39,7 @@
       "owner": "platform-on-call",
       "labels": {
         "atlas.outcome": ["ok", "rejected", "error"],
-        "http.request.method": ["GET", "POST", "DELETE", "OPTIONS", "OTHER"],
+        "http.request.method": ["GET", "POST", "PUT", "DELETE", "OTHER"],
         "http.response.status_code": ["bounded-http-status"],
         "http.route": [
           "/health/live",
@@ -50,6 +54,10 @@
           "/v1/sessions/revoke-all",
           "/v1/security/sessions/{session_id}/revocations",
           "/v1/step-up/challenges",
+          "/v1/me/active-organization",
+          "/v1/organizations",
+          "/v1/organizations/{organization_id}/members",
+          "/v1/organizations/{organization_id}/invitations",
           "unmatched"
         ]
       }
@@ -60,7 +68,7 @@
       "status": "emitted",
       "owner": "identity-on-call",
       "labels": {
-        "atlas.identity.operation": ["login", "callback", "current", "logout", "session_list", "session_revoke", "session_revoke_all", "session_admin_revoke", "step_up"],
+        "atlas.identity.operation": ["login", "callback", "current", "logout", "session_list", "session_revoke", "session_revoke_all", "session_admin_revoke", "step_up", "organization_list", "organization_member_list", "organization_switch", "invitation_create", "invitation_authenticate", "invitation_accept"],
         "atlas.outcome": ["ok", "rejected", "error"],
         "http.response.status_code": ["bounded-http-status"]
       }
@@ -71,7 +79,7 @@
       "status": "emitted",
       "owner": "identity-on-call",
       "labels": {
-        "atlas.identity.operation": ["login", "callback", "current", "logout", "session_list", "session_revoke", "session_revoke_all", "session_admin_revoke", "step_up"],
+        "atlas.identity.operation": ["login", "callback", "current", "logout", "session_list", "session_revoke", "session_revoke_all", "session_admin_revoke", "step_up", "organization_list", "organization_member_list", "organization_switch", "invitation_create", "invitation_authenticate", "invitation_accept"],
         "atlas.outcome": ["ok", "rejected", "error"],
         "http.response.status_code": ["bounded-http-status"]
       }

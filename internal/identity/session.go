@@ -19,11 +19,12 @@ import (
 )
 
 const (
-	SessionCookieName = "__Host-atlas_session"
-	CSRFHeaderName    = "X-Atlas-CSRF-Token"
-	stepUpClaimLease  = 30 * time.Second
-	stepUpRetention   = 24 * time.Hour
-	stepUpFreshness   = 5 * time.Minute
+	SessionCookieName                   = "__Host-atlas_session"
+	CSRFHeaderName                      = "X-Atlas-CSRF-Token"
+	stepUpClaimLease                    = 30 * time.Second
+	stepUpRetention                     = 24 * time.Hour
+	stepUpFreshness                     = 5 * time.Minute
+	invitationAcceptanceSessionLifetime = 15 * time.Minute
 )
 
 var (
@@ -159,24 +160,27 @@ var DefaultSessionPolicies = map[Population]SessionPolicy{
 type TransactionKind string
 
 const (
-	TransactionLogin  TransactionKind = "login"
-	TransactionStepUp TransactionKind = "step-up"
+	TransactionLogin                TransactionKind = "login"
+	TransactionStepUp               TransactionKind = "step-up"
+	TransactionInvitationAcceptance TransactionKind = "invitation-acceptance"
 )
 
 type OIDCTransaction struct {
-	TransactionID        identifier.ID
-	Kind                 TransactionKind
-	Population           Population
-	StateDigest          [32]byte
-	NonceDigest          [32]byte
-	EncryptedPKCE        []byte
-	EncryptionKeyVersion uint64
-	ReturnTo             string
-	PrincipalID          identifier.ID
-	ReplacedSessionID    identifier.ID
-	RequestedAction      string
-	CreatedAt            time.Time
-	ExpiresAt            time.Time
+	TransactionID         identifier.ID
+	Kind                  TransactionKind
+	Population            Population
+	StateDigest           [32]byte
+	NonceDigest           [32]byte
+	EncryptedPKCE         []byte
+	EncryptionKeyVersion  uint64
+	ReturnTo              string
+	PrincipalID           identifier.ID
+	ReplacedSessionID     identifier.ID
+	RequestedAction       string
+	InvitationID          identifier.ID
+	InvitationTokenDigest [32]byte
+	CreatedAt             time.Time
+	ExpiresAt             time.Time
 }
 
 type ProviderClaims struct {
@@ -185,6 +189,8 @@ type ProviderClaims struct {
 	Nonce           string
 	Assurance       Assurance
 	AuthenticatedAt time.Time
+	Email           string
+	EmailVerified   bool
 }
 
 type Provider interface {
@@ -200,24 +206,27 @@ type Provider interface {
 }
 
 type Session struct {
-	SessionID            identifier.ID
-	PrincipalID          identifier.ID
-	PrincipalType        string
-	DisplayName          string
-	Population           Population
-	TenantID             identifier.ID
-	Assurance            Assurance
-	AuthorizationVersion int64
-	RotationVersion      int64
-	CreatedAt            time.Time
-	LastSeenAt           time.Time
-	IdleExpiresAt        time.Time
-	AbsoluteExpiresAt    time.Time
-	RevokedAt            time.Time
-	StepUpAction         string
-	StepUpVerifiedAt     time.Time
-	ClientLabel          string
-	Permissions          []string
+	SessionID                identifier.ID
+	PrincipalID              identifier.ID
+	PrincipalType            string
+	DisplayName              string
+	Population               Population
+	TenantID                 identifier.ID
+	Assurance                Assurance
+	AuthorizationVersion     int64
+	RotationVersion          int64
+	CreatedAt                time.Time
+	LastSeenAt               time.Time
+	IdleExpiresAt            time.Time
+	AbsoluteExpiresAt        time.Time
+	RevokedAt                time.Time
+	StepUpAction             string
+	StepUpVerifiedAt         time.Time
+	ClientLabel              string
+	Permissions              []string
+	InvitationID             identifier.ID
+	VerifiedEmailDigest      [32]byte
+	InvitationAcceptanceOnly bool
 }
 
 type SessionSummary struct {
@@ -234,21 +243,26 @@ type SessionSummary struct {
 }
 
 type CreateSessionCommand struct {
-	Claims            ProviderClaims
-	Population        Population
-	Kind              TransactionKind
-	ExpectedPrincipal identifier.ID
-	ReplacedSessionID identifier.ID
-	SessionID         identifier.ID
-	VerifierDigest    [32]byte
-	Assurance         Assurance
-	AuthorizationAt   time.Time
-	StepUpAction      string
-	StepUpVerifiedAt  time.Time
-	IdleExpiresAt     time.Time
-	AbsoluteExpiresAt time.Time
-	ClientLabel       string
-	AuditEvent        audit.Event
+	Claims                       ProviderClaims
+	Population                   Population
+	Kind                         TransactionKind
+	ExpectedPrincipal            identifier.ID
+	ReplacedSessionID            identifier.ID
+	SessionID                    identifier.ID
+	VerifierDigest               [32]byte
+	Assurance                    Assurance
+	AuthorizationAt              time.Time
+	StepUpAction                 string
+	StepUpVerifiedAt             time.Time
+	IdleExpiresAt                time.Time
+	AbsoluteExpiresAt            time.Time
+	ClientLabel                  string
+	InvitationID                 identifier.ID
+	InvitationTokenDigest        [32]byte
+	VerifiedEmailDigest          [32]byte
+	ProvisionalPrincipalID       identifier.ID
+	ProvisionalExternalSubjectID identifier.ID
+	AuditEvent                   audit.Event
 }
 
 type RevocationCommand struct {
@@ -342,6 +356,7 @@ type IDGenerator func(string) (identifier.ID, error)
 
 type ServiceOptions struct {
 	Store           Store
+	Organizations   OrganizationStore
 	Provider        Provider
 	Cryptor         TransactionCryptor
 	CSRF            CSRFProtector
@@ -353,6 +368,7 @@ type ServiceOptions struct {
 
 type Service struct {
 	store           Store
+	organizations   OrganizationStore
 	provider        Provider
 	cryptor         TransactionCryptor
 	csrf            CSRFProtector
@@ -385,7 +401,8 @@ func NewService(options ServiceOptions) (*Service, error) {
 		copied[population] = policy
 	}
 	return &Service{
-		store: options.Store, provider: options.Provider, cryptor: options.Cryptor,
+		store: options.Store, organizations: options.Organizations,
+		provider: options.Provider, cryptor: options.Cryptor,
 		csrf: options.CSRF, clock: options.Clock, newID: options.NewID,
 		entropy: options.Entropy, sessionPolicies: copied,
 	}, nil
@@ -402,6 +419,40 @@ type BeginLoginResult struct {
 	Population       Population
 	AuthorizationURL string
 	ExpiresAt        time.Time
+}
+
+// BeginInvitationAuthentication starts a merchant OIDC transaction bound to one
+// invitation verifier without granting tenant authority.
+func (service *Service) BeginInvitationAuthentication(
+	ctx context.Context,
+	invitationID identifier.ID,
+	acceptanceToken string,
+	cookieValue string,
+) (BeginLoginResult, error) {
+	if invitationID.IsZero() || invitationID.Prefix() != "inv" ||
+		!validProtocolToken(acceptanceToken) {
+		return BeginLoginResult{}, ErrInputInvalid
+	}
+	transaction := OIDCTransaction{
+		Kind:                  TransactionInvitationAcceptance,
+		Population:            PopulationMerchant,
+		ReturnTo:              service.sessionPolicies[PopulationMerchant].AllowedReturnTo,
+		InvitationID:          invitationID,
+		InvitationTokenDigest: sha256.Sum256([]byte(acceptanceToken)),
+	}
+	if cookieValue != "" {
+		session, _, err := service.Current(ctx, cookieValue)
+		switch {
+		case err == nil:
+			transaction.ReplacedSessionID = session.SessionID
+		case errors.Is(err, ErrAuthenticationRequired),
+			errors.Is(err, ErrSessionExpired),
+			errors.Is(err, ErrSessionRevoked):
+		default:
+			return BeginLoginResult{}, err
+		}
+	}
+	return service.beginTransaction(ctx, transaction)
 }
 
 func (service *Service) BeginLogin(ctx context.Context, request BeginLoginRequest) (BeginLoginResult, error) {
@@ -458,6 +509,9 @@ func (service *Service) BeginStepUp(ctx context.Context, request BeginStepUpRequ
 	session, csrf, err := service.Current(ctx, request.CookieValue)
 	if err != nil {
 		return BeginLoginResult{}, err
+	}
+	if session.InvitationAcceptanceOnly {
+		return BeginLoginResult{}, ErrActionNotAuthorized
 	}
 	if !constantTimeStringEqual(csrf, request.CSRFToken) {
 		return BeginLoginResult{}, ErrCSRFValidationFailed
@@ -669,6 +723,31 @@ func (service *Service) CompleteLogin(ctx context.Context, request CompleteLogin
 	}
 	idleExpiry := now.Add(policy.Idle)
 	absoluteExpiry := now.Add(policy.Absolute)
+	verifiedEmailDigest := [32]byte{}
+	provisionalPrincipalID := identifier.ID{}
+	provisionalExternalSubjectID := identifier.ID{}
+	if transaction.Population == PopulationMerchant && claims.EmailVerified {
+		verifiedEmailDigest, _, err = invitationEmail(claims.Email)
+		if err != nil {
+			return CompleteLoginResult{}, ErrOIDCTransactionInvalid
+		}
+	}
+	if transaction.Kind == TransactionInvitationAcceptance {
+		if transaction.Population != PopulationMerchant || !claims.EmailVerified ||
+			verifiedEmailDigest == ([32]byte{}) {
+			return CompleteLoginResult{}, ErrOIDCTransactionInvalid
+		}
+		provisionalPrincipalID, err = service.generatedID("usr")
+		if err != nil {
+			return CompleteLoginResult{}, ErrIdentityUnavailable
+		}
+		provisionalExternalSubjectID, err = service.generatedID("ext")
+		if err != nil {
+			return CompleteLoginResult{}, ErrIdentityUnavailable
+		}
+		idleExpiry = now.Add(invitationAcceptanceSessionLifetime)
+		absoluteExpiry = idleExpiry
+	}
 	stepUpVerifiedAt := time.Time{}
 	if transaction.Kind == TransactionStepUp {
 		stepUpVerifiedAt = claims.AuthenticatedAt.UTC()
@@ -680,7 +759,13 @@ func (service *Service) CompleteLogin(ctx context.Context, request CompleteLogin
 		AuthorizationAt: now, StepUpAction: transaction.RequestedAction,
 		StepUpVerifiedAt: stepUpVerifiedAt,
 		IdleExpiresAt:    idleExpiry, AbsoluteExpiresAt: absoluteExpiry,
-		ClientLabel: sanitizeClientLabel(request.ClientLabel), AuditEvent: auditEvent,
+		ClientLabel:                  sanitizeClientLabel(request.ClientLabel),
+		InvitationID:                 transaction.InvitationID,
+		InvitationTokenDigest:        transaction.InvitationTokenDigest,
+		VerifiedEmailDigest:          verifiedEmailDigest,
+		ProvisionalPrincipalID:       provisionalPrincipalID,
+		ProvisionalExternalSubjectID: provisionalExternalSubjectID,
+		AuditEvent:                   auditEvent,
 	})
 	if err != nil {
 		return CompleteLoginResult{}, err
@@ -728,6 +813,9 @@ func (service *Service) Sessions(ctx context.Context, cookieValue string) ([]Ses
 	if err != nil {
 		return nil, err
 	}
+	if session.InvitationAcceptanceOnly {
+		return nil, ErrActionNotAuthorized
+	}
 	return service.store.ListSessions(ctx, session, service.clock.Now().UTC())
 }
 
@@ -765,6 +853,9 @@ func (service *Service) RevokeOne(
 	if err != nil {
 		return RevocationResult{}, err
 	}
+	if session.InvitationAcceptanceOnly {
+		return RevocationResult{}, ErrActionNotAuthorized
+	}
 	if !constantTimeStringEqual(expectedCSRF, csrfToken) {
 		return RevocationResult{}, ErrCSRFValidationFailed
 	}
@@ -792,6 +883,9 @@ func (service *Service) RevokeAll(
 	session, expectedCSRF, err := service.Current(ctx, cookieValue)
 	if err != nil {
 		return RevocationResult{}, err
+	}
+	if session.InvitationAcceptanceOnly {
+		return RevocationResult{}, ErrActionNotAuthorized
 	}
 	if !constantTimeStringEqual(expectedCSRF, csrfToken) {
 		return RevocationResult{}, ErrCSRFValidationFailed
@@ -921,6 +1015,9 @@ func (service *Service) authenticationAudit(
 	if transaction.Kind == TransactionStepUp {
 		action = "identity.session.step_up"
 		reason = "oidc_step_up"
+	} else if transaction.Kind == TransactionInvitationAcceptance {
+		action = "identity.organization.invitation.authenticate"
+		reason = "oidc_invitation_authentication"
 	}
 	return audit.Event{
 		AuditEventID: auditID, ActorID: transaction.PrincipalID,

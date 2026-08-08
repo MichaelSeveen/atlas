@@ -174,10 +174,304 @@ func TestIdentityMutationCORSPreflightAndRouteInventory(t *testing.T) {
 		"/v1/me", "/v1/auth/login", "/v1/auth/callback", "/v1/logout",
 		"/v1/sessions", "/v1/sessions/{session_id}", "/v1/sessions/revoke-all",
 		"/v1/security/sessions/{session_id}/revocations",
-		"/v1/step-up/challenges",
+		"/v1/step-up/challenges", "/v1/me/active-organization", "/v1/organizations",
+		"/v1/organizations/{organization_id}/members",
+		"/v1/organizations/{organization_id}/invitations",
+		"/v1/organization-invitations/{invitation_id}/authentication",
+		"/v1/organization-invitations/{invitation_id}/acceptance",
 	}
 	if strings.Join(identityRoutes, ",") != strings.Join(want, ",") {
 		t.Fatalf("identity route inventory=%v", identityRoutes)
+	}
+}
+
+func TestOrganizationListAndTenantSwitchHTTPContract(t *testing.T) {
+	service, store, _ := newHTTPIdentityService(t)
+	cookieValue := strings.Repeat("O", 43)
+	principalID, _ := identifier.Parse("usr_00000000000000000091")
+	sessionID, _ := identifier.Parse("ses_00000000000000000090")
+	currentTenant, _ := identifier.Parse("ten_00000000000000000090")
+	targetTenant, _ := identifier.Parse("ten_00000000000000000091")
+	store.sessions[sha256.Sum256([]byte(cookieValue))] = identity.Session{
+		SessionID: sessionID, PrincipalID: principalID, PrincipalType: "merchant",
+		DisplayName: "Synthetic Merchant", Population: identity.PopulationMerchant,
+		TenantID: currentTenant, Assurance: identity.AssuranceBaseline,
+		AuthorizationVersion: 1, RotationVersion: 4,
+		CreatedAt: testBuildTime, LastSeenAt: testBuildTime,
+		IdleExpiresAt:     testBuildTime.Add(20 * time.Minute),
+		AbsoluteExpiresAt: testBuildTime.Add(8 * time.Hour),
+		Permissions:       []string{"organization.list", "organization.active.switch"},
+	}
+	organizationStore := store.organizationStore
+	organizationStore.organizations = []identity.Organization{{
+		OrganizationID: targetTenant, DisplayName: "Synthetic Merchant Two",
+		PrincipalRole: "merchant_operator", MembershipVersion: 2,
+	}}
+	_, csrfToken, err := service.Current(context.Background(), cookieValue)
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := newTestApp(t, ReadinessState{DependenciesReady: true, MigrationsCurrent: true}, func(options *Options) {
+		options.Identity = service
+		options.WebOrigin = "https://web.test.invalid"
+	})
+
+	list := httptest.NewRequest(http.MethodGet, "/v1/organizations", nil)
+	list.AddCookie(&http.Cookie{Name: identity.SessionCookieName, Value: cookieValue})
+	listResponse := httptest.NewRecorder()
+	app.Handler().ServeHTTP(listResponse, list)
+	if listResponse.Code != http.StatusOK ||
+		!strings.Contains(listResponse.Body.String(), targetTenant.String()) ||
+		strings.Contains(listResponse.Body.String(), cookieValue) {
+		t.Fatalf("organization list status=%d body=%s", listResponse.Code, listResponse.Body)
+	}
+
+	request := httptest.NewRequest(
+		http.MethodPut,
+		"/v1/me/active-organization",
+		strings.NewReader(`{"organization_id":"`+targetTenant.String()+`"}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set(identity.CSRFHeaderName, csrfToken)
+	request.AddCookie(&http.Cookie{Name: identity.SessionCookieName, Value: cookieValue})
+	response := httptest.NewRecorder()
+	app.Handler().ServeHTTP(response, request)
+	cookies := response.Result().Cookies()
+	if response.Code != http.StatusOK ||
+		len(cookies) != 1 ||
+		cookies[0].Value == cookieValue ||
+		response.Header().Get(identity.CSRFHeaderName) == csrfToken ||
+		!strings.HasPrefix(response.Header().Get("X-Authorization-Decision-Id"), "dec_") ||
+		!strings.Contains(response.Body.String(), `"active_tenant_id":"`+targetTenant.String()+`"`) {
+		t.Fatalf("tenant switch status=%d headers=%v body=%s", response.Code, response.Header(), response.Body)
+	}
+	if _, _, err := service.Current(context.Background(), cookieValue); !errors.Is(err, identity.ErrAuthenticationRequired) {
+		t.Fatalf("old session retained grace: %v", err)
+	}
+	if _, _, err := service.Current(context.Background(), cookies[0].Value); err != nil {
+		t.Fatalf("rotated session is not usable: %v", err)
+	}
+}
+
+func TestOrganizationMemberListHTTPPaginationAndConcealmentContract(t *testing.T) {
+	service, store, _ := newHTTPIdentityService(t)
+	cookieValue := strings.Repeat("W", 43)
+	principalID, _ := identifier.Parse("usr_00000000000000000121")
+	sessionID, _ := identifier.Parse("ses_00000000000000000120")
+	tenantID, _ := identifier.Parse("ten_00000000000000000120")
+	membershipID, _ := identifier.Parse("mem_00000000000000000120")
+	store.sessions[sha256.Sum256([]byte(cookieValue))] = identity.Session{
+		SessionID: sessionID, PrincipalID: principalID, PrincipalType: "merchant",
+		DisplayName: "Synthetic Merchant Viewer", Population: identity.PopulationMerchant,
+		TenantID: tenantID, Assurance: identity.AssuranceBaseline,
+		AuthorizationVersion: 1, RotationVersion: 1,
+		CreatedAt: testBuildTime, LastSeenAt: testBuildTime,
+		IdleExpiresAt:     testBuildTime.Add(20 * time.Minute),
+		AbsoluteExpiresAt: testBuildTime.Add(8 * time.Hour),
+		Permissions:       []string{"organization.members.read"},
+	}
+	store.organizationStore.members = identity.ListOrganizationMembersResult{
+		Page: identity.OrganizationMemberPage{
+			Members: []identity.OrganizationMember{{
+				MembershipID: membershipID, OrganizationID: tenantID, PrincipalID: principalID,
+				Role: "merchant_viewer", Status: "active", Version: 1, CreatedAt: testBuildTime,
+			}},
+			NextCursor: "djEKdGVuXzAwMDAwMDAwMDAwMDAwMDAwMTIwCnVzcl8wMDAwMDAwMDAwMDAwMDAwMDEyMQ",
+			HasMore:    true,
+		},
+	}
+	app := newTestApp(t, ReadinessState{DependenciesReady: true, MigrationsCurrent: true}, func(options *Options) {
+		options.Identity = service
+		options.WebOrigin = "https://web.test.invalid"
+	})
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/v1/organizations/"+tenantID.String()+"/members?page_size=1",
+		nil,
+	)
+	request.AddCookie(&http.Cookie{Name: identity.SessionCookieName, Value: cookieValue})
+	response := httptest.NewRecorder()
+	app.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK ||
+		!strings.HasPrefix(response.Header().Get("X-Authorization-Decision-Id"), "dec_") ||
+		!strings.Contains(response.Body.String(), `"email_hint":null`) ||
+		!strings.Contains(response.Body.String(), `"has_more":true`) ||
+		!strings.Contains(response.Body.String(), `"next_cursor":"`) ||
+		strings.Contains(response.Body.String(), cookieValue) {
+		t.Fatalf("member list status=%d headers=%v body=%s", response.Code, response.Header(), response.Body)
+	}
+
+	malformed := httptest.NewRequest(
+		http.MethodGet,
+		"/v1/organizations/"+tenantID.String()+"/members?total=true",
+		nil,
+	)
+	malformed.AddCookie(&http.Cookie{Name: identity.SessionCookieName, Value: cookieValue})
+	malformedResponse := httptest.NewRecorder()
+	app.Handler().ServeHTTP(malformedResponse, malformed)
+	if malformedResponse.Code != http.StatusBadRequest {
+		t.Fatalf("unknown member-list query status=%d body=%s", malformedResponse.Code, malformedResponse.Body)
+	}
+
+	store.organizationStore.membersErr = identity.ErrOrganizationNotFound
+	concealed := httptest.NewRequest(
+		http.MethodGet,
+		"/v1/organizations/ten_00000000000000000122/members",
+		nil,
+	)
+	concealed.AddCookie(&http.Cookie{Name: identity.SessionCookieName, Value: cookieValue})
+	concealedResponse := httptest.NewRecorder()
+	app.Handler().ServeHTTP(concealedResponse, concealed)
+	if concealedResponse.Code != http.StatusNotFound ||
+		!strings.Contains(concealedResponse.Body.String(), `"code":"NOT_FOUND_OR_CONCEALED"`) ||
+		strings.Contains(concealedResponse.Body.String(), "00000000000000000122") {
+		t.Fatalf("concealed member-list status=%d body=%s", concealedResponse.Code, concealedResponse.Body)
+	}
+}
+
+func TestOrganizationInvitationHTTPSecretReplayContract(t *testing.T) {
+	service, store, _ := newHTTPIdentityService(t)
+	cookieValue := strings.Repeat("V", 43)
+	principalID, _ := identifier.Parse("usr_00000000000000000111")
+	sessionID, _ := identifier.Parse("ses_00000000000000000110")
+	tenantID, _ := identifier.Parse("ten_00000000000000000110")
+	store.sessions[sha256.Sum256([]byte(cookieValue))] = identity.Session{
+		SessionID: sessionID, PrincipalID: principalID, PrincipalType: "merchant",
+		DisplayName: "Synthetic Merchant Administrator", Population: identity.PopulationMerchant,
+		TenantID: tenantID, Assurance: identity.AssuranceBaseline,
+		AuthorizationVersion: 1, RotationVersion: 1,
+		CreatedAt: testBuildTime, LastSeenAt: testBuildTime,
+		IdleExpiresAt:     testBuildTime.Add(20 * time.Minute),
+		AbsoluteExpiresAt: testBuildTime.Add(8 * time.Hour),
+		Permissions:       []string{"organization.invitations.create"},
+	}
+	_, csrfToken, err := service.Current(context.Background(), cookieValue)
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := newTestApp(t, ReadinessState{DependenciesReady: true, MigrationsCurrent: true}, func(options *Options) {
+		options.Identity = service
+		options.WebOrigin = "https://web.test.invalid"
+	})
+	issue := func() *httptest.ResponseRecorder {
+		request := httptest.NewRequest(
+			http.MethodPost,
+			"/v1/organizations/"+tenantID.String()+"/invitations",
+			strings.NewReader(`{"email":"invitee@example.test","role":"merchant_viewer"}`),
+		)
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set(identity.CSRFHeaderName, csrfToken)
+		request.Header.Set("Idempotency-Key", "http-invitation-create-0001")
+		request.AddCookie(&http.Cookie{Name: identity.SessionCookieName, Value: cookieValue})
+		response := httptest.NewRecorder()
+		app.Handler().ServeHTTP(response, request)
+		return response
+	}
+	first := issue()
+	replay := issue()
+	if first.Code != http.StatusCreated || replay.Code != http.StatusCreated ||
+		first.Header().Get("Idempotency-Replayed") != "false" ||
+		replay.Header().Get("Idempotency-Replayed") != "true" ||
+		!strings.HasPrefix(first.Header().Get("Location"), "/v1/organization-invitations/inv_") ||
+		!strings.Contains(first.Body.String(), `"secret_disclosed":true`) ||
+		!strings.Contains(replay.Body.String(), `"acceptance_token":null`) ||
+		!strings.Contains(replay.Body.String(), `"secret_disclosed":false`) ||
+		strings.Contains(first.Body.String(), "invitee@example.test") ||
+		strings.Contains(replay.Body.String(), "invitee@example.test") {
+		t.Fatalf("invitation first=%d/%v/%s replay=%d/%v/%s",
+			first.Code, first.Header(), first.Body, replay.Code, replay.Header(), replay.Body)
+	}
+	if first.Header().Get("X-Authorization-Decision-Id") != replay.Header().Get("X-Authorization-Decision-Id") {
+		t.Fatal("invitation replay changed the durable authorization decision")
+	}
+}
+
+func TestOrganizationInvitationAuthenticationAndAcceptanceHTTPContract(t *testing.T) {
+	service, store, provider := newHTTPIdentityService(t)
+	invitationID, _ := identifier.Parse("inv_00000000000000000131")
+	tenantID, _ := identifier.Parse("ten_00000000000000000131")
+	store.organizationStore.invitation = identity.CreateInvitationStoreResult{
+		Invitation: identity.OrganizationInvitation{
+			InvitationID: invitationID, OrganizationID: tenantID,
+			EmailHint: "r***@example.test", Role: "merchant_viewer", Status: "pending",
+			CreatedAt: testBuildTime, ExpiresAt: testBuildTime.Add(72 * time.Hour),
+		},
+	}
+	provider.claims.Issuer = "https://identity.test.invalid/realms/merchant"
+	provider.claims.Subject = "00000000-0000-4000-8000-000000000131"
+	provider.claims.Email = "recipient@example.test"
+	provider.claims.EmailVerified = true
+	app := newTestApp(t, ReadinessState{DependenciesReady: true, MigrationsCurrent: true}, func(options *Options) {
+		options.Identity = service
+		options.WebOrigin = "https://web.test.invalid"
+	})
+	acceptanceToken := strings.Repeat("R", 43)
+	authentication := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/organization-invitations/"+invitationID.String()+"/authentication",
+		strings.NewReader(`{"acceptance_token":"`+acceptanceToken+`"}`),
+	)
+	authentication.Header.Set("Content-Type", "application/json")
+	authenticationResponse := httptest.NewRecorder()
+	app.Handler().ServeHTTP(authenticationResponse, authentication)
+	if authenticationResponse.Code != http.StatusSeeOther ||
+		strings.Contains(authenticationResponse.Header().Get("Location"), acceptanceToken) ||
+		store.transaction.Kind != identity.TransactionInvitationAcceptance ||
+		store.transaction.InvitationID != invitationID ||
+		store.transaction.InvitationTokenDigest != sha256.Sum256([]byte(acceptanceToken)) {
+		t.Fatalf("invitation authentication status=%d location=%s transaction=%+v body=%s",
+			authenticationResponse.Code, authenticationResponse.Header().Get("Location"),
+			store.transaction, authenticationResponse.Body)
+	}
+	authorizationURL, err := url.Parse(authenticationResponse.Header().Get("Location"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider.claims.Nonce = provider.nonce
+	callback := httptest.NewRequest(
+		http.MethodGet,
+		"/v1/auth/callback?code=synthetic-invitation-code-0001&state="+
+			url.QueryEscape(authorizationURL.Query().Get("state")),
+		nil,
+	)
+	callbackResponse := httptest.NewRecorder()
+	app.Handler().ServeHTTP(callbackResponse, callback)
+	if callbackResponse.Code != http.StatusSeeOther || len(callbackResponse.Result().Cookies()) != 1 {
+		t.Fatalf("invitation callback status=%d headers=%v body=%s",
+			callbackResponse.Code, callbackResponse.Header(), callbackResponse.Body)
+	}
+	bootstrapCookie := callbackResponse.Result().Cookies()[0]
+	current := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
+	current.AddCookie(bootstrapCookie)
+	currentResponse := httptest.NewRecorder()
+	app.Handler().ServeHTTP(currentResponse, current)
+	csrfToken := currentResponse.Header().Get(identity.CSRFHeaderName)
+	if currentResponse.Code != http.StatusOK ||
+		!strings.Contains(currentResponse.Body.String(), `"active_tenant_id":null`) ||
+		!strings.Contains(currentResponse.Body.String(), `"permissions":[]`) || len(csrfToken) != 43 {
+		t.Fatalf("bootstrap current status=%d headers=%v body=%s",
+			currentResponse.Code, currentResponse.Header(), currentResponse.Body)
+	}
+	acceptance := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/organization-invitations/"+invitationID.String()+"/acceptance",
+		strings.NewReader(`{"acceptance_token":"`+acceptanceToken+`"}`),
+	)
+	acceptance.Header.Set("Content-Type", "application/json")
+	acceptance.Header.Set(identity.CSRFHeaderName, csrfToken)
+	acceptance.Header.Set("Idempotency-Key", "http-invitation-accept-0001")
+	acceptance.AddCookie(bootstrapCookie)
+	acceptanceResponse := httptest.NewRecorder()
+	app.Handler().ServeHTTP(acceptanceResponse, acceptance)
+	if acceptanceResponse.Code != http.StatusOK ||
+		acceptanceResponse.Header().Get("Idempotency-Replayed") != "false" ||
+		!strings.HasPrefix(acceptanceResponse.Header().Get("X-Authorization-Decision-Id"), "dec_") ||
+		len(acceptanceResponse.Result().Cookies()) != 1 ||
+		!strings.Contains(acceptanceResponse.Body.String(), `"organization_id":"`+tenantID.String()+`"`) ||
+		strings.Contains(acceptanceResponse.Body.String(), acceptanceToken) {
+		t.Fatalf("invitation acceptance status=%d headers=%v body=%s",
+			acceptanceResponse.Code, acceptanceResponse.Header(), acceptanceResponse.Body)
 	}
 }
 
@@ -385,11 +679,121 @@ func (httpCryptor) Decrypt(value []byte, version uint64) ([]byte, error) {
 }
 
 type httpIdentityStore struct {
-	transaction     identity.OIDCTransaction
-	transactionUsed bool
-	sessions        map[[32]byte]identity.Session
-	revocations     int
-	stepUps         map[[32]byte]httpStepUpClaim
+	transaction       identity.OIDCTransaction
+	transactionUsed   bool
+	sessions          map[[32]byte]identity.Session
+	revocations       int
+	stepUps           map[[32]byte]httpStepUpClaim
+	organizationStore *httpOrganizationStore
+}
+
+type httpOrganizationStore struct {
+	sessions      *httpIdentityStore
+	organizations []identity.Organization
+	members       identity.ListOrganizationMembersResult
+	membersErr    error
+	invitation    identity.CreateInvitationStoreResult
+	acceptance    identity.AcceptInvitationStoreResult
+}
+
+func (store *httpOrganizationStore) AcceptInvitation(
+	_ context.Context,
+	command identity.AcceptInvitationCommand,
+) (identity.AcceptInvitationStoreResult, error) {
+	if !store.acceptance.Member.MembershipID.IsZero() {
+		replayed := store.acceptance
+		replayed.Session = command.Actor
+		replayed.Replay = true
+		return replayed, nil
+	}
+	for digest, session := range store.sessions.sessions {
+		if session.SessionID == command.Actor.SessionID {
+			delete(store.sessions.sessions, digest)
+		}
+	}
+	session := command.Actor
+	session.SessionID = command.NewSessionID
+	session.TenantID = command.Actor.TenantID
+	if session.TenantID.IsZero() && store.invitation.Invitation.InvitationID == command.InvitationID {
+		session.TenantID = store.invitation.Invitation.OrganizationID
+	}
+	session.RotationVersion++
+	session.CreatedAt = command.Now
+	session.LastSeenAt = command.Now
+	session.IdleExpiresAt = command.IdleExpiresAt
+	session.AbsoluteExpiresAt = command.AbsoluteExpiresAt
+	session.InvitationAcceptanceOnly = false
+	session.InvitationID = identifier.ID{}
+	store.sessions.sessions[command.NewSessionVerifierDigest] = session
+	store.acceptance = identity.AcceptInvitationStoreResult{
+		Member: identity.OrganizationMember{
+			MembershipID: command.MembershipID, OrganizationID: session.TenantID,
+			PrincipalID: command.Actor.PrincipalID, Role: "merchant_viewer",
+			Status: "active", Version: 1, CreatedAt: command.Now,
+		},
+		Session: session, DecisionID: command.AuditEvent.DecisionID,
+	}
+	return store.acceptance, nil
+}
+
+func (store *httpOrganizationStore) ListMembers(
+	_ context.Context,
+	command identity.ListOrganizationMembersCommand,
+) (identity.ListOrganizationMembersResult, error) {
+	result := store.members
+	if result.DecisionID.IsZero() {
+		result.DecisionID = command.AuditEvent.DecisionID
+	}
+	return result, store.membersErr
+}
+
+func (store *httpOrganizationStore) ListOrganizations(
+	context.Context,
+	identity.Session,
+) ([]identity.Organization, error) {
+	return append([]identity.Organization(nil), store.organizations...), nil
+}
+
+func (store *httpOrganizationStore) SwitchOrganization(
+	_ context.Context,
+	command identity.SwitchOrganizationCommand,
+) (identity.Session, error) {
+	for digest, session := range store.sessions.sessions {
+		if session.SessionID == command.Actor.SessionID {
+			delete(store.sessions.sessions, digest)
+		}
+	}
+	session := command.Actor
+	session.SessionID = command.NewSessionID
+	session.TenantID = command.OrganizationID
+	session.RotationVersion++
+	session.CreatedAt = command.Now
+	session.LastSeenAt = command.Now
+	session.IdleExpiresAt = command.IdleExpiresAt
+	session.StepUpAction = ""
+	session.StepUpVerifiedAt = time.Time{}
+	store.sessions.sessions[command.VerifierDigest] = session
+	return session, nil
+}
+
+func (store *httpOrganizationStore) CreateInvitation(
+	_ context.Context,
+	command identity.CreateInvitationCommand,
+) (identity.CreateInvitationStoreResult, error) {
+	if !store.invitation.Invitation.InvitationID.IsZero() {
+		replayed := store.invitation
+		replayed.Replay = true
+		return replayed, nil
+	}
+	store.invitation = identity.CreateInvitationStoreResult{
+		Invitation: identity.OrganizationInvitation{
+			InvitationID: command.InvitationID, OrganizationID: command.OrganizationID,
+			EmailHint: command.EmailHint, Role: command.Role, Status: "pending",
+			ExpiresAt: command.ExpiresAt, CreatedAt: command.Now,
+		},
+		DecisionID: command.AuditEvent.DecisionID,
+	}
+	return store.invitation, nil
 }
 
 type httpStepUpClaim struct {
@@ -483,6 +887,16 @@ func (store *httpIdentityStore) CreateSession(
 		ClientLabel: command.ClientLabel,
 		Permissions: []string{"identity.me.read", "identity.sessions.revoke_self"},
 	}
+	if command.Kind == identity.TransactionInvitationAcceptance {
+		session.PrincipalID = command.ProvisionalPrincipalID
+		session.PrincipalType = "merchant"
+		session.DisplayName = "Synthetic Invitation Recipient"
+		session.TenantID = identifier.ID{}
+		session.Permissions = []string{}
+		session.InvitationID = command.InvitationID
+		session.VerifiedEmailDigest = command.VerifiedEmailDigest
+		session.InvitationAcceptanceOnly = true
+	}
 	store.sessions[command.VerifierDigest] = session
 	return session, nil
 }
@@ -559,8 +973,11 @@ func newHTTPIdentityService(t *testing.T) (*identity.Service, *httpIdentityStore
 		t.Fatal(err)
 	}
 	counter := 0
+	organizationStore := &httpOrganizationStore{sessions: store}
+	store.organizationStore = organizationStore
 	service, err := identity.NewService(identity.ServiceOptions{
-		Store: store, Provider: provider, Cryptor: httpCryptor{}, CSRF: csrf,
+		Store: store, Organizations: organizationStore,
+		Provider: provider, Cryptor: httpCryptor{}, CSRF: csrf,
 		Clock: clock.NewFixed(testBuildTime), Entropy: &sequentialReader{next: 40},
 		NewID: func(prefix string) (identifier.ID, error) {
 			counter++

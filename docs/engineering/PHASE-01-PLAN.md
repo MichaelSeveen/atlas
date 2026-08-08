@@ -4,7 +4,12 @@
 
 - **Completed slices:** `P01-S01 — identity/access/tenancy audit and execution plan`; `P01-S02 — canonical contract, ownership, and security-decision closure`; `P01-S03 — identity/audit persistence, deterministic seeds, roles, and recovery revalidation`; `P01-S04 — synthetic OIDC BFF and durable session lifecycle`
 - **Current slice:** `P01-S05 — merchant organizations, memberships, invitations, and
-  active-tenant switching` is next and has not started. S04 core sessions, idempotent
+  active-tenant switching` is in progress. Its focused sub-slices implement
+  principal-organization listing, zero-grace Audit-atomic active-tenant session rotation, and
+  hash-only-verifier invitation issuance, tenant-authorized count-free member pagination, and
+  ADR 0016 invitation-bound authentication plus atomic recipient acceptance. `P01-D16` is
+  resolved; member role-change and removal mutations remain pending.
+  S04 core sessions, idempotent
   step-up/live higher-assurance completion, bounded three-population account-enumeration,
   real-browser logout/navigation protection, audit-atomic administrator security revocation,
   additive seed evolution, and the complete live gate pass.
@@ -181,7 +186,8 @@ These were specification gaps, not implementation discretion. S02 resolved `P01-
 profile. The exact package/version portion of `P01-D13` remains an explicit block on S09’s first
 web product consumer; the Bun/OpenAPI/no-hand-edits strategy is resolved. The table preserves the
 original question each owning slice must continue to satisfy. S04 implementation review added
-`P01-D15`; ADR 0015 resolves it additively without changing the self-owned route.
+`P01-D15`; ADR 0015 resolves it additively without changing the self-owned route. S05 invitation
+review added `P01-D16`; ADR 0016 closes it additively with a verified pre-membership bootstrap.
 
 | Decision | Required resolution |
 |---|---|
@@ -200,6 +206,7 @@ original question each owning slice must continue to satisfy. S04 implementation
 | `P01-D13` generated client | Select a deterministic OpenAPI-to-TypeScript client/docs path compatible with Bun before the web becomes the first product API consumer. Do not create a second hand-edited contract. |
 | `P01-D14` cross-phase evidence continuity | Preserve the final Phase 00 catalogue and define a versioned Phase 01 catalogue/integrity policy that supports dirty/pre-commit and committed descendant verification without treating unrelated code/config drift as evidence-only. Retain tamper/stale-source canaries; do not refresh a source revision without owning evidence. |
 | `P01-D15` administrator session-revocation transport | Additively define the administrator operation, target and concealment semantics, required purpose/reason, idempotency, fresh-step-up binding, authorization-decision response, and atomic Audit behavior. `DELETE /v1/sessions/{session_id}` remains self-owned and must not be silently overloaded. |
+| `P01-D16` invitation-acceptance bootstrap authentication | Resolved by ADR 0016: merchant OIDC verifies the invitation recipient before a 15-minute no-authority bootstrap session; acceptance atomically creates membership, consumes the invitation, rotates the session, and records Audit. |
 
 ## Phase 00 revalidation obligations
 

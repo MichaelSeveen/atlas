@@ -26,7 +26,7 @@ The original S04 PostgreSQL identity remains a local bootstrap identity so exist
 
 Each `db/migrations/*.sql` file has closed metadata covering lock risk, representative data,
 query-plan review, space risk, forward fix, rollback, lock timeout, and statement timeout.
-`db/migrations/MANIFEST.sha256` defines the eight-file-pair released inventory. `dbctl verify`
+`db/migrations/MANIFEST.sha256` defines the ten-file-pair released inventory. `dbctl verify`
 rejects changes, deletions, unmanifested files, reordering, malformed metadata, embedded
 transaction control, privileged SQL, unratified schemas, and financial terms.
 
@@ -35,9 +35,10 @@ The runner applies one migration per transaction with `lock_timeout=500ms` and
 closed manifest and applies each JSON document in its own transaction. Released identity seed v1
 is fixed at `2026-07-26T00:00:00Z`, remains byte-for-byte immutable, maps the three local Keycloak
 subjects to synthetic Atlas principals, and includes two tenants, two memberships, one workforce
-role, one revoked session recovery canary, and one Audit fact. Additive policy seed v2 verifies
-that exact predecessor before advancing the 23 permission and 13 role catalogue rows to the
-current canonical policy digest. Application startup applies neither migrations nor seeds.
+role, one revoked session recovery canary, and one Audit fact. Additive policy seed v2 preserves
+the prior policy boundary; additive policy seed v3 verifies that exact predecessor before advancing
+the 23 permission and 13 role catalogue rows to the current ADR 0016 policy digest. Application
+startup applies neither migrations nor seeds.
 
 ## Commands
 
@@ -80,7 +81,7 @@ Pass `-ContainerRuntime docker` to the PowerShell commands when Docker Compose i
 ## Failure posture
 
 The API readiness probe uses its application credential and a 750 ms deadline to require
-migration version 8 with the exact released checksum. Connectivity, authentication, missing
+migration version 10 with the exact released checksum. Connectivity, authentication, missing
 schema, timeout, and checksum mismatch all produce the same topology-free not-ready result;
 liveness and version remain independent.
 
@@ -92,9 +93,9 @@ Migration failures never trigger an automatic destructive down migration. Follow
   synthetic product state only; a reference deployment or backup encryption/key-custody change
   still requires stronger recovery evidence and independent review at the ADR 0012 triggers.
 - The S04 HTTP/OIDC/application-session boundary invokes Identity and Audit persistence and now
-  includes contracted step-up idempotency, live higher-assurance completion, and audit-atomic
-  administrator security revocation. Organization authorization, approvals, credentials, and
-  frontend product behavior remain absent.
+  includes contracted step-up idempotency, live higher-assurance completion, audit-atomic
+  administrator security revocation, and recipient-bound invitation acceptance. Remaining
+  membership mutations, approvals, credentials, and frontend product behavior remain absent.
 - No outbox, inbox, idempotency, object, key, or synthetic financial flow exists to replay or reconcile after restore.
 - Bounded verifier signals cover migration, seed, lock, role, restore, identity operations, and
   provider requests. Audit persistence is exercised synchronously by revocation; deployed alert

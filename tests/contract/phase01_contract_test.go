@@ -23,22 +23,23 @@ func TestPhase01OpenAPISurface(t *testing.T) {
 		"/v1/sessions":              {"get": "listPrincipalSessions"},
 		"/v1/sessions/{session_id}": {"delete": "revokePrincipalSession"},
 		"/v1/sessions/revoke-all":   {"post": "revokeAllPrincipalSessions"},
-		"/v1/security/sessions/{session_id}/revocations":          {"post": "revokeSessionForSecurity"},
-		"/v1/step-up/challenges":                                  {"post": "createStepUpChallenge"},
-		"/v1/me/active-organization":                              {"put": "setActiveOrganization"},
-		"/v1/organizations":                                       {"get": "listPrincipalOrganizations"},
-		"/v1/organizations/{organization_id}/members":             {"get": "listOrganizationMembers"},
-		"/v1/organizations/{organization_id}/invitations":         {"post": "createOrganizationInvitation"},
-		"/v1/organization-invitations/{invitation_id}/acceptance": {"post": "acceptOrganizationInvitation"},
-		"/v1/organizations/{organization_id}/members/{member_id}": {"patch": "updateOrganizationMember", "delete": "revokeOrganizationMember"},
-		"/v1/api-credentials":                                     {"get": "listAPICredentials", "post": "createAPICredential"},
-		"/v1/api-credentials/{credential_id}/rotate":              {"post": "rotateAPICredential"},
-		"/v1/api-credentials/{credential_id}":                     {"delete": "revokeAPICredential"},
-		"/v1/approvals":                                           {"get": "listApprovals", "post": "createApproval"},
-		"/v1/approvals/{approval_id}":                             {"get": "getApproval"},
-		"/v1/approvals/{approval_id}/decisions":                   {"post": "decideApproval"},
-		"/v1/approvals/{approval_id}/executions":                  {"post": "executeApproval"},
-		"/v1/approvals/{approval_id}/cancellations":               {"post": "cancelApproval"},
+		"/v1/security/sessions/{session_id}/revocations":              {"post": "revokeSessionForSecurity"},
+		"/v1/step-up/challenges":                                      {"post": "createStepUpChallenge"},
+		"/v1/me/active-organization":                                  {"put": "setActiveOrganization"},
+		"/v1/organizations":                                           {"get": "listPrincipalOrganizations"},
+		"/v1/organizations/{organization_id}/members":                 {"get": "listOrganizationMembers"},
+		"/v1/organizations/{organization_id}/invitations":             {"post": "createOrganizationInvitation"},
+		"/v1/organization-invitations/{invitation_id}/authentication": {"post": "beginOrganizationInvitationAuthentication"},
+		"/v1/organization-invitations/{invitation_id}/acceptance":     {"post": "acceptOrganizationInvitation"},
+		"/v1/organizations/{organization_id}/members/{member_id}":     {"patch": "updateOrganizationMember", "delete": "revokeOrganizationMember"},
+		"/v1/api-credentials":                                         {"get": "listAPICredentials", "post": "createAPICredential"},
+		"/v1/api-credentials/{credential_id}/rotate":                  {"post": "rotateAPICredential"},
+		"/v1/api-credentials/{credential_id}":                         {"delete": "revokeAPICredential"},
+		"/v1/approvals":                                               {"get": "listApprovals", "post": "createApproval"},
+		"/v1/approvals/{approval_id}":                                 {"get": "getApproval"},
+		"/v1/approvals/{approval_id}/decisions":                       {"post": "decideApproval"},
+		"/v1/approvals/{approval_id}/executions":                      {"post": "executeApproval"},
+		"/v1/approvals/{approval_id}/cancellations":                   {"post": "cancelApproval"},
 	}
 
 	for path, methods := range expected {
@@ -202,6 +203,10 @@ func TestPhase01IdentityAccessPolicyIsClosedAndConsistent(t *testing.T) {
 			t.Errorf("%s = %q, want %q", key, got, want)
 		}
 	}
+	additiveDecisions := stringSetAt(t, policy, "additive_decisions")
+	if !additiveDecisions["ADR-0015"] || !additiveDecisions["ADR-0016"] || len(additiveDecisions) != 2 {
+		t.Errorf("additive identity decisions = %v", sortedKeys(additiveDecisions))
+	}
 
 	sessions := objectAt(t, policy, "sessions")
 	cookie := objectAt(t, sessions, "cookie")
@@ -219,6 +224,41 @@ func TestPhase01IdentityAccessPolicyIsClosedAndConsistent(t *testing.T) {
 	}
 	if got := intAt(t, sessions, "oidc_clock_skew_seconds"); got != 60 {
 		t.Errorf("OIDC clock skew = %d seconds, want 60", got)
+	}
+	var invitationSession map[string]any
+	for _, raw := range arrayAt(t, sessions, "policies") {
+		candidate, ok := raw.(map[string]any)
+		if ok && candidate["population"] == "merchant-invitation-acceptance" {
+			invitationSession = candidate
+		}
+	}
+	if invitationSession == nil {
+		t.Fatal("merchant invitation-acceptance session policy is absent")
+	}
+	if intAt(t, invitationSession, "idle_minutes") != 15 ||
+		intAt(t, invitationSession, "absolute_minutes") != 15 {
+		t.Errorf("invitation bootstrap lifetime = %#v", invitationSession)
+	}
+	assertString(t, invitationSession, "tenant_authority", "none")
+	if permissions := stringSetAt(t, invitationSession, "permissions"); len(permissions) != 0 {
+		t.Errorf("invitation bootstrap permissions = %v", sortedKeys(permissions))
+	}
+
+	tenancy := objectAt(t, policy, "tenancy")
+	invitationAuthentication := objectAt(t, tenancy, "invitation_authentication")
+	assertString(t, invitationAuthentication, "decision", "ADR-0016")
+	assertString(t, invitationAuthentication, "provider_population", "merchant")
+	assertString(t, invitationAuthentication, "bootstrap_tenant_authority", "none")
+	assertString(t, invitationAuthentication, "acceptance_atomicity", "membership-invitation-session-rotation-audit-one-transaction")
+	if intAt(t, invitationAuthentication, "bootstrap_lifetime_minutes") != 15 {
+		t.Errorf("invitation bootstrap policy = %#v", invitationAuthentication)
+	}
+	authenticationOperation := objectAt(t, objectAt(t,
+		objectAt(t, readOpenAPIDocument(t), "paths"),
+		"/v1/organization-invitations/{invitation_id}/authentication"), "post")
+	security, ok := authenticationOperation["security"].([]any)
+	if !ok || len(security) != 0 {
+		t.Errorf("invitation authentication security = %#v, want unauthenticated initiation", authenticationOperation["security"])
 	}
 
 	permissions := stringSetAt(t, policy, "permissions")

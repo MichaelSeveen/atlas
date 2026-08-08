@@ -36,6 +36,7 @@ func TestSessionStoreRealPostgresOIDCRevocationAndAuthorityInvalidation(t *testi
 		t.Fatal(err)
 	}
 	defer migrationPool.Close()
+	cleanupSessionIntegrationSharedState(t, ctx, migrationPool)
 	store, err := NewSessionStore(apiPool, auditapplication.NewRecorder())
 	if err != nil {
 		t.Fatal(err)
@@ -623,6 +624,7 @@ func cleanupIntegrationState(
 	correlationIDs []identifier.ID,
 ) {
 	t.Helper()
+	cleanupSessionIntegrationSharedState(t, ctx, pool)
 	sessionTexts := make([]string, 0, len(sessionIDs))
 	for _, sessionID := range sessionIDs {
 		sessionTexts = append(sessionTexts, sessionID.String())
@@ -631,6 +633,27 @@ func cleanupIntegrationState(
 	for _, correlationID := range correlationIDs {
 		correlationTexts = append(correlationTexts, correlationID.String())
 	}
+	transactionTexts := make([]string, 0, len(transactionIDs))
+	for _, transactionID := range transactionIDs {
+		transactionTexts = append(transactionTexts, transactionID.String())
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM atlas_identity.oidc_transactions WHERE transaction_id = ANY($1)`, transactionTexts); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM atlas_identity.sessions WHERE session_id = ANY($1)`, sessionTexts); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM atlas_audit.audit_events WHERE correlation_id = ANY($1)`, correlationTexts); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func cleanupSessionIntegrationSharedState(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+) {
+	t.Helper()
 	if _, err := pool.Exec(ctx, `
 DELETE FROM atlas_identity.session_revocation_requests
 WHERE principal_id = 'usr_01JAT1AS00000000000001'`); err != nil {
@@ -646,17 +669,30 @@ DELETE FROM atlas_identity.admin_session_revocation_requests
 WHERE actor_principal_id = 'usr_01JAT1AS00000000000003'`); err != nil {
 		t.Fatal(err)
 	}
-	transactionTexts := make([]string, 0, len(transactionIDs))
-	for _, transactionID := range transactionIDs {
-		transactionTexts = append(transactionTexts, transactionID.String())
+	for _, state := range []string{
+		"real-postgres-oidc-state",
+		"real-postgres-stale-step-up-state",
+		"real-postgres-step-up-state",
+	} {
+		digest := sha256.Sum256([]byte(state))
+		if _, err := pool.Exec(ctx, `
+DELETE FROM atlas_identity.oidc_transactions
+WHERE state_sha256 = $1`, digest[:]); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if _, err := pool.Exec(ctx, `DELETE FROM atlas_identity.oidc_transactions WHERE transaction_id = ANY($1)`, transactionTexts); err != nil {
+	if _, err := pool.Exec(ctx, `
+DELETE FROM atlas_audit.audit_events
+WHERE target_id IN (
+    SELECT session_id
+    FROM atlas_identity.sessions
+    WHERE client_label IN ('integration-browser', 'integration-workforce-browser')
+)`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `DELETE FROM atlas_identity.sessions WHERE session_id = ANY($1)`, sessionTexts); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := pool.Exec(ctx, `DELETE FROM atlas_audit.audit_events WHERE correlation_id = ANY($1)`, correlationTexts); err != nil {
+	if _, err := pool.Exec(ctx, `
+DELETE FROM atlas_identity.sessions
+WHERE client_label IN ('integration-browser', 'integration-workforce-browser')`); err != nil {
 		t.Fatal(err)
 	}
 }

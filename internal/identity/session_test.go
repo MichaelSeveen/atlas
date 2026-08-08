@@ -60,6 +60,68 @@ func TestOIDCLoginIsSingleUseNonceBoundAndCreatesANewOpaqueSession(t *testing.T)
 	}
 }
 
+func TestInvitationAuthenticationBindsVerifiedRecipientAndCreatesNoAuthority(t *testing.T) {
+	now := time.Date(2026, 8, 8, 12, 0, 0, 0, time.UTC)
+	store := newFakeSessionStore(t, now)
+	provider := &fakeProvider{claims: ProviderClaims{
+		Issuer:    "https://identity.test.invalid/realms/merchant",
+		Subject:   "00000000-0000-4000-8000-000000000901",
+		Assurance: AssuranceBaseline, AuthenticatedAt: now,
+		Email: "Recipient@Example.test", EmailVerified: true,
+	}}
+	service := newTestService(t, store, provider, now)
+	invitationID := mustTestID(t, "inv", 901)
+	acceptanceToken := strings.Repeat("T", 43)
+	begin, err := service.BeginInvitationAuthentication(
+		context.Background(), invitationID, acceptanceToken, "",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if begin.Population != PopulationMerchant || provider.kind != TransactionInvitationAcceptance ||
+		store.transaction.InvitationID != invitationID ||
+		store.transaction.InvitationTokenDigest != sha256.Sum256([]byte(acceptanceToken)) ||
+		strings.Contains(begin.AuthorizationURL, acceptanceToken) {
+		t.Fatalf("unsafe invitation transaction: begin=%+v transaction=%+v", begin, store.transaction)
+	}
+	provider.claims.Nonce = provider.nonce
+	completed, err := service.CompleteLogin(context.Background(), CompleteLoginRequest{
+		State: provider.state, Code: "synthetic-invitation-code-0001",
+		CorrelationID: mustTestID(t, "cor", 902),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := store.created
+	if command.Kind != TransactionInvitationAcceptance ||
+		command.InvitationID != invitationID ||
+		command.InvitationTokenDigest != sha256.Sum256([]byte(acceptanceToken)) ||
+		command.VerifiedEmailDigest == ([32]byte{}) ||
+		command.ProvisionalPrincipalID.Prefix() != "usr" ||
+		command.ProvisionalExternalSubjectID.Prefix() != "ext" ||
+		command.AbsoluteExpiresAt.Sub(command.AuthorizationAt) != invitationAcceptanceSessionLifetime ||
+		command.IdleExpiresAt != command.AbsoluteExpiresAt ||
+		!completed.Session.InvitationAcceptanceOnly || !completed.Session.TenantID.IsZero() ||
+		len(completed.Session.Permissions) != 0 {
+		t.Fatalf("unsafe invitation bootstrap: result=%+v command=%+v", completed, command)
+	}
+
+	second, err := service.BeginInvitationAuthentication(
+		context.Background(), invitationID, acceptanceToken, "",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider.claims.Nonce = provider.nonce
+	provider.claims.EmailVerified = false
+	if _, err := service.CompleteLogin(context.Background(), CompleteLoginRequest{
+		State: provider.state, Code: "synthetic-invitation-code-0002",
+		CorrelationID: mustTestID(t, "cor", 903),
+	}); !errors.Is(err, ErrOIDCTransactionInvalid) {
+		t.Fatalf("unverified invitation recipient error=%v begin=%+v", err, second)
+	}
+}
+
 func TestMostAgentsSkip08SessionFixationAndStepUpRotation(t *testing.T) {
 	now := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
 	store := newFakeSessionStore(t, now)
@@ -546,6 +608,16 @@ func (store *fakeSessionStore) CreateSession(_ context.Context, command CreateSe
 	session.ClientLabel = command.ClientLabel
 	if command.Kind == TransactionStepUp {
 		session.RotationVersion++
+	}
+	if command.Kind == TransactionInvitationAcceptance {
+		session.PrincipalID = command.ProvisionalPrincipalID
+		session.PrincipalType = "merchant"
+		session.Population = PopulationMerchant
+		session.TenantID = identifier.ID{}
+		session.Permissions = []string{}
+		session.InvitationID = command.InvitationID
+		session.VerifiedEmailDigest = command.VerifiedEmailDigest
+		session.InvitationAcceptanceOnly = true
 	}
 	store.sessions[command.VerifierDigest] = session
 	return session, nil

@@ -73,7 +73,7 @@ func (a *App) corsMiddleware(next http.Handler) http.Handler {
 		}
 		response.Header().Set(
 			"Access-Control-Expose-Headers",
-			"X-Atlas-CSRF-Token, X-Request-Id, X-Correlation-Id, traceparent",
+			"Idempotency-Replayed, Location, X-Atlas-CSRF-Token, X-Authorization-Decision-Id, X-Request-Id, X-Correlation-Id, traceparent",
 		)
 		if request.Method != http.MethodOptions {
 			next.ServeHTTP(response, request)

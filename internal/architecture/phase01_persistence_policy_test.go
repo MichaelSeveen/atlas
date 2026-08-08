@@ -21,8 +21,10 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 	sessionSQL := readPhase01PolicyFile(t, root, "db/migrations/000005_phase_01_oidc_sessions.sql")
 	sessionGrantSQL := readPhase01PolicyFile(t, root, "db/migrations/000006_phase_01_session_authority_lock_grant.sql")
 	adminRevocationSQL := readPhase01PolicyFile(t, root, "db/migrations/000008_phase_01_admin_session_revocation.sql")
+	invitationSQL := readPhase01PolicyFile(t, root, "db/migrations/000009_phase_01_organization_invitations.sql")
+	invitationAcceptanceSQL := readPhase01PolicyFile(t, root, "db/migrations/000010_phase_01_invitation_acceptance.sql")
 	allSQL := identitySQL + "\n" + auditSQL + "\n" + sessionSQL + "\n" +
-		sessionGrantSQL + "\n" + adminRevocationSQL
+		sessionGrantSQL + "\n" + adminRevocationSQL + "\n" + invitationSQL + "\n" + invitationAcceptanceSQL
 
 	tables := make([]string, 0)
 	for _, match := range phase01ProductTablePattern.FindAllStringSubmatch(allSQL, -1) {
@@ -35,6 +37,7 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 		"atlas_identity.external_subjects",
 		"atlas_identity.memberships",
 		"atlas_identity.oidc_transactions",
+		"atlas_identity.organization_invitations",
 		"atlas_identity.organizations",
 		"atlas_identity.permission_catalogue",
 		"atlas_identity.principal_roles",
@@ -70,6 +73,11 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 		"GRANT SELECT, INSERT, UPDATE ON atlas_identity.oidc_transactions TO atlas_api;",
 		"GRANT UPDATE (authorization_version) ON atlas_identity.principals TO atlas_api;",
 		"GRANT SELECT, INSERT ON atlas_identity.admin_session_revocation_requests TO atlas_api;",
+		"GRANT SELECT, INSERT, UPDATE ON atlas_identity.organization_invitations TO atlas_api;",
+		"invitation_token_sha256 bytea",
+		"verified_email_sha256 bytea",
+		"acceptance_idempotency_key_sha256 bytea",
+		"global_scope = 'invitation-acceptance'",
 	} {
 		if !strings.Contains(allSQL, required) {
 			t.Errorf("persistence policy is missing %q", required)
@@ -126,7 +134,9 @@ func TestPhase01SeedManifestIsClosedAndChecksumBound(t *testing.T) {
 	expected := []string{
 		"000001_phase_01_identity.json",
 		"000002_phase_01_policy.json",
+		"000003_phase_01_policy.json",
 		"load-phase-01-identity.sql",
+		"load-phase-01-policy-v3.sql",
 		"load-phase-01-policy.sql",
 	}
 	if !reflect.DeepEqual(actual, expected) || len(want) != len(expected) {
@@ -145,6 +155,20 @@ func TestPhase01TenantRepositorySignatureAndPredicateAreExplicit(t *testing.T) {
 		if !strings.Contains(source, required) {
 			t.Errorf("tenant repository policy is missing %q", required)
 		}
+	}
+	organizationSource := readPhase01PolicyFile(t, root, "internal/identity/persistence/organization.go")
+	for _, required := range []string{
+		"command identity.ListOrganizationMembersCommand",
+		"command.OrganizationID.String()",
+		"member.OrganizationID != command.OrganizationID",
+	} {
+		if !strings.Contains(organizationSource, required) {
+			t.Errorf("organization-member repository policy is missing %q", required)
+		}
+	}
+	const memberTenantPredicate = "WHERE tenant_id = $1\n  AND population = 'merchant'"
+	if count := strings.Count(organizationSource, memberTenantPredicate); count != 2 {
+		t.Errorf("organization-member page queries have %d explicit tenant predicates, want 2", count)
 	}
 }
 

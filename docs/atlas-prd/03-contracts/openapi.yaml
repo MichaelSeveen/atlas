@@ -127,6 +127,7 @@ paths:
       operationId: getCurrentPrincipal
       tags: [Identity]
       summary: Get the authenticated principal and active tenant context
+      description: An invitation-acceptance session returns a null active tenant and no permissions until acceptance commits.
       security:
         - bffSession: []
         - merchantApiKey: []
@@ -352,6 +353,8 @@ paths:
         '200':
           description: Updated principal and tenant context
           headers:
+            Set-Cookie: {$ref: '#/components/headers/SessionSetCookie'}
+            X-Atlas-CSRF-Token: {$ref: '#/components/headers/XAtlasCSRFToken'}
             X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
             Cache-Control: {$ref: '#/components/headers/CacheControl'}
           content:
@@ -383,6 +386,7 @@ paths:
                     maxItems: 100
                     items: {$ref: '#/components/schemas/Organization'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
+        '403': {$ref: '#/components/responses/Forbidden'}
 
   /v1/organizations/{organization_id}/members:
     parameters:
@@ -409,8 +413,10 @@ paths:
                 properties:
                   data:
                     type: array
+                    maxItems: 100
                     items: {$ref: '#/components/schemas/OrganizationMember'}
                   page: {$ref: '#/components/schemas/PageInfo'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
@@ -448,6 +454,30 @@ paths:
         '422': {$ref: '#/components/responses/ValidationFailed'}
         '429': {$ref: '#/components/responses/RateLimited'}
 
+  /v1/organization-invitations/{invitation_id}/authentication:
+    parameters:
+      - $ref: '#/components/parameters/InvitationId'
+    post:
+      operationId: beginOrganizationInvitationAuthentication
+      tags: [Organizations]
+      summary: Begin recipient-bound merchant authentication for an invitation
+      description: Accepts the token only in the body, stores only its digest in a single-use OIDC transaction, and does not reveal whether the invitation exists before the verified callback.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AcceptOrganizationInvitationRequest'}
+      responses:
+        '303':
+          description: Redirect to the allow-listed synthetic merchant identity provider
+          headers:
+            Location: {$ref: '#/components/headers/Location'}
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
+
   /v1/organization-invitations/{invitation_id}/acceptance:
     parameters:
       - $ref: '#/components/parameters/InvitationId'
@@ -455,6 +485,7 @@ paths:
       operationId: acceptOrganizationInvitation
       tags: [Organizations]
       summary: Accept a single-use organization invitation
+      description: Requires the recipient-bound acceptance-only BFF session created by the authentication flow; membership, invitation consumption, session rotation, and Audit commit atomically.
       parameters:
         - $ref: '#/components/parameters/XAtlasCSRFToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -466,6 +497,12 @@ paths:
       responses:
         '200':
           description: Invitation accepted and membership returned
+          headers:
+            Set-Cookie: {$ref: '#/components/headers/SessionSetCookie'}
+            X-Atlas-CSRF-Token: {$ref: '#/components/headers/XAtlasCSRFToken'}
+            X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
           content:
             application/json:
               schema: {$ref: '#/components/schemas/OrganizationMember'}

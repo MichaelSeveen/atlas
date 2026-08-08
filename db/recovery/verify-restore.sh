@@ -11,6 +11,7 @@ query() {
 [ "$(query 'SELECT pg_is_in_recovery()')" = 'f' ]
 [ "$(query "SELECT count(*) FROM atlas_foundation.seed_applications WHERE seed_id = 'atlas-phase01-identity-v1'")" = '1' ]
 [ "$(query "SELECT count(*) FROM atlas_foundation.seed_applications WHERE seed_id = 'atlas-phase01-identity-policy-v2'")" = '1' ]
+[ "$(query "SELECT count(*) FROM atlas_foundation.seed_applications WHERE seed_id = 'atlas-phase01-identity-policy-v3'")" = '1' ]
 [ "$(query "SELECT count(*) FROM atlas_identity.permission_catalogue WHERE policy_checksum = '8c5085e94e6006b232f28974ebb6aa251452be18647f9863dd4155ce43c7f8cf'")" = '23' ]
 [ "$(query "SELECT count(*) FROM atlas_identity.role_catalogue WHERE policy_checksum = '8c5085e94e6006b232f28974ebb6aa251452be18647f9863dd4155ce43c7f8cf'")" = '13' ]
 [ "$(query "SELECT count(*) FROM atlas_identity.principals")" = '3' ]

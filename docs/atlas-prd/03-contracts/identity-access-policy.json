@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "decision": "ADR-0014",
+  "additive_decisions": ["ADR-0015", "ADR-0016"],
   "phase": "PHASE-01_IDENTITY_ACCESS_TENANCY",
   "default_authorization": "deny",
   "authoritative_store": "postgresql",
@@ -35,7 +36,7 @@
     "person_anchor_required_for": ["merchant", "workforce"],
     "person_anchor_property": "synthetic immutable non-PII anchor in portfolio environments",
     "multiple_external_accounts_with_one_anchor": "map-to-one-atlas-principal",
-    "self_registration": "disabled"
+    "self_registration": "invitation-gated-merchant-provisioning-only"
   },
   "sessions": {
     "cookie": {
@@ -70,6 +71,15 @@
         "minimum_assurance": "baseline"
       },
       {
+        "population": "merchant-invitation-acceptance",
+        "idle_minutes": 15,
+        "absolute_minutes": 15,
+        "minimum_assurance": "baseline",
+        "tenant_authority": "none",
+        "permissions": [],
+        "allowed_operations": ["identity.me.read", "identity.logout", "organization.invitation.accept"]
+      },
+      {
         "population": "workforce",
         "idle_minutes": 10,
         "absolute_minutes": 60,
@@ -100,6 +110,20 @@
     "invitation_random_bits": 256,
     "invitation_stored_verifier": "sha256",
     "invitation_use": "single",
+    "invitation_authentication": {
+      "decision": "ADR-0016",
+      "initiation": "POST /v1/organization-invitations/{invitation_id}/authentication",
+      "provider_population": "merchant",
+      "required_claims": ["issuer", "subject", "email", "email_verified=true"],
+      "recipient_binding": "constant-time-sha256-over-canonical-verified-email",
+      "oidc_transaction_binding": ["invitation-id", "token-sha256", "state", "nonce", "pkce"],
+      "bootstrap_lifetime_minutes": 15,
+      "bootstrap_tenant_authority": "none",
+      "principal_provisioning": "only-after-valid-pending-token-and-verified-recipient-match",
+      "acceptance_atomicity": "membership-invitation-session-rotation-audit-one-transaction",
+      "invalid_response": "not-found-or-concealed",
+      "event_publication": "none"
+    },
     "membership_revocation_bound": "no-new-authorized-commit-after-revocation-transaction-commits"
   },
   "purposes": [

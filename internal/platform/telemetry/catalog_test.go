@@ -68,7 +68,11 @@ func TestMetricCatalogEnforcesCardinalityAndRuntimeCoverage(t *testing.T) {
 					t.Fatalf("high-cardinality identity label %q is forbidden", label)
 				}
 			}
-			if len(values) == 0 || len(values) > 16 {
+			maximumValues := 16
+			if label == "http.route" {
+				maximumValues = 32
+			}
+			if len(values) == 0 || len(values) > maximumValues {
 				t.Fatalf("label %q has an invalid allowlist", label)
 			}
 			cardinality *= len(values)

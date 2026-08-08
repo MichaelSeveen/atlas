@@ -33,7 +33,13 @@ func NewRuntime(
 		return nil, nil, errors.New("invalid identity database configuration")
 	}
 	closePool := func() { pool.Close() }
-	store, err := identitypersistence.NewSessionStore(pool, auditapplication.NewRecorder())
+	auditRecorder := auditapplication.NewRecorder()
+	store, err := identitypersistence.NewSessionStore(pool, auditRecorder)
+	if err != nil {
+		closePool()
+		return nil, nil, errors.New("invalid identity persistence configuration")
+	}
+	organizationStore, err := identitypersistence.NewOrganizationStore(pool, auditRecorder)
 	if err != nil {
 		closePool()
 		return nil, nil, errors.New("invalid identity persistence configuration")
@@ -75,7 +81,8 @@ func NewRuntime(
 		return nil, nil, errors.New("invalid identity CSRF key")
 	}
 	service, err := identity.NewService(identity.ServiceOptions{
-		Store: store, Provider: provider, Cryptor: cryptor, CSRF: csrf,
+		Store: store, Organizations: organizationStore,
+		Provider: provider, Cryptor: cryptor, CSRF: csrf,
 		Entropy: rand.Reader, SessionPolicies: policies,
 	})
 	if err != nil {

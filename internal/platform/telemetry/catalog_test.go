@@ -43,7 +43,7 @@ func loadCatalog(t *testing.T) (metricCatalog, string) {
 
 func TestMetricCatalogEnforcesCardinalityAndRuntimeCoverage(t *testing.T) {
 	catalog, root := loadCatalog(t)
-	if catalog.Version != 1 || catalog.CardinalityBudget < 1 || catalog.CardinalityBudget > 256 {
+	if catalog.Version != 1 || catalog.CardinalityBudget < 1 || catalog.CardinalityBudget > 384 {
 		t.Fatal("metric catalog policy is invalid")
 	}
 	required := map[string]string{

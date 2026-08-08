@@ -7,8 +7,10 @@
   active-tenant switching` is in progress. Its focused sub-slices implement
   principal-organization listing, zero-grace Audit-atomic active-tenant session rotation, and
   hash-only-verifier invitation issuance, tenant-authorized count-free member pagination, and
-  ADR 0016 invitation-bound authentication plus atomic recipient acceptance. `P01-D16` is
-  resolved; member role-change and removal mutations remain pending.
+  ADR 0016 invitation-bound authentication plus atomic recipient acceptance, and direct
+  viewer/operator member role changes with exact strong ETags, durable idempotency, immediate
+  authority/session invalidation, and atomic Audit. Administrator-involved transitions remain
+  fail-closed pending the S07 typed maker-checker capability; member removal remains pending.
   S04 core sessions, idempotent
   step-up/live higher-assurance completion, bounded three-population account-enumeration,
   real-browser logout/navigation protection, audit-atomic administrator security revocation,

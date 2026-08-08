@@ -93,6 +93,11 @@ type createOrganizationInvitationRequest struct {
 	Role  string `json:"role"`
 }
 
+type updateOrganizationMemberRoleRequest struct {
+	Role    string `json:"role"`
+	Purpose string `json:"purpose"`
+}
+
 type invitationTokenRequest struct {
 	AcceptanceToken string `json:"acceptance_token"`
 }
@@ -146,6 +151,8 @@ func (a *App) routeIdentity(response http.ResponseWriter, request *http.Request)
 		a.listOrganizations(response, request)
 	case "/v1/organizations/{organization_id}/members":
 		a.listOrganizationMembers(response, request)
+	case "/v1/organizations/{organization_id}/members/{member_id}":
+		a.updateOrganizationMemberRole(response, request)
 	case "/v1/organizations/{organization_id}/invitations":
 		a.createOrganizationInvitation(response, request)
 	case "/v1/organization-invitations/{invitation_id}/authentication":
@@ -155,6 +162,83 @@ func (a *App) routeIdentity(response http.ResponseWriter, request *http.Request)
 	default:
 		a.writeProblem(response, request, http.StatusNotFound, "route-not-found", "Not found", "ROUTE_NOT_FOUND", false)
 	}
+}
+
+func (a *App) updateOrganizationMemberRole(response http.ResponseWriter, request *http.Request) {
+	if request.URL.RawQuery != "" {
+		a.malformed(response, request)
+		return
+	}
+	var body updateOrganizationMemberRoleRequest
+	if err := decodeStrictJSON(request, &body); err != nil {
+		a.malformed(response, request)
+		return
+	}
+	organizationID, membershipID, err := organizationMemberIDsFromPath(request.URL.Path)
+	if err != nil {
+		a.writeIdentityError(response, request, identity.ErrMembershipNotFound)
+		return
+	}
+	cookie, err := sessionCookie(request)
+	if err != nil {
+		a.writeIdentityError(response, request, identity.ErrAuthenticationRequired)
+		return
+	}
+	csrfToken, ok := singleHeader(request.Header, identity.CSRFHeaderName)
+	if !ok {
+		a.writeIdentityError(response, request, identity.ErrCSRFValidationFailed)
+		return
+	}
+	idempotencyKey, ok := singleHeader(request.Header, "Idempotency-Key")
+	if !ok {
+		a.malformed(response, request)
+		return
+	}
+	ifMatch, ok := singleHeader(request.Header, "If-Match")
+	if !ok {
+		a.malformed(response, request)
+		return
+	}
+	correlationID, ok := requestCorrelationID(request)
+	if !ok {
+		a.writeIdentityError(response, request, identity.ErrIdentityUnavailable)
+		return
+	}
+	result, err := a.identity.UpdateOrganizationMemberRole(
+		request.Context(), identity.UpdateOrganizationMemberRoleRequest{
+			CookieValue: cookie, CSRFToken: csrfToken, OrganizationID: organizationID,
+			MembershipID: membershipID, Role: body.Role, Purpose: body.Purpose,
+			IfMatch: ifMatch, IdempotencyKey: idempotencyKey, CorrelationID: correlationID,
+		},
+	)
+	if !result.DecisionID.IsZero() {
+		response.Header().Set("X-Authorization-Decision-Id", result.DecisionID.String())
+	}
+	if err != nil {
+		a.writeIdentityError(response, request, err)
+		return
+	}
+	response.Header().Set("ETag", identity.OrganizationMemberETag(result.Member.Version))
+	response.Header().Set("Idempotency-Replayed", strconv.FormatBool(result.Replay))
+	writeJSON(response, http.StatusOK, organizationMemberFromDomain(result.Member))
+}
+
+func organizationMemberIDsFromPath(path string) (identifier.ID, identifier.ID, error) {
+	remainder := strings.TrimPrefix(path, "/v1/organizations/")
+	parts := strings.Split(remainder, "/members/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" ||
+		strings.Contains(parts[0], "/") || strings.Contains(parts[1], "/") {
+		return identifier.ID{}, identifier.ID{}, errors.New("invalid organization member path")
+	}
+	organizationID, err := identifier.Parse(parts[0])
+	if err != nil || organizationID.Prefix() != "ten" {
+		return identifier.ID{}, identifier.ID{}, errors.New("invalid organization identifier")
+	}
+	membershipID, err := identifier.Parse(parts[1])
+	if err != nil || membershipID.Prefix() != "mem" {
+		return identifier.ID{}, identifier.ID{}, errors.New("invalid membership identifier")
+	}
+	return organizationID, membershipID, nil
 }
 
 func (a *App) beginInvitationAuthentication(response http.ResponseWriter, request *http.Request) {
@@ -882,6 +966,12 @@ func (a *App) writeIdentityError(response http.ResponseWriter, request *http.Req
 		a.writeProblem(response, request, http.StatusNotFound, "not-found-or-concealed", "Not found", "NOT_FOUND_OR_CONCEALED", false)
 	case errors.Is(err, identity.ErrInvitationNotFound):
 		a.writeProblem(response, request, http.StatusNotFound, "not-found-or-concealed", "Not found", "NOT_FOUND_OR_CONCEALED", false)
+	case errors.Is(err, identity.ErrMembershipNotFound):
+		a.writeProblem(response, request, http.StatusNotFound, "not-found-or-concealed", "Not found", "NOT_FOUND_OR_CONCEALED", false)
+	case errors.Is(err, identity.ErrMembershipPreconditionFailed):
+		a.writeProblem(response, request, http.StatusPreconditionFailed, "precondition-failed", "Precondition failed", "MEMBERSHIP_PRECONDITION_FAILED", false)
+	case errors.Is(err, identity.ErrMembershipApprovalRequired):
+		a.writeProblem(response, request, http.StatusConflict, "approval-required", "Conflict", "MEMBERSHIP_APPROVAL_REQUIRED", false)
 	case errors.Is(err, identity.ErrSessionConflict):
 		a.writeProblem(response, request, http.StatusConflict, "conflict", "Conflict", "CONFLICT", false)
 	case errors.Is(err, identity.ErrIdempotencyConflict):

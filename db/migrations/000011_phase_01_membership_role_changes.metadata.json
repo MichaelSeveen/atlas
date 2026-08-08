@@ -1,0 +1,13 @@
+{
+  "version": 11,
+  "name": "phase_01_membership_role_changes",
+  "released": true,
+  "lock_timeout_ms": 500,
+  "statement_timeout_ms": 5000,
+  "lock_risk": "Adds one uniqueness constraint to the bounded membership table, then creates an initially empty immutable replay table and one tenant-leading index without rewriting role data.",
+  "representative_data": "Runs against empty, previous-version, and deterministic Phase 01 identity lanes; live tests execute concurrent same-version direct role changes and Audit-outage rollback through the atlas_api role.",
+  "query_plan_review": "The actor-and-idempotency unique key serializes response-loss replay, the membership primary/tenant key locks one target, and the tenant-leading history index avoids cross-tenant scans.",
+  "space_risk": "Stores hash-only idempotency/request digests and bounded immutable before/after role references; no cookie, CSRF value, email, purpose text, or arbitrary payload is retained.",
+  "forward_fix": "Disable the direct role-change route and add a new ordered migration for any replay, grant, constraint, or approval-integration correction while preserving membership and Audit history.",
+  "rollback": "Disable the direct role-change route before a forward fix; never reverse a committed role change, reactivate invalidated sessions, delete its replay/Audit fact, or enable administrator transitions without Operations approval."
+}

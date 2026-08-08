@@ -131,6 +131,69 @@ func TestPhase01CookieMutationsRequireCSRF(t *testing.T) {
 	}
 }
 
+func TestPhase01MemberRoleChangeContractFailsClosedAroundApproval(t *testing.T) {
+	document := readOpenAPIDocument(t)
+	operation := objectAt(t, objectAt(t,
+		objectAt(t, document, "paths"),
+		"/v1/organizations/{organization_id}/members/{member_id}"), "patch")
+
+	description := stringAt(t, operation, "description")
+	for _, boundary := range []string{
+		"Direct changes are limited to merchant_viewer and merchant_operator",
+		"transition into or out of merchant_admin",
+		"typed maker-checker action",
+		"merchant_security_admin is never delegable",
+		"exact strong membership ETag",
+	} {
+		if !strings.Contains(description, boundary) {
+			t.Errorf("member role-change description does not close boundary %q", boundary)
+		}
+	}
+
+	parameters := arrayAt(t, operation, "parameters")
+	parameterRefs := map[string]bool{}
+	for _, raw := range parameters {
+		parameter, ok := raw.(map[string]any)
+		if !ok {
+			t.Fatalf("member role-change parameter has type %T", raw)
+		}
+		parameterRefs[stringAt(t, parameter, "$ref")] = true
+	}
+	for _, required := range []string{
+		"#/components/parameters/XAtlasCSRFToken",
+		"#/components/parameters/IdempotencyKey",
+		"#/components/parameters/IfMatch",
+	} {
+		if !parameterRefs[required] {
+			t.Errorf("member role change does not require %s", required)
+		}
+	}
+
+	responses := objectAt(t, operation, "responses")
+	okHeaders := objectAt(t, objectAt(t, responses, "200"), "headers")
+	for _, required := range []string{"ETag", "X-Authorization-Decision-Id", "Idempotency-Replayed", "Cache-Control"} {
+		if _, ok := okHeaders[required].(map[string]any); !ok {
+			t.Errorf("member role-change 200 response has no %s header", required)
+		}
+	}
+	approval := objectAt(t, responses, "202")
+	if !strings.Contains(stringAt(t, approval, "description"), "Approval is required") {
+		t.Error("member administrator-role transition is not contractually approval-gated")
+	}
+	if _, ok := objectAt(t, approval, "headers")["Location"].(map[string]any); !ok {
+		t.Error("member administrator-role approval response has no Location header")
+	}
+	for status, responseRef := range map[string]string{
+		"400": "#/components/responses/RequestMalformed",
+		"403": "#/components/responses/Forbidden",
+		"503": "#/components/responses/ServiceUnavailable",
+	} {
+		if got := stringAt(t, objectAt(t, responses, status), "$ref"); got != responseRef {
+			t.Errorf("member role-change %s response = %q, want %q", status, got, responseRef)
+		}
+	}
+}
+
 func TestPhase01MachineCredentialIsLeastPrivilege(t *testing.T) {
 	document := readOpenAPIDocument(t)
 	schemes := objectAt(t, objectAt(t, document, "components"), "securitySchemes")

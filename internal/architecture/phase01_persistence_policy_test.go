@@ -23,8 +23,10 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 	adminRevocationSQL := readPhase01PolicyFile(t, root, "db/migrations/000008_phase_01_admin_session_revocation.sql")
 	invitationSQL := readPhase01PolicyFile(t, root, "db/migrations/000009_phase_01_organization_invitations.sql")
 	invitationAcceptanceSQL := readPhase01PolicyFile(t, root, "db/migrations/000010_phase_01_invitation_acceptance.sql")
+	membershipRoleChangeSQL := readPhase01PolicyFile(t, root, "db/migrations/000011_phase_01_membership_role_changes.sql")
 	allSQL := identitySQL + "\n" + auditSQL + "\n" + sessionSQL + "\n" +
-		sessionGrantSQL + "\n" + adminRevocationSQL + "\n" + invitationSQL + "\n" + invitationAcceptanceSQL
+		sessionGrantSQL + "\n" + adminRevocationSQL + "\n" + invitationSQL + "\n" +
+		invitationAcceptanceSQL + "\n" + membershipRoleChangeSQL
 
 	tables := make([]string, 0)
 	for _, match := range phase01ProductTablePattern.FindAllStringSubmatch(allSQL, -1) {
@@ -35,6 +37,7 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 		"atlas_audit.audit_events",
 		"atlas_identity.admin_session_revocation_requests",
 		"atlas_identity.external_subjects",
+		"atlas_identity.membership_role_changes",
 		"atlas_identity.memberships",
 		"atlas_identity.oidc_transactions",
 		"atlas_identity.organization_invitations",
@@ -74,6 +77,9 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 		"GRANT UPDATE (authorization_version) ON atlas_identity.principals TO atlas_api;",
 		"GRANT SELECT, INSERT ON atlas_identity.admin_session_revocation_requests TO atlas_api;",
 		"GRANT SELECT, INSERT, UPDATE ON atlas_identity.organization_invitations TO atlas_api;",
+		"GRANT SELECT, INSERT ON atlas_identity.membership_role_changes TO atlas_api;",
+		"UNIQUE (tenant_id, actor_principal_id, idempotency_key_sha256)",
+		"result_membership_version = expected_membership_version + 1",
 		"invitation_token_sha256 bytea",
 		"verified_email_sha256 bytea",
 		"acceptance_idempotency_key_sha256 bytea",
@@ -169,6 +175,17 @@ func TestPhase01TenantRepositorySignatureAndPredicateAreExplicit(t *testing.T) {
 	const memberTenantPredicate = "WHERE tenant_id = $1\n  AND population = 'merchant'"
 	if count := strings.Count(organizationSource, memberTenantPredicate); count != 2 {
 		t.Errorf("organization-member page queries have %d explicit tenant predicates, want 2", count)
+	}
+	roleChangeSource := readPhase01PolicyFile(t, root, "internal/identity/persistence/membership_role.go")
+	for _, required := range []string{
+		"command.OrganizationID.String()",
+		"WHERE tenant_id = $1 AND membership_id = $2 AND population = 'merchant'",
+		"authorization_version = authorization_version + 1",
+		"status = 'revoked', revoked_at = $3",
+	} {
+		if !strings.Contains(roleChangeSource, required) {
+			t.Errorf("membership role-change repository is missing %q", required)
+		}
 	}
 }
 

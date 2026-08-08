@@ -520,6 +520,7 @@ paths:
       operationId: updateOrganizationMember
       tags: [Organizations]
       summary: Change an organization member role subject to approval policy
+      description: Direct changes are limited to merchant_viewer and merchant_operator. Any transition into or out of merchant_admin is the typed maker-checker action owned by Operations and returns 202 only after an approval is durably created; merchant_security_admin is never delegable through this operation. If-Match is the exact strong membership ETag returned by Atlas.
       parameters:
         - $ref: '#/components/parameters/XAtlasCSRFToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -535,6 +536,8 @@ paths:
           headers:
             ETag: {$ref: '#/components/headers/ETag'}
             X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
           content:
             application/json:
               schema: {$ref: '#/components/schemas/OrganizationMember'}
@@ -545,12 +548,14 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Approval'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
-        '403': {$ref: '#/components/responses/StepUpRequired'}
+        '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
         '409': {$ref: '#/components/responses/Conflict'}
         '412': {$ref: '#/components/responses/PreconditionFailed'}
         '422': {$ref: '#/components/responses/ValidationFailed'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
     delete:
       operationId: revokeOrganizationMember
       tags: [Organizations]

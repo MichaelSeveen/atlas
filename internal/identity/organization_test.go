@@ -25,6 +25,28 @@ type fakeOrganizationStore struct {
 	acceptanceCommand AcceptInvitationCommand
 	acceptanceResult  AcceptInvitationStoreResult
 	acceptanceErr     error
+	roleChangeCommand UpdateOrganizationMemberRoleCommand
+	roleChangeResult  UpdateOrganizationMemberRoleResult
+	roleChangeErr     error
+}
+
+func (store *fakeOrganizationStore) UpdateMemberRole(
+	_ context.Context,
+	command UpdateOrganizationMemberRoleCommand,
+) (UpdateOrganizationMemberRoleResult, error) {
+	store.roleChangeCommand = command
+	result := store.roleChangeResult
+	if result.Member.MembershipID.IsZero() {
+		result.Member = OrganizationMember{
+			MembershipID: command.MembershipID, OrganizationID: command.OrganizationID,
+			PrincipalID: command.Actor.PrincipalID, Role: command.Role,
+			Status: "active", Version: command.ExpectedVersion + 1, CreatedAt: command.Now,
+		}
+	}
+	if result.DecisionID.IsZero() {
+		result.DecisionID = command.AuditEvent.DecisionID
+	}
+	return result, store.roleChangeErr
 }
 
 func (store *fakeOrganizationStore) AcceptInvitation(
@@ -230,6 +252,94 @@ func TestOrganizationMembersCarriesExplicitTenantAndAuthorizationDecision(t *tes
 		command.AuditEvent.Action != "identity.organization.members.list" ||
 		command.AuditEvent.TenantID != sessionStore.session.TenantID {
 		t.Fatalf("incomplete member-list command: %+v", command)
+	}
+}
+
+func TestUpdateOrganizationMemberRoleBindsPreconditionReplayAndAudit(t *testing.T) {
+	now := time.Date(2026, 8, 8, 14, 0, 0, 0, time.UTC)
+	sessionStore := newFakeSessionStore(t, now)
+	sessionStore.session.Population = PopulationMerchant
+	sessionStore.session.PrincipalType = "merchant"
+	sessionStore.session.TenantID = mustTestID(t, "ten", 84)
+	sessionStore.session.Permissions = []string{"organization.members.roles.update"}
+	cookie := strings.Repeat("R", 43)
+	sessionStore.sessions[sha256.Sum256([]byte(cookie))] = sessionStore.session
+	organizationStore := &fakeOrganizationStore{}
+	service := newTestService(t, sessionStore, &fakeProvider{}, now)
+	service.organizations = organizationStore
+	_, csrfToken, err := service.Current(context.Background(), cookie)
+	if err != nil {
+		t.Fatal(err)
+	}
+	membershipID := mustTestID(t, "mem", 85)
+	result, err := service.UpdateOrganizationMemberRole(
+		context.Background(), UpdateOrganizationMemberRoleRequest{
+			CookieValue: cookie, CSRFToken: csrfToken,
+			OrganizationID: sessionStore.session.TenantID, MembershipID: membershipID,
+			Role: "merchant_operator", Purpose: "organization_administration",
+			IfMatch: OrganizationMemberETag(3), IdempotencyKey: "role-change-key-0001",
+			CorrelationID: mustTestID(t, "cor", 86),
+		},
+	)
+	if err != nil || result.Member.Version != 4 || result.Member.Role != "merchant_operator" ||
+		result.DecisionID.IsZero() || OrganizationMemberETag(result.Member.Version) != "\"membership-v4\"" {
+		t.Fatalf("role change result=%+v err=%v", result, err)
+	}
+	command := organizationStore.roleChangeCommand
+	if command.Actor.SessionID != sessionStore.session.SessionID ||
+		command.OrganizationID != sessionStore.session.TenantID ||
+		command.MembershipID != membershipID || command.ExpectedVersion != 3 ||
+		command.Role != "merchant_operator" || command.IdempotencyDigest == ([32]byte{}) ||
+		command.RequestDigest == ([32]byte{}) || command.AuditEvent.Action !=
+		"identity.organization.membership.role.change" ||
+		command.AuditEvent.TargetID != membershipID.String() ||
+		command.AuditEvent.DecisionID != result.DecisionID ||
+		command.AuditEvent.SafeAfterReference != "membership-role:merchant_operator" {
+		t.Fatalf("role-change command=%+v", command)
+	}
+}
+
+func TestUpdateOrganizationMemberRoleRejectsProtocolAndScopeBeforeStore(t *testing.T) {
+	now := time.Date(2026, 8, 8, 14, 30, 0, 0, time.UTC)
+	sessionStore := newFakeSessionStore(t, now)
+	sessionStore.session.Population = PopulationMerchant
+	sessionStore.session.PrincipalType = "merchant"
+	sessionStore.session.TenantID = mustTestID(t, "ten", 87)
+	cookie := strings.Repeat("S", 43)
+	sessionStore.sessions[sha256.Sum256([]byte(cookie))] = sessionStore.session
+	organizationStore := &fakeOrganizationStore{}
+	service := newTestService(t, sessionStore, &fakeProvider{}, now)
+	service.organizations = organizationStore
+	_, csrfToken, err := service.Current(context.Background(), cookie)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := UpdateOrganizationMemberRoleRequest{
+		CookieValue: cookie, CSRFToken: csrfToken,
+		OrganizationID: sessionStore.session.TenantID,
+		MembershipID:   mustTestID(t, "mem", 88), Role: "merchant_viewer",
+		Purpose: "organization_administration", IfMatch: OrganizationMemberETag(1),
+		IdempotencyKey: "role-change-key-0002", CorrelationID: mustTestID(t, "cor", 89),
+	}
+	invalidCSRF := base
+	invalidCSRF.CSRFToken = strings.Repeat("X", 43)
+	if _, err := service.UpdateOrganizationMemberRole(context.Background(), invalidCSRF); !errors.Is(err, ErrCSRFValidationFailed) {
+		t.Fatalf("invalid CSRF error=%v", err)
+	}
+	invalidPurpose := base
+	invalidPurpose.Purpose = "self_service"
+	if _, err := service.UpdateOrganizationMemberRole(context.Background(), invalidPurpose); !errors.Is(err, ErrValidationFailed) {
+		t.Fatalf("invalid purpose error=%v", err)
+	}
+	for _, invalidETag := range []string{"", "*", "membership-v1", "W/\"membership-v1\"", "\"membership-v01\""} {
+		request := base
+		request.IfMatch = invalidETag
+		if _, err := service.UpdateOrganizationMemberRole(context.Background(), request); !errors.Is(err, ErrInputInvalid) {
+			t.Fatalf("invalid If-Match %q error=%v", invalidETag, err)
+		}
+	}
+	if !organizationStore.roleChangeCommand.RoleChangeID.IsZero() {
+		t.Fatal("invalid role change reached the persistence boundary")
 	}
 }
 

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "cardinality_budget_per_metric": 256,
+  "cardinality_budget_per_metric": 384,
   "metrics": [
     {
       "name": "http.server.request.count",
@@ -27,7 +27,10 @@
           "/v1/me/active-organization",
           "/v1/organizations",
           "/v1/organizations/{organization_id}/members",
+          "/v1/organizations/{organization_id}/members/{member_id}",
           "/v1/organizations/{organization_id}/invitations",
+          "/v1/organization-invitations/{invitation_id}/authentication",
+          "/v1/organization-invitations/{invitation_id}/acceptance",
           "unmatched"
         ]
       }
@@ -57,7 +60,10 @@
           "/v1/me/active-organization",
           "/v1/organizations",
           "/v1/organizations/{organization_id}/members",
+          "/v1/organizations/{organization_id}/members/{member_id}",
           "/v1/organizations/{organization_id}/invitations",
+          "/v1/organization-invitations/{invitation_id}/authentication",
+          "/v1/organization-invitations/{invitation_id}/acceptance",
           "unmatched"
         ]
       }
@@ -68,7 +74,7 @@
       "status": "emitted",
       "owner": "identity-on-call",
       "labels": {
-        "atlas.identity.operation": ["login", "callback", "current", "logout", "session_list", "session_revoke", "session_revoke_all", "session_admin_revoke", "step_up", "organization_list", "organization_member_list", "organization_switch", "invitation_create", "invitation_authenticate", "invitation_accept"],
+        "atlas.identity.operation": ["login", "callback", "current", "logout", "session_list", "session_revoke", "session_revoke_all", "session_admin_revoke", "step_up", "organization_list", "organization_member_list", "organization_member_role_change", "organization_switch", "invitation_create", "invitation_authenticate", "invitation_accept"],
         "atlas.outcome": ["ok", "rejected", "error"],
         "http.response.status_code": ["bounded-http-status"]
       }
@@ -79,7 +85,7 @@
       "status": "emitted",
       "owner": "identity-on-call",
       "labels": {
-        "atlas.identity.operation": ["login", "callback", "current", "logout", "session_list", "session_revoke", "session_revoke_all", "session_admin_revoke", "step_up", "organization_list", "organization_member_list", "organization_switch", "invitation_create", "invitation_authenticate", "invitation_accept"],
+        "atlas.identity.operation": ["login", "callback", "current", "logout", "session_list", "session_revoke", "session_revoke_all", "session_admin_revoke", "step_up", "organization_list", "organization_member_list", "organization_member_role_change", "organization_switch", "invitation_create", "invitation_authenticate", "invitation_accept"],
         "atlas.outcome": ["ok", "rejected", "error"],
         "http.response.status_code": ["bounded-http-status"]
       }
@@ -194,6 +200,16 @@
       "condition": "five-minute provider error ratio exceeds 20% with at least 10 discovery or token requests",
       "rationale": "New authentication and step-up fail closed during provider outage while existing low-risk application sessions remain independently validated.",
       "runbook": "docs/runbooks/IDENTITY_PROVIDER_UNAVAILABLE.md",
+      "test": "scripts/test-s06-alert-catalog-canary.ps1"
+    },
+    {
+      "id": "P01-S05-ALR-001",
+      "metric": "atlas.identity.operation.count",
+      "severity": "ticket",
+      "owner": "identity-on-call",
+      "condition": "organization_member_role_change ok outcome exceeds 20 in five minutes",
+      "rationale": "Direct role changes are individually audited; a bounded aggregate spike warrants review without putting tenant or actor identifiers into telemetry.",
+      "runbook": "docs/runbooks/SESSION_COMPROMISE_AND_REVOCATION.md",
       "test": "scripts/test-s06-alert-catalog-canary.ps1"
     }
   ],

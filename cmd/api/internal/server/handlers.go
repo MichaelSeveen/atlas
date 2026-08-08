@@ -20,6 +20,7 @@ var identityRoutes = []string{
 	"/v1/me/active-organization",
 	"/v1/organizations",
 	"/v1/organizations/{organization_id}/members",
+	"/v1/organizations/{organization_id}/members/{member_id}",
 	"/v1/organizations/{organization_id}/invitations",
 	"/v1/organization-invitations/{invitation_id}/authentication",
 	"/v1/organization-invitations/{invitation_id}/acceptance",
@@ -133,6 +134,15 @@ func identityRoute(path string) string {
 			return "/v1/organizations/{organization_id}/invitations"
 		}
 	}
+	const memberSegment = "/members/"
+	if strings.HasPrefix(path, organizationPrefix) {
+		remainder := strings.TrimPrefix(path, organizationPrefix)
+		parts := strings.Split(remainder, memberSegment)
+		if len(parts) == 2 && parts[0] != "" && parts[1] != "" &&
+			!strings.Contains(parts[0], "/") && !strings.Contains(parts[1], "/") {
+			return "/v1/organizations/{organization_id}/members/{member_id}"
+		}
+	}
 	const organizationInvitationPrefix = "/v1/organization-invitations/"
 	for _, suffix := range []string{"/authentication", "/acceptance"} {
 		if strings.HasPrefix(path, organizationInvitationPrefix) && strings.HasSuffix(path, suffix) {
@@ -152,6 +162,8 @@ func allowedMethods(path string) []string {
 		return []string{http.MethodGet}
 	case "/v1/me/active-organization":
 		return []string{http.MethodPut}
+	case "/v1/organizations/{organization_id}/members/{member_id}":
+		return []string{http.MethodPatch}
 	case "/v1/logout", "/v1/sessions/revoke-all",
 		"/v1/security/sessions/{session_id}/revocations", "/v1/step-up/challenges",
 		"/v1/organizations/{organization_id}/invitations",

@@ -26,7 +26,7 @@ The original S04 PostgreSQL identity remains a local bootstrap identity so exist
 
 Each `db/migrations/*.sql` file has closed metadata covering lock risk, representative data,
 query-plan review, space risk, forward fix, rollback, lock timeout, and statement timeout.
-`db/migrations/MANIFEST.sha256` defines the ten-file-pair released inventory. `dbctl verify`
+`db/migrations/MANIFEST.sha256` defines the eleven-file-pair released inventory. `dbctl verify`
 rejects changes, deletions, unmanifested files, reordering, malformed metadata, embedded
 transaction control, privileged SQL, unratified schemas, and financial terms.
 
@@ -81,7 +81,7 @@ Pass `-ContainerRuntime docker` to the PowerShell commands when Docker Compose i
 ## Failure posture
 
 The API readiness probe uses its application credential and a 750 ms deadline to require
-migration version 10 with the exact released checksum. Connectivity, authentication, missing
+migration version 11 with the exact released checksum. Connectivity, authentication, missing
 schema, timeout, and checksum mismatch all produce the same topology-free not-ready result;
 liveness and version remain independent.
 
@@ -94,8 +94,10 @@ Migration failures never trigger an automatic destructive down migration. Follow
   still requires stronger recovery evidence and independent review at the ADR 0012 triggers.
 - The S04 HTTP/OIDC/application-session boundary invokes Identity and Audit persistence and now
   includes contracted step-up idempotency, live higher-assurance completion, audit-atomic
-  administrator security revocation, and recipient-bound invitation acceptance. Remaining
-  membership mutations, approvals, credentials, and frontend product behavior remain absent.
+  administrator security revocation, recipient-bound invitation acceptance, and direct
+  viewer/operator member role changes. Administrator-involved role transitions remain
+  fail-closed pending typed maker-checker execution; member removal, approvals, credentials,
+  and frontend product behavior remain absent.
 - No outbox, inbox, idempotency, object, key, or synthetic financial flow exists to replay or reconcile after restore.
 - Bounded verifier signals cover migration, seed, lock, role, restore, identity operations, and
   provider requests. Audit persistence is exercised synchronously by revocation; deployed alert

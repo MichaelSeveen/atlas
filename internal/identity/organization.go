@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"net/mail"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,6 +28,21 @@ var (
 	ErrInvitationNotFound = domainerror.New(
 		domainerror.MustCode("INVITATION_NOT_FOUND"),
 		domainerror.KindNotFound,
+		false,
+	)
+	ErrMembershipNotFound = domainerror.New(
+		domainerror.MustCode("MEMBERSHIP_NOT_FOUND"),
+		domainerror.KindNotFound,
+		false,
+	)
+	ErrMembershipPreconditionFailed = domainerror.New(
+		domainerror.MustCode("MEMBERSHIP_PRECONDITION_FAILED"),
+		domainerror.KindFailedPrecondition,
+		false,
+	)
+	ErrMembershipApprovalRequired = domainerror.New(
+		domainerror.MustCode("MEMBERSHIP_APPROVAL_REQUIRED"),
+		domainerror.KindConflict,
 		false,
 	)
 )
@@ -209,6 +225,40 @@ type AcceptInvitationResult struct {
 	Replay      bool
 }
 
+// UpdateOrganizationMemberRoleRequest is the cookie-authenticated direct role-change request.
+type UpdateOrganizationMemberRoleRequest struct {
+	CookieValue    string
+	CSRFToken      string
+	OrganizationID identifier.ID
+	MembershipID   identifier.ID
+	Role           string
+	Purpose        string
+	IfMatch        string
+	IdempotencyKey string
+	CorrelationID  identifier.ID
+}
+
+// UpdateOrganizationMemberRoleCommand carries the locked authority, precondition, and replay state.
+type UpdateOrganizationMemberRoleCommand struct {
+	Actor             Session
+	RoleChangeID      identifier.ID
+	OrganizationID    identifier.ID
+	MembershipID      identifier.ID
+	Role              string
+	ExpectedVersion   int64
+	IdempotencyDigest [32]byte
+	RequestDigest     [32]byte
+	Now               time.Time
+	AuditEvent        audit.Event
+}
+
+// UpdateOrganizationMemberRoleResult is the committed direct mutation or its durable replay.
+type UpdateOrganizationMemberRoleResult struct {
+	Member     OrganizationMember
+	DecisionID identifier.ID
+	Replay     bool
+}
+
 // OrganizationStore is the Identity-owned persistence boundary for organization context.
 type OrganizationStore interface {
 	ListOrganizations(context.Context, Session) ([]Organization, error)
@@ -216,6 +266,101 @@ type OrganizationStore interface {
 	SwitchOrganization(context.Context, SwitchOrganizationCommand) (Session, error)
 	CreateInvitation(context.Context, CreateInvitationCommand) (CreateInvitationStoreResult, error)
 	AcceptInvitation(context.Context, AcceptInvitationCommand) (AcceptInvitationStoreResult, error)
+	UpdateMemberRole(context.Context, UpdateOrganizationMemberRoleCommand) (UpdateOrganizationMemberRoleResult, error)
+}
+
+// UpdateOrganizationMemberRole executes only the direct viewer/operator lane. Administrator
+// transitions remain fail-closed until the Operations-owned approval workflow exists.
+func (service *Service) UpdateOrganizationMemberRole(
+	ctx context.Context,
+	request UpdateOrganizationMemberRoleRequest,
+) (UpdateOrganizationMemberRoleResult, error) {
+	actor, expectedCSRF, err := service.Current(ctx, request.CookieValue)
+	if err != nil {
+		return UpdateOrganizationMemberRoleResult{}, err
+	}
+	if actor.InvitationAcceptanceOnly {
+		return UpdateOrganizationMemberRoleResult{}, ErrActionNotAuthorized
+	}
+	if !constantTimeStringEqual(expectedCSRF, request.CSRFToken) {
+		return UpdateOrganizationMemberRoleResult{}, ErrCSRFValidationFailed
+	}
+	if service.organizations == nil {
+		return UpdateOrganizationMemberRoleResult{}, ErrIdentityUnavailable
+	}
+	if actor.Population != PopulationMerchant {
+		return UpdateOrganizationMemberRoleResult{}, ErrActionNotAuthorized
+	}
+	if request.OrganizationID.IsZero() || request.OrganizationID.Prefix() != "ten" ||
+		request.MembershipID.IsZero() || request.MembershipID.Prefix() != "mem" ||
+		request.CorrelationID.IsZero() || request.CorrelationID.Prefix() != "cor" ||
+		!validIdempotencyKey(request.IdempotencyKey) {
+		return UpdateOrganizationMemberRoleResult{}, ErrInputInvalid
+	}
+	if request.Purpose != "organization_administration" || !validMerchantRole(request.Role) {
+		return UpdateOrganizationMemberRoleResult{}, ErrValidationFailed
+	}
+	expectedVersion, err := parseOrganizationMemberETag(request.IfMatch)
+	if err != nil {
+		return UpdateOrganizationMemberRoleResult{}, ErrInputInvalid
+	}
+	roleChangeID, err := service.generatedID("mrc")
+	if err != nil {
+		return UpdateOrganizationMemberRoleResult{}, ErrIdentityUnavailable
+	}
+	auditID, err := service.generatedID("aud")
+	if err != nil {
+		return UpdateOrganizationMemberRoleResult{}, ErrIdentityUnavailable
+	}
+	decisionID, err := service.generatedID("dec")
+	if err != nil {
+		return UpdateOrganizationMemberRoleResult{}, ErrIdentityUnavailable
+	}
+	now := service.clock.Now().UTC()
+	idempotencyDigest := sha256.Sum256([]byte(request.IdempotencyKey))
+	requestDigest := sha256.Sum256([]byte(
+		"v1\norganization=" + request.OrganizationID.String() +
+			"\nmembership=" + request.MembershipID.String() +
+			"\nexpected_version=" + strconv.FormatInt(expectedVersion, 10) +
+			"\nrole=" + request.Role + "\npurpose=" + request.Purpose,
+	))
+	return service.organizations.UpdateMemberRole(ctx, UpdateOrganizationMemberRoleCommand{
+		Actor: actor, RoleChangeID: roleChangeID, OrganizationID: request.OrganizationID,
+		MembershipID: request.MembershipID, Role: request.Role, ExpectedVersion: expectedVersion,
+		IdempotencyDigest: idempotencyDigest, RequestDigest: requestDigest, Now: now,
+		AuditEvent: audit.Event{
+			AuditEventID: auditID, ActorID: actor.PrincipalID, ActorType: actor.PrincipalType,
+			TenantID: actor.TenantID, SessionAssurance: string(actor.Assurance),
+			Action: "identity.organization.membership.role.change", TargetType: "membership",
+			TargetID: request.MembershipID.String(), DecisionID: decisionID, Decision: "executed",
+			ReasonCode: "organization_membership_role_changed", CorrelationID: request.CorrelationID,
+			OccurredAt: now, SafeAfterReference: "membership-role:" + request.Role,
+		},
+	})
+}
+
+// OrganizationMemberETag returns the exact strong validator for a membership version.
+func OrganizationMemberETag(version int64) string {
+	if version < 1 {
+		return ""
+	}
+	return "\"membership-v" + strconv.FormatInt(version, 10) + "\""
+}
+
+func parseOrganizationMemberETag(value string) (int64, error) {
+	if len(value) < len("\"membership-v1\"") || len(value) > 200 ||
+		!strings.HasPrefix(value, "\"membership-v") || !strings.HasSuffix(value, "\"") {
+		return 0, ErrInputInvalid
+	}
+	number := strings.TrimSuffix(strings.TrimPrefix(value, "\"membership-v"), "\"")
+	if number == "" || (len(number) > 1 && number[0] == '0') {
+		return 0, ErrInputInvalid
+	}
+	version, err := strconv.ParseInt(number, 10, 64)
+	if err != nil || version < 1 || OrganizationMemberETag(version) != value {
+		return 0, ErrInputInvalid
+	}
+	return version, nil
 }
 
 // OrganizationMembers returns an authorized page without totals or sensitive member fields.

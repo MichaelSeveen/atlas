@@ -189,6 +189,8 @@ func identityOperation(route string) string {
 		return "organization_list"
 	case "/v1/organizations/{organization_id}/members":
 		return "organization_member_list"
+	case "/v1/organizations/{organization_id}/members/{member_id}":
+		return "organization_member_role_change"
 	case "/v1/organizations/{organization_id}/invitations":
 		return "invitation_create"
 	case "/v1/organization-invitations/{invitation_id}/authentication":

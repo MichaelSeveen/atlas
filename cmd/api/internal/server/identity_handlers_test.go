@@ -176,6 +176,7 @@ func TestIdentityMutationCORSPreflightAndRouteInventory(t *testing.T) {
 		"/v1/security/sessions/{session_id}/revocations",
 		"/v1/step-up/challenges", "/v1/me/active-organization", "/v1/organizations",
 		"/v1/organizations/{organization_id}/members",
+		"/v1/organizations/{organization_id}/members/{member_id}",
 		"/v1/organizations/{organization_id}/invitations",
 		"/v1/organization-invitations/{invitation_id}/authentication",
 		"/v1/organization-invitations/{invitation_id}/acceptance",
@@ -250,6 +251,80 @@ func TestOrganizationListAndTenantSwitchHTTPContract(t *testing.T) {
 	}
 	if _, _, err := service.Current(context.Background(), cookies[0].Value); err != nil {
 		t.Fatalf("rotated session is not usable: %v", err)
+	}
+}
+
+func TestOrganizationMemberRoleChangeHTTPContractAndReplay(t *testing.T) {
+	service, store, _ := newHTTPIdentityService(t)
+	cookieValue := strings.Repeat("V", 43)
+	principalID, _ := identifier.Parse("usr_00000000000000000101")
+	sessionID, _ := identifier.Parse("ses_00000000000000000101")
+	tenantID, _ := identifier.Parse("ten_00000000000000000101")
+	membershipID, _ := identifier.Parse("mem_00000000000000000102")
+	store.sessions[sha256.Sum256([]byte(cookieValue))] = identity.Session{
+		SessionID: sessionID, PrincipalID: principalID, PrincipalType: "merchant",
+		DisplayName: "Synthetic Merchant Administrator", Population: identity.PopulationMerchant,
+		TenantID: tenantID, Assurance: identity.AssuranceBaseline,
+		AuthorizationVersion: 1, RotationVersion: 2,
+		CreatedAt: testBuildTime, LastSeenAt: testBuildTime,
+		IdleExpiresAt:     testBuildTime.Add(20 * time.Minute),
+		AbsoluteExpiresAt: testBuildTime.Add(8 * time.Hour),
+		Permissions:       []string{"organization.members.roles.update"},
+	}
+	_, csrfToken, err := service.Current(context.Background(), cookieValue)
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := newTestApp(t, ReadinessState{DependenciesReady: true, MigrationsCurrent: true}, func(options *Options) {
+		options.Identity = service
+		options.WebOrigin = "https://web.test.invalid"
+		options.CORS = CORSConfig{AllowedOrigins: []string{"https://web.test.invalid"}, AllowCredentials: true}
+	})
+	path := "/v1/organizations/" + tenantID.String() + "/members/" + membershipID.String()
+	requestBody := `{"role":"merchant_operator","purpose":"organization_administration"}`
+
+	call := func() *httptest.ResponseRecorder {
+		request := httptest.NewRequest(http.MethodPatch, path, strings.NewReader(requestBody))
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set(identity.CSRFHeaderName, csrfToken)
+		request.Header.Set("Idempotency-Key", "http-role-change-0001")
+		request.Header.Set("If-Match", "\"membership-v3\"")
+		request.AddCookie(&http.Cookie{Name: identity.SessionCookieName, Value: cookieValue})
+		response := httptest.NewRecorder()
+		app.Handler().ServeHTTP(response, request)
+		return response
+	}
+	first := call()
+	if first.Code != http.StatusOK || first.Header().Get("ETag") != "\"membership-v4\"" ||
+		first.Header().Get("Idempotency-Replayed") != "false" ||
+		first.Header().Get("X-Authorization-Decision-Id") == "" ||
+		!strings.Contains(first.Body.String(), `"role":"merchant_operator"`) ||
+		!strings.Contains(first.Body.String(), `"version":4`) {
+		t.Fatalf("role change status=%d headers=%v body=%s", first.Code, first.Header(), first.Body)
+	}
+	second := call()
+	if second.Code != http.StatusOK || second.Header().Get("Idempotency-Replayed") != "true" ||
+		second.Header().Get("ETag") != first.Header().Get("ETag") ||
+		second.Header().Get("X-Authorization-Decision-Id") != first.Header().Get("X-Authorization-Decision-Id") {
+		t.Fatalf("role change replay status=%d headers=%v body=%s", second.Code, second.Header(), second.Body)
+	}
+
+	preflight := httptest.NewRequest(http.MethodOptions, path, nil)
+	preflight.Header.Set("Origin", "https://web.test.invalid")
+	preflight.Header.Set("Access-Control-Request-Method", http.MethodPatch)
+	preflight.Header.Set(
+		"Access-Control-Request-Headers",
+		"Content-Type, Idempotency-Key, If-Match, X-Atlas-CSRF-Token",
+	)
+	preflightResponse := httptest.NewRecorder()
+	app.Handler().ServeHTTP(preflightResponse, preflight)
+	if preflightResponse.Code != http.StatusNoContent ||
+		preflightResponse.Header().Get("Access-Control-Allow-Methods") != http.MethodPatch ||
+		preflightResponse.Header().Get("Access-Control-Allow-Headers") !=
+			"Content-Type, Idempotency-Key, If-Match, X-Atlas-CSRF-Token" ||
+		!strings.Contains(preflightResponse.Header().Get("Access-Control-Expose-Headers"), "ETag") {
+		t.Fatalf("role change preflight status=%d headers=%v body=%s",
+			preflightResponse.Code, preflightResponse.Header(), preflightResponse.Body)
 	}
 }
 
@@ -694,6 +769,27 @@ type httpOrganizationStore struct {
 	membersErr    error
 	invitation    identity.CreateInvitationStoreResult
 	acceptance    identity.AcceptInvitationStoreResult
+	roleChange    identity.UpdateOrganizationMemberRoleResult
+}
+
+func (store *httpOrganizationStore) UpdateMemberRole(
+	_ context.Context,
+	command identity.UpdateOrganizationMemberRoleCommand,
+) (identity.UpdateOrganizationMemberRoleResult, error) {
+	if !store.roleChange.Member.MembershipID.IsZero() {
+		replayed := store.roleChange
+		replayed.Replay = true
+		return replayed, nil
+	}
+	store.roleChange = identity.UpdateOrganizationMemberRoleResult{
+		Member: identity.OrganizationMember{
+			MembershipID: command.MembershipID, OrganizationID: command.OrganizationID,
+			PrincipalID: command.Actor.PrincipalID, Role: command.Role,
+			Status: "active", Version: command.ExpectedVersion + 1, CreatedAt: command.Now,
+		},
+		DecisionID: command.AuditEvent.DecisionID,
+	}
+	return store.roleChange, nil
 }
 
 func (store *httpOrganizationStore) AcceptInvitation(

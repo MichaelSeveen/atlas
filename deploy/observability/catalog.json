@@ -165,6 +165,42 @@
       }
     },
     {
+      "name": "atlas.identity.api_credential.authentication.count",
+      "kind": "counter",
+      "status": "emitted",
+      "owner": "identity-on-call",
+      "labels": {
+        "atlas.identity.credential_auth_outcome": ["success", "invalid", "rate_limited", "unavailable"]
+      }
+    },
+    {
+      "name": "atlas.identity.api_credential.anomaly.count",
+      "kind": "counter",
+      "status": "emitted",
+      "owner": "identity-on-call",
+      "labels": {
+        "atlas.identity.credential_anomaly": ["new_network_signal"]
+      }
+    },
+    {
+      "name": "atlas.identity.api_credential.rate_rejection.count",
+      "kind": "counter",
+      "status": "emitted",
+      "owner": "identity-on-call",
+      "labels": {
+        "atlas.identity.credential_rate_mode": ["redis", "local_fallback"]
+      }
+    },
+    {
+      "name": "atlas.identity.api_credential.rate_fallback.count",
+      "kind": "counter",
+      "status": "emitted",
+      "owner": "identity-on-call",
+      "labels": {
+        "atlas.outcome": ["allowed", "rejected"]
+      }
+    },
+    {
       "name": "atlas.identity.provider.request.duration",
       "kind": "histogram",
       "status": "emitted",
@@ -324,6 +360,36 @@
       "rationale": "A bounded aggregate spike may indicate stale clients, racing checkers, replay misuse, or repeated stale-target execution attempts.",
       "runbook": "docs/runbooks/APPROVAL_INTEGRITY_AND_RECOVERY.md",
       "test": "scripts/test-s07-approval-alert-catalog-canary.ps1"
+    },
+    {
+      "id": "P01-S08-ALR-001",
+      "metric": "atlas.identity.api_credential.anomaly.count",
+      "severity": "ticket",
+      "owner": "identity-on-call",
+      "condition": "any new_network_signal anomaly is observed for a previously used credential",
+      "rationale": "A deterministic network-signal change may indicate credential copying; no credential, tenant, principal, request, or raw network identifier is placed in metric labels.",
+      "runbook": "docs/runbooks/API_CREDENTIAL_COMPROMISE_AND_ROTATION.md",
+      "test": "scripts/test-p01-s08-credential-alert-catalog-canary.ps1"
+    },
+    {
+      "id": "P01-S08-ALR-002",
+      "metric": "atlas.identity.api_credential.rate_rejection.count",
+      "severity": "ticket",
+      "owner": "identity-on-call",
+      "condition": "credential rate rejections exceed 30 in five minutes in either Redis or local-fallback mode",
+      "rationale": "A bounded aggregate spike indicates misuse or automation failure without exposing credential, tenant, principal, request, or network identities.",
+      "runbook": "docs/runbooks/API_CREDENTIAL_COMPROMISE_AND_ROTATION.md",
+      "test": "scripts/test-p01-s08-credential-alert-catalog-canary.ps1"
+    },
+    {
+      "id": "P01-S08-ALR-003",
+      "metric": "atlas.identity.api_credential.rate_fallback.count",
+      "severity": "ticket",
+      "owner": "identity-on-call",
+      "condition": "local fallback evaluates credential traffic for more than five consecutive minutes",
+      "rationale": "Redis is not authorization truth, but prolonged fallback reduces abuse-control capacity and warrants recovery while PostgreSQL validity remains fail-closed.",
+      "runbook": "docs/runbooks/API_CREDENTIAL_COMPROMISE_AND_ROTATION.md",
+      "test": "scripts/test-p01-s08-credential-alert-catalog-canary.ps1"
     }
   ],
   "dashboards": [
@@ -359,6 +425,17 @@
         "atlas.operations.approval.age",
         "atlas.operations.approval.conflict.count",
         "atlas.operations.approval.integrity_failure.count"
+      ]
+    },
+    {
+      "name": "phase-01-api-credentials",
+      "owner": "identity-on-call",
+      "panels": [
+        "atlas.identity.operation.count",
+        "atlas.identity.api_credential.authentication.count",
+        "atlas.identity.api_credential.anomaly.count",
+        "atlas.identity.api_credential.rate_rejection.count",
+        "atlas.identity.api_credential.rate_fallback.count"
       ]
     }
   ]

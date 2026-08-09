@@ -183,6 +183,34 @@ func DefaultAuthorizationPolicy() *AuthorizationPolicy {
 			"security_review",
 		),
 		actions: map[string]authorizationAction{
+			CredentialActionRead: {
+				permission: "api_credentials.read", resource: "api_credential",
+				populations:      populationSet(PopulationMerchant),
+				purposes:         stringSet(CredentialPurposeManagement),
+				minimumAssurance: AssuranceBaseline, tenantScoped: true,
+				resourceStatuses: stringSet("active", "rotating", "revoked", "expired"),
+			},
+			CredentialActionCreate: {
+				permission: "api_credentials.create", resource: "api_credential",
+				populations:      populationSet(PopulationMerchant),
+				purposes:         stringSet(CredentialPurposeManagement),
+				minimumAssurance: AssuranceBaseline, tenantScoped: true,
+				resourceStatuses: stringSet("active"),
+			},
+			CredentialActionRotate: {
+				permission: "api_credentials.rotate", resource: "api_credential",
+				populations:      populationSet(PopulationMerchant),
+				purposes:         stringSet(CredentialPurposeManagement),
+				minimumAssurance: AssuranceBaseline, tenantScoped: true,
+				resourceStatuses: stringSet("active"),
+			},
+			CredentialActionRevoke: {
+				permission: "api_credentials.revoke", resource: "api_credential",
+				populations:      populationSet(PopulationMerchant),
+				purposes:         stringSet(CredentialPurposeManagement),
+				minimumAssurance: AssuranceBaseline, tenantScoped: true,
+				resourceStatuses: stringSet("active", "rotating", "revoked"),
+			},
 			"organization.members.list": {
 				permission: "organization.members.read", resource: "organization_member",
 				populations:      populationSet(PopulationMerchant),

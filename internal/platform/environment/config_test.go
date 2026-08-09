@@ -169,7 +169,7 @@ func TestCredentialFingerprintsAreUniqueAcrossPreparedEnvironments(t *testing.T)
 			fingerprints[fingerprint] = string(name) + "/" + key
 		}
 	}
-	if len(fingerprints) != 28 {
+	if len(fingerprints) != 30 {
 		t.Fatalf("unexpected credential fingerprint inventory: %d", len(fingerprints))
 	}
 }

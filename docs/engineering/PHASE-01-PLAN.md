@@ -2,8 +2,8 @@
 
 ## Status and scope
 
-- **Completed slices:** `P01-S01` planning; `P01-S02` contract/decision closure; `P01-S03` Identity/Audit persistence and recovery; `P01-S04` synthetic OIDC/session lifecycle; `P01-S05` merchant tenancy; `P01-S06` deny-default authorization; `P01-S07` typed maker-checker approval and execution-time reauthorization.
-- **Current slice:** `P01-S08 — merchant API credentials, one-time secret handling, rotation, and scoped anomaly controls` is next. S07 leaves only `identity.organization.membership.change_admin` executable through approval; administrator removal remains fail-closed pending exact fresh-step-up and last-administrator policy. No event, worker job, credential, or financial behavior was added by S07.
+- **Completed slices:** `P01-S01` planning; `P01-S02` contract/decision closure; `P01-S03` Identity/Audit persistence and recovery; `P01-S04` synthetic OIDC/session lifecycle; `P01-S05` merchant tenancy; `P01-S06` deny-default authorization; `P01-S07` typed maker-checker approval and execution-time reauthorization; `P01-S08` merchant API credentials, one-time secret handling, rotation, and scoped anomaly controls.
+- **Current slice:** `P01-S09 — frontend flows, operational proof, adversarial acceptance, and phase closure` is next. S08 closes `IAM-040..044` for the bounded `identity:read` AtlasKey surface; administrator removal remains fail-closed pending exact fresh-step-up and last-administrator policy. No event, worker job, financial scope, managed production secret provider, or financial behavior was added by S08.
 - **Audit date:** 2026-07-23
 - **Audited base revision:** `2884484a99eeb2b846a56c90177163e37e419d11`
 - **Base tree:** `b921b93cb8341e28344b97e1202d37f0376dff19`
@@ -429,24 +429,24 @@ No hosted release, merge, production/reference deployment, real identity provide
 
 ## Exact next implementation checkpoint
 
-The cumulative P01-S07 static/live verifier passes against migration 14 and the isolated synthetic
-reference database. After the S07 closure commit, the next unblocked checkpoint is **P01-S08 —
-merchant API credentials, one-time secret handling, rotation, and scoped anomaly controls**. Do
-not begin S08 from a failed or evidence-unbound S07 revision.
+The cumulative P01-S08 static/live verifier passes against migration 15 and the isolated synthetic
+PostgreSQL/Redis reference stack. After the S08 closure commit, the next unblocked checkpoint is
+**P01-S09 — frontend flows, operational proof, adversarial acceptance, and phase closure**. Do not
+begin S09 from a failed or evidence-unbound S08 revision.
 
-S07 closes `IAM-030..034` at bounded evidence depth for the sole non-financial
-`identity.organization.membership.change_admin` action. Operations owns immutable approval state;
-Identity owns transaction-bound authorization and the target command; Audit remains atomic. Real
-PostgreSQL proof covers immutable Atlas-principal separation, RFC 8785/SHA-256 payload binding,
-dynamic checker eligibility, simultaneous decisions, execution-time maker/checker/executor and
-step-up reauthorization, locked target state/version, tamper and target-race supersession, every
-required terminal state, response-loss replay, and Audit-outage rollback. No generic JSON write,
-event, worker job, credential, or financial state exists.
+S08 closes `IAM-040..044` at bounded evidence depth for the sole `identity:read` AtlasKey scope.
+Identity owns credential authority and lifecycle; API owns strict parsing/machine-principal
+composition; Audit remains atomic; Redis owns no authorization truth. Real PostgreSQL/Redis proof
+covers one-time secret disclosure and redacted replay, exact machine bindings, simultaneous
+rotation, savepoint-safe losing claims, ten-minute old/new overlap, explicit next-request
+revocation, expiry, Audit-outage rollback, three-dimensional abuse limits, stricter bounded Redis
+fallback, recovery, telemetry, and least-privilege grants. No financial scope, event, worker job,
+managed production secret provider, credential-management UI, or financial state exists.
 
-S08 must implement only the S02-ratified merchant credential contract and `IAM-040..044` boundary.
-It must preserve PostgreSQL authority on every request, one-time secret disclosure, non-recoverable
-stored verifier material, exact tenant/environment/audience/scope/status checks, a ten-minute
-rotation overlap, explicit old-key revocation, linearizable concurrency, fresh action-bound
-step-up, Audit atomicity, bounded rate/anomaly controls, safe logs, and response-loss semantics.
-Administrator membership removal remains independently fail-closed pending exact fresh-step-up and
-last-administrator policy.
+S09 must execute the canonical Phase 01 customer, merchant member, support, risk, finance, and
+merchant-developer acceptance journeys; prove cross-tenant denial, maker-permission-change
+execution denial, credential rotation under in-flight traffic, browser cache/storage/BFCache
+posture, complete synchronous Audit inspection, recovery, telemetry/alert/runbook evidence, and
+honest claims. It must give a precise final disposition for `IAM-002` and `IAM-006`; administrator
+membership removal remains fail-closed unless the exact fresh-step-up and last-administrator policy
+is ratified and evidenced rather than inferred.

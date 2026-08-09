@@ -13,6 +13,8 @@ import (
 
 	"github.com/MichaelSeveen/atlas/internal/identity"
 	"github.com/MichaelSeveen/atlas/internal/platform/identifier"
+	"go.opentelemetry.io/otel/attribute"
+	metricapi "go.opentelemetry.io/otel/metric"
 )
 
 type principalResponse struct {
@@ -23,7 +25,7 @@ type principalResponse struct {
 	Assurance            string   `json:"assurance"`
 	Permissions          []string `json:"permissions"`
 	AuthorizationVersion int64    `json:"authorization_version"`
-	SessionExpiresAt     string   `json:"session_expires_at"`
+	SessionExpiresAt     any      `json:"session_expires_at"`
 }
 
 type sessionResponse struct {
@@ -723,6 +725,23 @@ func (a *App) currentPrincipal(response http.ResponseWriter, request *http.Reque
 		a.malformed(response, request)
 		return
 	}
+	authorizationValues := request.Header.Values("Authorization")
+	if len(authorizationValues) > 0 {
+		if len(authorizationValues) != 1 || optionalSessionCookie(request) != "" {
+			a.writeIdentityError(response, request, identity.ErrAuthenticationRequired)
+			return
+		}
+		machine, err := a.identity.AuthenticateAPICredential(
+			request.Context(), authorizationValues[0], request.RemoteAddr,
+		)
+		a.recordCredentialAuthentication(request, machine, err)
+		if err != nil {
+			a.writeIdentityError(response, request, err)
+			return
+		}
+		writeJSON(response, http.StatusOK, principalFromMachine(machine))
+		return
+	}
 	cookie, err := sessionCookie(request)
 	if err != nil {
 		a.writeIdentityError(response, request, identity.ErrAuthenticationRequired)
@@ -735,6 +754,48 @@ func (a *App) currentPrincipal(response http.ResponseWriter, request *http.Reque
 	}
 	response.Header().Set(identity.CSRFHeaderName, csrfToken)
 	writeJSON(response, http.StatusOK, principalFromSession(session))
+}
+
+func (a *App) recordCredentialAuthentication(
+	request *http.Request,
+	machine identity.MachinePrincipal,
+	err error,
+) {
+	outcome := "success"
+	switch {
+	case errors.Is(err, identity.ErrCredentialRateLimited):
+		outcome = "rate_limited"
+	case errors.Is(err, identity.ErrAuthenticationRequired):
+		outcome = "invalid"
+	case err != nil:
+		outcome = "unavailable"
+	}
+	safeAdd(a.credentialAuth, request.Context(), 1, metricapi.WithAttributes(
+		attribute.String("atlas.identity.credential_auth_outcome", outcome),
+	))
+	if machine.AnomalousNetwork && err == nil {
+		safeAdd(a.credentialAnomaly, request.Context(), 1, metricapi.WithAttributes(
+			attribute.String("atlas.identity.credential_anomaly", "new_network_signal"),
+		))
+	}
+	if machine.RateFallback {
+		fallbackOutcome := "allowed"
+		if err != nil {
+			fallbackOutcome = "rejected"
+		}
+		safeAdd(a.credentialFallback, request.Context(), 1, metricapi.WithAttributes(
+			attribute.String("atlas.outcome", fallbackOutcome),
+		))
+	}
+	if errors.Is(err, identity.ErrCredentialRateLimited) {
+		mode := "redis"
+		if machine.RateFallback {
+			mode = "local_fallback"
+		}
+		safeAdd(a.credentialRate, request.Context(), 1, metricapi.WithAttributes(
+			attribute.String("atlas.identity.credential_rate_mode", mode),
+		))
+	}
 }
 
 func (a *App) logout(response http.ResponseWriter, request *http.Request) {
@@ -998,6 +1059,15 @@ func principalFromSession(session identity.Session) principalResponse {
 	}
 }
 
+func principalFromMachine(machine identity.MachinePrincipal) principalResponse {
+	return principalResponse{
+		ID: machine.PrincipalID.String(), Type: "machine", DisplayName: machine.DisplayName,
+		ActiveTenantID: machine.TenantID.String(), Assurance: identity.AssuranceBaseline.ContractValue(),
+		Permissions:          append([]string(nil), machine.Permissions...),
+		AuthorizationVersion: machine.AuthorizationVersion, SessionExpiresAt: nil,
+	}
+}
+
 func sessionFromSummary(session identity.SessionSummary) sessionResponse {
 	var clientLabel any
 	if session.ClientLabel != "" {
@@ -1044,6 +1114,8 @@ func (a *App) writeIdentityError(response http.ResponseWriter, request *http.Req
 		a.writeProblem(response, request, http.StatusNotFound, "not-found-or-concealed", "Not found", "NOT_FOUND_OR_CONCEALED", false)
 	case errors.Is(err, identity.ErrMembershipNotFound):
 		a.writeProblem(response, request, http.StatusNotFound, "not-found-or-concealed", "Not found", "NOT_FOUND_OR_CONCEALED", false)
+	case errors.Is(err, identity.ErrCredentialNotFound):
+		a.writeProblem(response, request, http.StatusNotFound, "not-found-or-concealed", "Not found", "NOT_FOUND_OR_CONCEALED", false)
 	case errors.Is(err, identity.ErrMembershipPreconditionFailed):
 		a.writeProblem(response, request, http.StatusPreconditionFailed, "precondition-failed", "Precondition failed", "MEMBERSHIP_PRECONDITION_FAILED", false)
 	case errors.Is(err, identity.ErrMembershipApprovalRequired):
@@ -1052,6 +1124,11 @@ func (a *App) writeIdentityError(response http.ResponseWriter, request *http.Req
 		a.writeProblem(response, request, http.StatusConflict, "conflict", "Conflict", "MEMBERSHIP_ADMINISTRATOR_REMOVAL_UNAVAILABLE", false)
 	case errors.Is(err, identity.ErrSessionConflict):
 		a.writeProblem(response, request, http.StatusConflict, "conflict", "Conflict", "CONFLICT", false)
+	case errors.Is(err, identity.ErrCredentialConflict):
+		a.writeProblem(response, request, http.StatusConflict, "conflict", "Conflict", "API_CREDENTIAL_CONFLICT", false)
+	case errors.Is(err, identity.ErrCredentialRateLimited):
+		response.Header().Set("Retry-After", strconv.Itoa(int(identity.CredentialRateWindow/time.Second)))
+		a.writeProblem(response, request, http.StatusTooManyRequests, "rate-limited", "Too many requests", "RATE_LIMITED", true)
 	case errors.Is(err, identity.ErrIdempotencyConflict):
 		a.writeProblem(response, request, http.StatusConflict, "idempotency-conflict", "Conflict", "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST", false)
 	case errors.Is(err, identity.ErrIdempotencyInProgress):

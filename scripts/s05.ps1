@@ -68,8 +68,8 @@ function Start-DatabaseFoundation {
 }
 
 function Invoke-DatabaseScript {
-    param([string]$Path)
-    Invoke-Compose -Arguments @('exec', '-T', 'postgres', 'sh', $Path)
+    param([string]$Path, [string[]]$Arguments = @())
+    Invoke-Compose -Arguments (@('exec', '-T', 'postgres', 'sh', $Path) + $Arguments)
 }
 
 function Initialize-RolesAndMigrations {
@@ -100,19 +100,25 @@ function Test-RealBroker {
 }
 
 function Invoke-BackupRestore {
-    Invoke-DatabaseScript -Path '/database/recovery/backup.sh'
-    $started = [DateTimeOffset]::UtcNow
-    Invoke-Compose -Arguments @('--profile', 'recovery', 'up', '--detach', '--force-recreate', 'postgres-restore')
-    Wait-Postgres -Service 'postgres-restore'
-    # podman-compose can report readiness for the old instance while a
-    # force-recreate replacement is still settling. Require a second bounded
-    # readiness observation before running the non-retryable restore assertions.
-    Start-Sleep -Seconds 2
-    Wait-Postgres -Service 'postgres-restore'
-    Invoke-Compose -Arguments @('--profile', 'recovery', 'exec', '-T', 'postgres-restore', 'sh', '/recovery/verify-restore.sh')
-    $elapsed = [Math]::Ceiling(([DateTimeOffset]::UtcNow - $started).TotalSeconds)
-    Write-Output "database_restore_rto_seconds=$elapsed"
-    Invoke-Compose -Arguments @('--profile', 'recovery', 'stop', 'postgres-restore')
+    Invoke-DatabaseScript -Path '/database/tests/phase01_credential_recovery.sh' -Arguments @('setup')
+    try {
+        Invoke-DatabaseScript -Path '/database/recovery/backup.sh'
+        $started = [DateTimeOffset]::UtcNow
+        Invoke-Compose -Arguments @('--profile', 'recovery', 'up', '--detach', '--force-recreate', 'postgres-restore')
+        Wait-Postgres -Service 'postgres-restore'
+        # podman-compose can report readiness for the old instance while a
+        # force-recreate replacement is still settling. Require a second bounded
+        # readiness observation before running the non-retryable restore assertions.
+        Start-Sleep -Seconds 2
+        Wait-Postgres -Service 'postgres-restore'
+        Invoke-Compose -Arguments @('--profile', 'recovery', 'exec', '-T', 'postgres-restore', 'sh', '/recovery/verify-restore.sh')
+        $elapsed = [Math]::Ceiling(([DateTimeOffset]::UtcNow - $started).TotalSeconds)
+        Write-Output "database_restore_rto_seconds=$elapsed"
+        Invoke-Compose -Arguments @('--profile', 'recovery', 'stop', 'postgres-restore')
+    }
+    finally {
+        Invoke-DatabaseScript -Path '/database/tests/phase01_credential_recovery.sh' -Arguments @('cleanup')
+    }
 }
 
 Push-Location -LiteralPath $repositoryRoot

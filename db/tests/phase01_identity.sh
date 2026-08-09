@@ -7,9 +7,9 @@ set -eu
 
 test_database='atlas_p01_s03_seed_test'
 failure_output='/tmp/atlas-p01-s03-denial.out'
-expected_migration_count='14'
-expected_seed_count='3'
-expected_policy_checksum='2acd97d4467eed25c0991331e5283b303df3fd52d0f4c9d5f6851353db64c2d1'
+expected_migration_count='15'
+expected_seed_count='4'
+expected_policy_checksum='9b7c91b9bc78abdcfa15c9f33ba9ee40476d12da8d6c8c991e3255eaf79b3bd2'
 
 admin_sql() {
   PGPASSWORD="$ATLAS_POSTGRES_PASSWORD" psql -X -h 127.0.0.1 -U "$ATLAS_POSTGRES_USER" -d "$ATLAS_POSTGRES_DB" -v ON_ERROR_STOP=1 -Atqc "$1"
@@ -59,6 +59,9 @@ ATLAS_SEED_TARGET_DATABASE="$test_database" /database/tools/apply-phase-01-seeds
 [ "$(query 'SELECT count(*) FROM atlas_identity.principal_roles')" = '1' ]
 [ "$(query "SELECT count(*) FROM atlas_identity.sessions WHERE status = 'revoked' AND revoked_at IS NOT NULL")" = '1' ]
 [ "$(query 'SELECT count(*) FROM atlas_audit.audit_events')" = '1' ]
+[ "$(query 'SELECT count(*) FROM atlas_identity.api_credentials')" = '0' ]
+[ "$(query 'SELECT count(*) FROM atlas_identity.api_credential_mutation_requests')" = '0' ]
+[ "$(query "SELECT count(*) FROM atlas_foundation.data_scope_registry WHERE schema_name = 'atlas_identity' AND table_name IN ('api_credentials', 'api_credential_mutation_requests') AND scope_kind = 'tenant' AND tenant_column = 'tenant_id'")" = '2' ]
 
 registered_tables="$(query "SELECT count(*) FROM information_schema.tables t JOIN atlas_foundation.data_scope_registry r ON r.schema_name = t.table_schema AND r.table_name = t.table_name WHERE t.table_type = 'BASE TABLE' AND t.table_schema IN ('atlas_identity', 'atlas_audit')")"
 product_tables="$(query "SELECT count(*) FROM information_schema.tables WHERE table_type = 'BASE TABLE' AND table_schema IN ('atlas_identity', 'atlas_audit')")"
@@ -76,6 +79,8 @@ expect_rejected "INSERT INTO atlas_identity.step_up_challenge_requests(challenge
 expect_rejected "INSERT INTO atlas_identity.step_up_challenge_requests(challenge_request_id, principal_id, population, tenant_id, idempotency_scope_sha256, request_sha256, requested_action, lifecycle, correlation_id, created_at, updated_at, retained_until) VALUES ('idr_01JAT1AS00000000000002', 'usr_01JAT1AS00000000000001', 'customer', 'ten_01JAT1AS00000000000001', decode(repeat('14', 32), 'hex'), decode(repeat('15', 32), 'hex'), 'identity.approval.decide', 'completed', 'cor_01JAT1AS00000000000002', '2026-07-26T00:00:00Z', '2026-07-26T00:00:00Z', '2026-07-27T00:00:00Z')" incomplete-step-up-replay
 expect_rejected "UPDATE atlas_identity.sessions SET step_up_action = 'identity.session.admin_revoke' WHERE session_id = 'ses_01JAT1AS00000000000901'" unpaired-session-step-up-binding
 expect_rejected "INSERT INTO atlas_identity.admin_session_revocation_requests(revocation_request_id, actor_principal_id, actor_session_id, target_session_id, idempotency_key_sha256, request_sha256, purpose, reason_code, outcome, current_revoked, decision_id, committed_at) VALUES ('asr_01JAT1AS00000000000001', 'usr_01JAT1AS00000000000003', 'ses_01JAT1AS00000000000901', 'ses_01JAT1AS00000000000902', decode(repeat('16', 32), 'hex'), decode(repeat('17', 32), 'hex'), 'self_service', 'compromised_session', 'not_found', false, 'dec_01JAT1AS00000000000003', '2026-07-26T00:00:00Z')" invalid-admin-revocation-purpose
+expect_rejected "INSERT INTO atlas_identity.api_credentials(credential_id, tenant_id, name, secret_verifier_sha256, secret_hint, verifier_algorithm, verifier_version, scopes, environment, audience, status, version, expires_at, created_by_principal_id, created_at) VALUES ('key_01JAT1AS00000000000001', 'ten_01JAT1AS00000000000002', 'Unsafe credential', decode(repeat('18', 32), 'hex'), '12345678', 'sha256', 1, ARRAY['money:write']::text[], 'local', 'atlas-api', 'active', 1, '2026-09-01T00:00:00Z', 'usr_01JAT1AS00000000000002', '2026-07-26T00:00:00Z')" credential-scope-escalation
+expect_rejected "INSERT INTO atlas_identity.api_credentials(credential_id, tenant_id, name, secret_verifier_sha256, secret_hint, verifier_algorithm, verifier_version, scopes, environment, audience, status, version, expires_at, created_by_principal_id, created_at) VALUES ('key_01JAT1AS00000000000002', 'ten_01JAT1AS00000000000002', 'Unsafe credential', decode(repeat('19', 32), 'hex'), '12345678', 'sha256', 1, ARRAY['identity:read']::text[], 'unknown', 'atlas-api', 'active', 1, '2026-09-01T00:00:00Z', 'usr_01JAT1AS00000000000002', '2026-07-26T00:00:00Z')" credential-environment-bypass
 
 atomic_event='aud_01JAT1AS00000000000997'
 expect_rejected "BEGIN; INSERT INTO atlas_audit.audit_events(audit_event_id, actor_id, actor_type, tenant_id, session_assurance, action, target_type, target_id, decision_id, decision, reason_code, correlation_id, occurred_at) VALUES ('$atomic_event', 'usr_01JAT1AS00000000000003', 'workforce', 'ten_01JAT1AS00000000000002', 'none', 'identity.atomic.canary', 'membership', 'mem_01JAT1AS00000000000002', 'dec_01JAT1AS00000000000997', 'executed', 'atomic_seed', 'cor_01JAT1AS00000000000997', '2026-07-26T00:00:00Z'); INSERT INTO atlas_identity.memberships(membership_id, tenant_id, principal_id, role_id, population, status, authorization_version, version, created_at, updated_at) VALUES ('mem_01JAT1AS00000000000004', 'ten_01JAT1AS00000000000002', 'usr_01JAT1AS00000000000001', 'merchant_viewer', 'merchant', 'active', 1, 1, '2026-07-26T00:00:00Z', '2026-07-26T00:00:00Z'); COMMIT;" audit-atomicity
@@ -87,4 +92,5 @@ echo 'phase01_identity_population_constraints=PASS'
 echo 'phase01_oidc_transaction_constraints=PASS'
 echo 'phase01_step_up_replay_constraints=PASS'
 echo 'phase01_admin_revocation_constraints=PASS'
+echo 'phase01_api_credential_constraints=PASS'
 echo 'phase01_audit_atomicity=PASS'

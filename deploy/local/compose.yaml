@@ -164,7 +164,9 @@ services:
       ATLAS_POSTGRES_API_USER: ${ATLAS_POSTGRES_API_USER:?required}
       ATLAS_POSTGRES_API_PASSWORD: ${ATLAS_POSTGRES_API_PASSWORD:?required}
       ATLAS_IDENTITY_CSRF_KEY: ${ATLAS_IDENTITY_CSRF_KEY:?required}
+      ATLAS_IDENTITY_NETWORK_SIGNAL_KEY: ${ATLAS_IDENTITY_NETWORK_SIGNAL_KEY:?required}
       ATLAS_IDENTITY_TRANSACTION_KEY: ${ATLAS_IDENTITY_TRANSACTION_KEY:?required}
+      ATLAS_REDIS_PASSWORD: ${ATLAS_REDIS_PASSWORD:?required}
     volumes:
       - ../environments/local.json:/config/environment.json:ro
     depends_on: [postgres, redis, nats, minio, otel-collector, keycloak]

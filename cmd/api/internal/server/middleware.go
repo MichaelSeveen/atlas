@@ -163,6 +163,9 @@ func telemetryRoute(path string) string {
 	if route := approvalRoute(path); route != "" {
 		return "/v1/approvals/{approval_route}"
 	}
+	if route := credentialRoute(path); route != "" {
+		return route
+	}
 	return "unmatched"
 }
 
@@ -212,6 +215,15 @@ func identityOperation(method, route string) string {
 		return "invitation_authenticate"
 	case "/v1/organization-invitations/{invitation_id}/acceptance":
 		return "invitation_accept"
+	case "/v1/api-credentials":
+		if method == http.MethodPost {
+			return "api_credential_create"
+		}
+		return "api_credential_list"
+	case "/v1/api-credentials/{credential_id}/rotate":
+		return "api_credential_rotate"
+	case "/v1/api-credentials/{credential_id}":
+		return "api_credential_revoke"
 	default:
 		return ""
 	}

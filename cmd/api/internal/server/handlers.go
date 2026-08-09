@@ -34,6 +34,12 @@ var approvalRoutes = []string{
 	"/v1/approvals/{approval_id}/cancellations",
 }
 
+var credentialRoutes = []string{
+	"/v1/api-credentials",
+	"/v1/api-credentials/{credential_id}",
+	"/v1/api-credentials/{credential_id}/rotate",
+}
+
 type statusResponse struct {
 	Status string `json:"status"`
 }
@@ -65,12 +71,17 @@ func (a *App) route(response http.ResponseWriter, request *http.Request) {
 	if !operational {
 		identityTemplate := identityRoute(request.URL.Path)
 		approvalTemplate := approvalRoute(request.URL.Path)
-		if identityTemplate == "" && approvalTemplate == "" {
+		credentialTemplate := credentialRoute(request.URL.Path)
+		if identityTemplate == "" && approvalTemplate == "" && credentialTemplate == "" {
 			a.writeProblem(response, request, http.StatusNotFound, "route-not-found", "Not found", "ROUTE_NOT_FOUND", false)
 			return
 		}
 		if approvalTemplate != "" {
 			a.routeApproval(response, request)
+			return
+		}
+		if credentialTemplate != "" {
+			a.routeCredential(response, request)
 			return
 		}
 		a.routeIdentity(response, request)
@@ -194,7 +205,34 @@ func approvalRoute(path string) string {
 	return ""
 }
 
+func credentialRoute(path string) string {
+	if path == "/v1/api-credentials" {
+		return path
+	}
+	const prefix = "/v1/api-credentials/"
+	if !strings.HasPrefix(path, prefix) {
+		return ""
+	}
+	remainder := strings.TrimPrefix(path, prefix)
+	parts := strings.Split(remainder, "/")
+	if len(parts) == 1 && parts[0] != "" {
+		return "/v1/api-credentials/{credential_id}"
+	}
+	if len(parts) == 2 && parts[0] != "" && parts[1] == "rotate" {
+		return "/v1/api-credentials/{credential_id}/rotate"
+	}
+	return ""
+}
+
 func allowedMethods(path string) []string {
+	switch credentialRoute(path) {
+	case "/v1/api-credentials":
+		return []string{http.MethodGet, http.MethodPost}
+	case "/v1/api-credentials/{credential_id}":
+		return []string{http.MethodDelete}
+	case "/v1/api-credentials/{credential_id}/rotate":
+		return []string{http.MethodPost}
+	}
 	switch approvalRoute(path) {
 	case "/v1/approvals":
 		return []string{http.MethodGet, http.MethodPost}

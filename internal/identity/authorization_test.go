@@ -36,6 +36,20 @@ func TestDefaultAuthorizationPolicyMatchesCanonicalContract(t *testing.T) {
 			RevealPermission string `json:"reveal_permission"`
 			RequiredPurpose  string `json:"required_purpose"`
 		} `json:"field_rules"`
+		APICredentials struct {
+			RateWindowSeconds int `json:"rate_window_seconds"`
+			RateLimits        struct {
+				CredentialID        int `json:"credential_id"`
+				TenantID            int `json:"tenant_id"`
+				SourceNetworkSignal int `json:"source_network_signal"`
+			} `json:"rate_limits"`
+			FallbackLimits struct {
+				CredentialID        int `json:"credential_id"`
+				TenantID            int `json:"tenant_id"`
+				SourceNetworkSignal int `json:"source_network_signal"`
+			} `json:"redis_outage_fallback_limits"`
+			ProcessLocalCounterCapacity int `json:"process_local_counter_capacity"`
+		} `json:"api_credentials"`
 	}
 	if err := json.Unmarshal(content, &contract); err != nil {
 		t.Fatal(err)
@@ -68,6 +82,17 @@ func TestDefaultAuthorizationPolicyMatchesCanonicalContract(t *testing.T) {
 			actual.requiredPurpose != expected.RequiredPurpose {
 			t.Fatalf("runtime field rule %s.%s diverges from contract", expected.Resource, expected.Field)
 		}
+	}
+	credentials := contract.APICredentials
+	if credentials.RateWindowSeconds != int(CredentialRateWindow.Seconds()) ||
+		credentials.RateLimits.CredentialID != CredentialRatePerKey ||
+		credentials.RateLimits.TenantID != CredentialRatePerTenant ||
+		credentials.RateLimits.SourceNetworkSignal != CredentialRatePerNetwork ||
+		credentials.FallbackLimits.CredentialID != CredentialFallbackRatePerKey ||
+		credentials.FallbackLimits.TenantID != CredentialFallbackRatePerTenant ||
+		credentials.FallbackLimits.SourceNetworkSignal != CredentialFallbackRatePerNetwork ||
+		credentials.ProcessLocalCounterCapacity != CredentialProcessLocalCounterCapacity {
+		t.Fatalf("runtime credential-rate policy diverges from contract: %+v", credentials)
 	}
 }
 

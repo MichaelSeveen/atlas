@@ -13,12 +13,14 @@ $ErrorActionPreference = 'Stop'
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $runtimeFile = Join-Path $repositoryRoot '.tmp/environments/local/runtime.env'
+$composeFile = Join-Path $repositoryRoot 'deploy/local/compose.yaml'
 $env:GOTELEMETRY = 'off'
 $env:GOCACHE = Join-Path $repositoryRoot '.tmp/go-build'
 $env:GOMODCACHE = Join-Path $repositoryRoot '.tmp/go-mod'
 
 function Invoke-NativeChecked {
     param([string]$Command, [string[]]$Arguments = @())
+
     & $Command @Arguments
     if ($LASTEXITCODE -ne 0) {
         throw "Command failed with exit code ${LASTEXITCODE}: $Command $($Arguments -join ' ')"
@@ -41,6 +43,26 @@ function Read-RuntimeEnvironment {
     return $values
 }
 
+function Wait-RedisPort {
+    for ($attempt = 0; $attempt -lt 40; $attempt++) {
+        $client = [Net.Sockets.TcpClient]::new()
+        try {
+            $connection = $client.ConnectAsync('127.0.0.1', 16379)
+            if ($connection.Wait(1000) -and $client.Connected) {
+                return
+            }
+        }
+        catch {
+            # The bounded loop owns the retry; no endpoint or credential is logged.
+        }
+        finally {
+            $client.Dispose()
+        }
+        Start-Sleep -Milliseconds 250
+    }
+    throw 'Prepared local Redis service did not become reachable within the bounded deadline'
+}
+
 Push-Location -LiteralPath $repositoryRoot
 try {
     $baseRevision = (& git rev-parse HEAD 2>$null | Out-String).Trim()
@@ -49,16 +71,16 @@ try {
     $sourceRevision = if ($changes.Length -eq 0) { $baseRevision } else { "UNCOMMITTED_WORKTREE(base=$baseRevision)" }
 
     if ($Live) {
-        & (Join-Path $PSScriptRoot 'verify-p01-s06.ps1') -Live -ContainerRuntime $ContainerRuntime
+        & (Join-Path $PSScriptRoot 'verify-p01-s07.ps1') -Live -ContainerRuntime $ContainerRuntime
     }
     else {
-        & (Join-Path $PSScriptRoot 'verify-p01-s06.ps1')
+        & (Join-Path $PSScriptRoot 'verify-p01-s07.ps1')
     }
-    if (-not $?) { throw 'Phase 01 S06 regression verification failed' }
+    if (-not $?) { throw 'Phase 01 S07 regression verification failed' }
 
     Invoke-NativeChecked -Command 'go' -Arguments @(
-        'test', './internal/operations/...', './internal/identity/...',
-        './cmd/api/internal/server', './tests/contract', './internal/architecture', '-count=1'
+        'test', './internal/identity/...', './cmd/api/internal/server',
+        './tests/contract', './internal/architecture', '-count=1'
     )
     Invoke-NativeChecked -Command 'go' -Arguments @(
         'run', './cmd/contractctl', 'lint',
@@ -72,26 +94,30 @@ try {
         'build', './cmd/api', './cmd/worker', './cmd/simulator'
     )
 
-    & (Join-Path $PSScriptRoot 'test-s07-approval-alert-catalog-canary.ps1')
-    if (-not $?) { throw 'Approval observability catalogue verification failed' }
+    & (Join-Path $PSScriptRoot 'test-p01-s08-credential-alert-catalog-canary.ps1')
+    if (-not $?) { throw 'API credential observability catalogue verification failed' }
 
-    $s07Catalogue = 'evidence/phase-01/approvals/P01-S07-evidence-catalogue-postcommit.json'
+    $s08Catalogue = 'evidence/phase-01/api-credentials/P01-S08-evidence-catalogue-precommit.json'
     & (Join-Path $PSScriptRoot 'test-p01-evidence-integrity.ps1') `
-        -CatalogueRelativePath $s07Catalogue `
-        -ExpectedSlice 'P01-S07'
-    if (-not $?) { throw 'Phase 01 S07 evidence integrity verification failed' }
+        -CatalogueRelativePath $s08Catalogue `
+        -ExpectedSlice 'P01-S08'
+    if (-not $?) { throw 'Phase 01 S08 evidence integrity verification failed' }
 
     if ($Live) {
         $runtime = Read-RuntimeEnvironment
         foreach ($required in @(
             'ATLAS_POSTGRES_API_USER', 'ATLAS_POSTGRES_API_PASSWORD',
             'ATLAS_POSTGRES_MIGRATION_USER', 'ATLAS_POSTGRES_MIGRATION_PASSWORD',
-            'ATLAS_POSTGRES_DB'
+            'ATLAS_POSTGRES_DB', 'ATLAS_REDIS_PASSWORD'
         )) {
             if (-not $runtime.ContainsKey($required) -or [String]::IsNullOrWhiteSpace($runtime[$required])) {
                 throw "Prepared local runtime environment is missing $required"
             }
         }
+        . (Join-Path $PSScriptRoot 'compose.ps1')
+        Invoke-AtlasCompose -ContainerRuntime $ContainerRuntime -RuntimeFile $runtimeFile `
+            -ComposeFile $composeFile -Arguments @('up', '--detach', 'redis')
+        Wait-RedisPort
         $apiUser = [Uri]::EscapeDataString($runtime['ATLAS_POSTGRES_API_USER'])
         $apiPassword = [Uri]::EscapeDataString($runtime['ATLAS_POSTGRES_API_PASSWORD'])
         $migrationUser = [Uri]::EscapeDataString($runtime['ATLAS_POSTGRES_MIGRATION_USER'])
@@ -99,35 +125,42 @@ try {
         $database = [Uri]::EscapeDataString($runtime['ATLAS_POSTGRES_DB'])
         $env:ATLAS_P01_DATABASE_URL = "postgres://${apiUser}:${apiPassword}@127.0.0.1:15432/${database}?sslmode=disable"
         $env:ATLAS_P01_MIGRATION_DATABASE_URL = "postgres://${migrationUser}:${migrationPassword}@127.0.0.1:15432/${database}?sslmode=disable"
+        $env:ATLAS_P01_REDIS_ADDR = '127.0.0.1:16379'
+        $env:ATLAS_P01_REDIS_PASSWORD = $runtime['ATLAS_REDIS_PASSWORD']
         try {
             Invoke-NativeChecked -Command 'go' -Arguments @(
-                'test', './internal/operations/persistence', '-run',
-                '^TestApprovalRealPostgresSeparationReauthorizationIntegrityConcurrencyAndAuditRollback$',
+                'test', './internal/identity/persistence', '-run',
+                '^TestAPICredentialRealPostgresOneTimeStateRotationRevocationAndAuditRollback$',
+                '-count=1'
+            )
+            Invoke-NativeChecked -Command 'go' -Arguments @(
+                'test', './internal/identity/ratelimit', '-run',
+                '^TestRealRedisEnforcesCredentialTenantAndNetworkDimensions$',
                 '-count=1'
             )
         }
         finally {
             Remove-Item Env:ATLAS_P01_DATABASE_URL -ErrorAction SilentlyContinue
             Remove-Item Env:ATLAS_P01_MIGRATION_DATABASE_URL -ErrorAction SilentlyContinue
+            Remove-Item Env:ATLAS_P01_REDIS_ADDR -ErrorAction SilentlyContinue
+            Remove-Item Env:ATLAS_P01_REDIS_PASSWORD -ErrorAction SilentlyContinue
             $runtime['ATLAS_POSTGRES_API_PASSWORD'] = $null
             $runtime['ATLAS_POSTGRES_MIGRATION_PASSWORD'] = $null
+            $runtime['ATLAS_REDIS_PASSWORD'] = $null
         }
-        & (Join-Path $PSScriptRoot 's05.ps1') -Action Verify -ContainerRuntime $ContainerRuntime
-        if (-not $?) { throw 'Phase 01 S07 database role and recovery verification failed' }
-        Write-Output 'p01_s07_live_verification=PASS'
+        Write-Output 'p01_s08_live_verification=PASS'
     }
     else {
-        Write-Output 'p01_s07_live_verification=NOT_REQUESTED'
+        Write-Output 'p01_s08_live_verification=NOT_REQUESTED'
     }
 
-    Write-Output 'p01_s07_scope=typed-approval,maker-checker,payload-integrity,execution-reauthorization,terminal-state,replay'
-    Write-Output 'p01_s07_executable_action=identity.organization.membership.change_admin'
-    Write-Output 'p01_s07_approval_event=ABSENT'
-    Write-Output 'p01_s07_worker_job=ABSENT'
-    Write-Output 'p01_s07_credential_behavior=ABSENT'
-    Write-Output 'p01_s07_financial_state=ABSENT'
+    Write-Output 'p01_s08_scope=machine-credential,lifecycle,one-time-secret,tenant-environment-audience-scope-binding,three-dimensional-rate-limit'
+    Write-Output 'p01_s08_secret_persistence=VERIFIER_ONLY'
+    Write-Output 'p01_s08_redis_authority=ABSENT'
+    Write-Output 'p01_s08_financial_scope=ABSENT'
+    Write-Output 'p01_s08_production_secret_manager=ABSENT'
     Write-Output "source_revision=$sourceRevision"
-    Write-Output 'p01_s07_verification=PASS'
+    Write-Output 'p01_s08_verification=PASS'
 }
 finally {
     Pop-Location

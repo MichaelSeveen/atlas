@@ -876,6 +876,8 @@ type httpIdentityStore struct {
 	revocations       int
 	stepUps           map[[32]byte]httpStepUpClaim
 	organizationStore *httpOrganizationStore
+	credentialStore   *httpCredentialStore
+	credentialLimiter *httpCredentialLimiter
 }
 
 type httpOrganizationStore struct {
@@ -1212,9 +1214,15 @@ func newHTTPIdentityService(t *testing.T) (*identity.Service, *httpIdentityStore
 	counter := 0
 	organizationStore := &httpOrganizationStore{sessions: store}
 	store.organizationStore = organizationStore
+	credentialStore := newHTTPCredentialStore()
+	credentialLimiter := &httpCredentialLimiter{decision: identity.CredentialRateDecision{Allowed: true}}
+	store.credentialStore = credentialStore
+	store.credentialLimiter = credentialLimiter
 	service, err := identity.NewService(identity.ServiceOptions{
-		Store: store, Organizations: organizationStore,
-		Provider: provider, Cryptor: httpCryptor{}, CSRF: csrf,
+		Store: store, Organizations: organizationStore, Credentials: credentialStore,
+		CredentialLimiter: credentialLimiter, CredentialEnvironment: "test",
+		CredentialNetworkSignalKey: bytes.Repeat([]byte{61}, 32),
+		Provider:                   provider, Cryptor: httpCryptor{}, CSRF: csrf,
 		Clock: clock.NewFixed(testBuildTime), Entropy: &sequentialReader{next: 40},
 		NewID: func(prefix string) (identifier.ID, error) {
 			counter++

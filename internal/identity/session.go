@@ -355,27 +355,35 @@ type CSRFProtector interface {
 type IDGenerator func(string) (identifier.ID, error)
 
 type ServiceOptions struct {
-	Store           Store
-	Organizations   OrganizationStore
-	Provider        Provider
-	Cryptor         TransactionCryptor
-	CSRF            CSRFProtector
-	Clock           clock.Clock
-	NewID           IDGenerator
-	Entropy         io.Reader
-	SessionPolicies map[Population]SessionPolicy
+	Store                      Store
+	Organizations              OrganizationStore
+	Credentials                CredentialStore
+	CredentialLimiter          CredentialRateLimiter
+	CredentialEnvironment      string
+	CredentialNetworkSignalKey []byte
+	Provider                   Provider
+	Cryptor                    TransactionCryptor
+	CSRF                       CSRFProtector
+	Clock                      clock.Clock
+	NewID                      IDGenerator
+	Entropy                    io.Reader
+	SessionPolicies            map[Population]SessionPolicy
 }
 
 type Service struct {
-	store           Store
-	organizations   OrganizationStore
-	provider        Provider
-	cryptor         TransactionCryptor
-	csrf            CSRFProtector
-	clock           clock.Clock
-	newID           IDGenerator
-	entropy         io.Reader
-	sessionPolicies map[Population]SessionPolicy
+	store                      Store
+	organizations              OrganizationStore
+	credentials                CredentialStore
+	credentialLimiter          CredentialRateLimiter
+	credentialEnvironment      string
+	credentialNetworkSignalKey []byte
+	provider                   Provider
+	cryptor                    TransactionCryptor
+	csrf                       CSRFProtector
+	clock                      clock.Clock
+	newID                      IDGenerator
+	entropy                    io.Reader
+	sessionPolicies            map[Population]SessionPolicy
 }
 
 func NewService(options ServiceOptions) (*Service, error) {
@@ -385,6 +393,15 @@ func NewService(options ServiceOptions) (*Service, error) {
 	}
 	if options.Clock == nil {
 		options.Clock = clock.System{}
+	}
+	if options.Credentials != nil {
+		if options.CredentialLimiter == nil || !validCredentialEnvironment(options.CredentialEnvironment) ||
+			len(options.CredentialNetworkSignalKey) != 32 {
+			return nil, errors.New("credential service dependencies are incomplete")
+		}
+	} else if options.CredentialLimiter != nil || options.CredentialEnvironment != "" ||
+		len(options.CredentialNetworkSignalKey) != 0 {
+		return nil, errors.New("credential service configuration is inconsistent")
 	}
 	if options.NewID == nil {
 		options.NewID = identifier.New
@@ -401,8 +418,11 @@ func NewService(options ServiceOptions) (*Service, error) {
 		copied[population] = policy
 	}
 	return &Service{
-		store: options.Store, organizations: options.Organizations,
-		provider: options.Provider, cryptor: options.Cryptor,
+		store: options.Store, organizations: options.Organizations, credentials: options.Credentials,
+		credentialLimiter:          options.CredentialLimiter,
+		credentialEnvironment:      options.CredentialEnvironment,
+		credentialNetworkSignalKey: append([]byte(nil), options.CredentialNetworkSignalKey...),
+		provider:                   options.Provider, cryptor: options.Cryptor,
 		csrf: options.CSRF, clock: options.Clock, newID: options.NewID,
 		entropy: options.Entropy, sessionPolicies: copied,
 	}, nil

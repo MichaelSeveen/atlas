@@ -32,10 +32,11 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 	membershipRevocationSQL := readPhase01PolicyFile(t, root, "db/migrations/000012_phase_01_membership_revocations.sql")
 	membershipEmailHintSQL := readPhase01PolicyFile(t, root, "db/migrations/000013_phase_01_membership_email_hint.sql")
 	approvalSQL := readPhase01PolicyFile(t, root, "db/migrations/000014_phase_01_approval_workflow.sql")
+	credentialSQL := readPhase01PolicyFile(t, root, "db/migrations/000015_phase_01_api_credentials.sql")
 	allSQL := identitySQL + "\n" + auditSQL + "\n" + sessionSQL + "\n" +
 		sessionGrantSQL + "\n" + stepUpSQL + "\n" + adminRevocationSQL + "\n" + invitationSQL + "\n" +
 		invitationAcceptanceSQL + "\n" + membershipRoleChangeSQL + "\n" + membershipRevocationSQL + "\n" +
-		membershipEmailHintSQL + "\n" + approvalSQL
+		membershipEmailHintSQL + "\n" + approvalSQL + "\n" + credentialSQL
 
 	tables := make([]string, 0)
 	for _, match := range phase01ProductTablePattern.FindAllStringSubmatch(allSQL, -1) {
@@ -45,6 +46,8 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 	wantTables := []string{
 		"atlas_audit.audit_events",
 		"atlas_identity.admin_session_revocation_requests",
+		"atlas_identity.api_credential_mutation_requests",
+		"atlas_identity.api_credentials",
 		"atlas_identity.external_subjects",
 		"atlas_identity.membership_revocations",
 		"atlas_identity.membership_role_changes",
@@ -109,6 +112,14 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 		"payload_hash_algorithm",
 		"GRANT UPDATE (\n    status, decision_reason, decider_principal_id, decider_session_id,",
 		"membership_role_changes_approval_fk",
+		"('atlas_identity', 'api_credentials', 'tenant', 'tenant_id', NULL)",
+		"('atlas_identity', 'api_credential_mutation_requests', 'tenant', 'tenant_id', NULL)",
+		"secret_verifier_sha256 bytea NOT NULL CHECK (octet_length(secret_verifier_sha256) = 32)",
+		"scopes = ARRAY['identity:read']::text[]",
+		"environment IN ('local', 'test', 'staging', 'production-reference')",
+		"audience text NOT NULL CHECK (audience = 'atlas-api')",
+		"DEFERRABLE INITIALLY DEFERRED",
+		"GRANT UPDATE (\n    status, version, overlap_ends_at, last_used_at, last_used_network_signal_sha256,",
 	} {
 		if !strings.Contains(allSQL, required) {
 			t.Errorf("persistence policy is missing %q", required)
@@ -122,6 +133,9 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 		"GRANT USAGE ON SCHEMA atlas_audit TO atlas_reporting_read",
 		"GRANT UPDATE ON atlas_operations.approvals",
 		"GRANT DELETE ON atlas_operations.",
+		"credential_secret",
+		"plaintext_secret",
+		"raw_network",
 		"atlas_wallet.",
 		"atlas_ledger.",
 	} {
@@ -227,8 +241,10 @@ func TestPhase01SeedManifestIsClosedAndChecksumBound(t *testing.T) {
 		"000001_phase_01_identity.json",
 		"000002_phase_01_policy.json",
 		"000003_phase_01_policy.json",
+		"000004_phase_01_policy.json",
 		"load-phase-01-identity.sql",
 		"load-phase-01-policy-v3.sql",
+		"load-phase-01-policy-v4.sql",
 		"load-phase-01-policy.sql",
 	}
 	if !reflect.DeepEqual(actual, expected) || len(want) != len(expected) {
@@ -327,7 +343,7 @@ func TestDatabaseVerificationTracksLatestPolicySeed(t *testing.T) {
 	if wantSeedCount == 0 {
 		t.Fatal("Phase 01 seed tool does not apply any canonical seeds")
 	}
-	latestSeed := readPhase01PolicyFile(t, root, "db/seeds/000003_phase_01_policy.json")
+	latestSeed := readPhase01PolicyFile(t, root, "db/seeds/000004_phase_01_policy.json")
 	var policy struct {
 		PolicySHA256 string `json:"policy_sha256"`
 	}

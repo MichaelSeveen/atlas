@@ -505,7 +505,19 @@
     "revocation_truth": "postgresql",
     "rate_counter_store": "redis-ephemeral",
     "rate_limit_dimensions": ["credential-id", "tenant-id", "source-network-signal"],
-    "redis_outage_policy": "bounded-conservative-process-local-limit-never-authorize"
+    "rate_window_seconds": 60,
+    "rate_limits": {
+      "credential_id": 120,
+      "tenant_id": 600,
+      "source_network_signal": 60
+    },
+    "redis_outage_policy": "bounded-conservative-process-local-limit-never-authorize",
+    "redis_outage_fallback_limits": {
+      "credential_id": 30,
+      "tenant_id": 120,
+      "source_network_signal": 15
+    },
+    "process_local_counter_capacity": 4096
   },
   "audit": {
     "owner": "audit",

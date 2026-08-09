@@ -50,6 +50,7 @@ apply_seed() {
 apply_seed 'atlas-phase01-identity-v1' '000001_phase_01_identity.json' 'load-phase-01-identity.sql'
 apply_seed 'atlas-phase01-identity-policy-v2' '000002_phase_01_policy.json' 'load-phase-01-policy.sql'
 apply_seed 'atlas-phase01-identity-policy-v3' '000003_phase_01_policy.json' 'load-phase-01-policy-v3.sql'
+apply_seed 'atlas-phase01-identity-policy-v4' '000004_phase_01_policy.json' 'load-phase-01-policy-v4.sql'
 
 unset PGPASSWORD PGOPTIONS
 

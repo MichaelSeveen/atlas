@@ -43,6 +43,7 @@ run_sql atlas_worker "$ATLAS_POSTGRES_WORKER_PASSWORD" "INSERT INTO atlas_founda
 run_sql atlas_reporting_read "$ATLAS_POSTGRES_REPORTING_PASSWORD" 'SELECT count(*) FROM atlas_foundation.permission_probe' >/dev/null
 run_sql atlas_api "$ATLAS_POSTGRES_API_PASSWORD" 'SELECT count(*) FROM atlas_identity.memberships' >/dev/null
 run_sql atlas_api "$ATLAS_POSTGRES_API_PASSWORD" 'SELECT count(*) FROM atlas_operations.approvals' >/dev/null
+run_sql atlas_api "$ATLAS_POSTGRES_API_PASSWORD" 'SELECT count(*) FROM atlas_identity.api_credentials' >/dev/null
 run_sql atlas_api "$ATLAS_POSTGRES_API_PASSWORD" "BEGIN; SELECT principal_id FROM atlas_identity.principals WHERE principal_id = 'usr_01JAT1AS00000000000001' FOR SHARE; UPDATE atlas_identity.principals SET authorization_version = authorization_version WHERE principal_id = 'usr_01JAT1AS00000000000001'; ROLLBACK;" >/dev/null
 run_sql atlas_api "$ATLAS_POSTGRES_API_PASSWORD" "BEGIN; INSERT INTO atlas_identity.oidc_transactions(transaction_id, transaction_kind, population, state_sha256, nonce_sha256, pkce_verifier_ciphertext, encryption_key_version, return_to, status, created_at, expires_at) VALUES ('oid_01JAT1AS00000000000991', 'login', 'customer', decode(repeat('11', 32), 'hex'), decode(repeat('22', 32), 'hex'), decode(repeat('33', 60), 'hex'), 1, '/customer', 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '5 minutes'); UPDATE atlas_identity.oidc_transactions SET status = 'consumed', consumed_at = CURRENT_TIMESTAMP WHERE transaction_id = 'oid_01JAT1AS00000000000991'; ROLLBACK;" >/dev/null
 run_sql atlas_api "$ATLAS_POSTGRES_API_PASSWORD" "BEGIN; INSERT INTO atlas_identity.session_revocation_requests(revocation_request_id, principal_id, idempotency_key_sha256, request_sha256, include_current, current_revoked, committed_at) VALUES ('rev_01JAT1AS00000000000991', 'usr_01JAT1AS00000000000001', decode(repeat('44', 32), 'hex'), decode(repeat('55', 32), 'hex'), true, false, CURRENT_TIMESTAMP); ROLLBACK;" >/dev/null
@@ -53,9 +54,11 @@ run_sql atlas_api "$ATLAS_POSTGRES_API_PASSWORD" "BEGIN; INSERT INTO atlas_audit
 expect_denied atlas_reporting_read "$ATLAS_POSTGRES_REPORTING_PASSWORD" "INSERT INTO atlas_foundation.permission_probe(probe_key, marker) VALUES ('reporting', 'denied')" reporting-write
 expect_denied atlas_reporting_read "$ATLAS_POSTGRES_REPORTING_PASSWORD" 'SELECT count(*) FROM atlas_identity.memberships' reporting-identity-read
 expect_denied atlas_reporting_read "$ATLAS_POSTGRES_REPORTING_PASSWORD" 'SELECT count(*) FROM atlas_operations.approvals' reporting-approval-read
+expect_denied atlas_reporting_read "$ATLAS_POSTGRES_REPORTING_PASSWORD" 'SELECT count(*) FROM atlas_identity.api_credentials' reporting-credential-read
 expect_denied atlas_reporting_read "$ATLAS_POSTGRES_REPORTING_PASSWORD" 'SELECT count(*) FROM atlas_identity.oidc_transactions' reporting-oidc-state-read
 expect_denied atlas_worker "$ATLAS_POSTGRES_WORKER_PASSWORD" 'SELECT count(*) FROM atlas_identity.sessions' worker-identity-read
 expect_denied atlas_worker "$ATLAS_POSTGRES_WORKER_PASSWORD" 'SELECT count(*) FROM atlas_operations.approvals' worker-approval-read
+expect_denied atlas_worker "$ATLAS_POSTGRES_WORKER_PASSWORD" 'SELECT count(*) FROM atlas_identity.api_credentials' worker-credential-read
 expect_denied atlas_worker "$ATLAS_POSTGRES_WORKER_PASSWORD" 'SELECT count(*) FROM atlas_identity.oidc_transactions' worker-oidc-state-read
 expect_denied atlas_worker "$ATLAS_POSTGRES_WORKER_PASSWORD" 'SELECT count(*) FROM atlas_identity.session_revocation_requests' worker-revocation-replay-read
 expect_denied atlas_worker "$ATLAS_POSTGRES_WORKER_PASSWORD" 'SELECT count(*) FROM atlas_identity.step_up_challenge_requests' worker-step-up-replay-read
@@ -70,6 +73,9 @@ expect_denied atlas_api "$ATLAS_POSTGRES_API_PASSWORD" "UPDATE atlas_operations.
 expect_denied atlas_api "$ATLAS_POSTGRES_API_PASSWORD" "UPDATE atlas_operations.approvals SET requester_principal_id = 'usr_01JAT1AS00000000000001' WHERE approval_id = 'apr_01JAT1AS00000000000001'" api-approval-maker-update
 expect_denied atlas_api "$ATLAS_POSTGRES_API_PASSWORD" "DELETE FROM atlas_operations.approvals WHERE approval_id = 'apr_01JAT1AS00000000000001'" api-approval-delete
 expect_denied atlas_api "$ATLAS_POSTGRES_API_PASSWORD" "DELETE FROM atlas_operations.approval_decisions WHERE approval_id = 'apr_01JAT1AS00000000000001'" api-approval-decision-delete
+expect_denied atlas_api "$ATLAS_POSTGRES_API_PASSWORD" "UPDATE atlas_identity.api_credentials SET secret_verifier_sha256 = decode(repeat('00', 32), 'hex') WHERE credential_id = 'key_01JAT1AS00000000000901'" api-credential-verifier-update
+expect_denied atlas_api "$ATLAS_POSTGRES_API_PASSWORD" "UPDATE atlas_identity.api_credentials SET scopes = ARRAY['money:write']::text[] WHERE credential_id = 'key_01JAT1AS00000000000901'" api-credential-scope-update
+expect_denied atlas_api "$ATLAS_POSTGRES_API_PASSWORD" "DELETE FROM atlas_identity.api_credentials WHERE credential_id = 'key_01JAT1AS00000000000901'" api-credential-delete
 expect_denied atlas_api "$ATLAS_POSTGRES_API_PASSWORD" "INSERT INTO atlas_identity.role_catalogue(role_id, population, standing_status, policy_checksum) VALUES ('api_bypass', 'workforce', 'enabled', repeat('0', 64))" api-policy-write
 expect_denied atlas_api "$ATLAS_POSTGRES_API_PASSWORD" "UPDATE atlas_identity.principals SET status = 'disabled' WHERE principal_id = 'usr_01JAT1AS00000000000001'" api-principal-status-write
 expect_denied atlas_api "$ATLAS_POSTGRES_API_PASSWORD" "UPDATE atlas_identity.principals SET display_name = 'tampered' WHERE principal_id = 'usr_01JAT1AS00000000000001'" api-principal-profile-write
@@ -90,6 +96,9 @@ rm -f "$output"
 [ "$(bootstrap_sql "SELECT has_table_privilege('atlas_api', 'atlas_operations.approvals', 'INSERT')")" = 't' ]
 [ "$(bootstrap_sql "SELECT has_column_privilege('atlas_api', 'atlas_operations.approvals', 'status', 'UPDATE')")" = 't' ]
 [ "$(bootstrap_sql "SELECT has_column_privilege('atlas_api', 'atlas_operations.approvals', 'payload_canonical', 'UPDATE')")" = 'f' ]
+[ "$(bootstrap_sql "SELECT has_table_privilege('atlas_api', 'atlas_identity.api_credentials', 'SELECT,INSERT')")" = 't' ]
+[ "$(bootstrap_sql "SELECT has_column_privilege('atlas_api', 'atlas_identity.api_credentials', 'status', 'UPDATE')")" = 't' ]
+[ "$(bootstrap_sql "SELECT has_column_privilege('atlas_api', 'atlas_identity.api_credentials', 'secret_verifier_sha256', 'UPDATE')")" = 'f' ]
 expect_denied atlas_api "$ATLAS_POSTGRES_API_PASSWORD" 'SET ROLE atlas_migration' api-set-migration-role
 expect_denied atlas_worker "$ATLAS_POSTGRES_WORKER_PASSWORD" 'ALTER TABLE atlas_foundation.permission_probe ADD COLUMN worker_bypass text' worker-alter-table
 expect_denied atlas_reporting_read "$ATLAS_POSTGRES_REPORTING_PASSWORD" 'CREATE TEMP TABLE reporting_temp(id integer)' reporting-create-temp

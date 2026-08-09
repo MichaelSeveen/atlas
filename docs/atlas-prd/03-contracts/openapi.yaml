@@ -143,6 +143,8 @@ paths:
               schema: {$ref: '#/components/schemas/Principal'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
         '403': {$ref: '#/components/responses/Forbidden'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
 
   /v1/auth/login:
     get:
@@ -602,8 +604,10 @@ paths:
                     type: array
                     maxItems: 100
                     items: {$ref: '#/components/schemas/APICredential'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
         '403': {$ref: '#/components/responses/Forbidden'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
     post:
       operationId: createAPICredential
       tags: [API credentials]
@@ -627,11 +631,13 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/APICredentialCreated'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
         '403': {$ref: '#/components/responses/StepUpRequired'}
         '409': {$ref: '#/components/responses/Conflict'}
         '422': {$ref: '#/components/responses/ValidationFailed'}
         '429': {$ref: '#/components/responses/RateLimited'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
 
   /v1/api-credentials/{credential_id}/rotate:
     parameters:
@@ -653,11 +659,13 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/APICredentialCreated'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
         '403': {$ref: '#/components/responses/StepUpRequired'}
         '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
         '409': {$ref: '#/components/responses/Conflict'}
         '429': {$ref: '#/components/responses/RateLimited'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
 
   /v1/api-credentials/{credential_id}:
     parameters:
@@ -670,11 +678,18 @@ paths:
         - $ref: '#/components/parameters/XAtlasCSRFToken'
         - $ref: '#/components/parameters/IdempotencyKey'
       responses:
-        '204': {description: API credential revoked or already absent}
+        '204':
+          description: API credential revoked or an identical committed revocation replayed
+          headers:
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
         '403': {$ref: '#/components/responses/StepUpRequired'}
         '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
         '409': {$ref: '#/components/responses/Conflict'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
 
   /v1/approvals:
     get:

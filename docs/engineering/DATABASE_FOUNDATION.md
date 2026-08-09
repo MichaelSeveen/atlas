@@ -6,7 +6,8 @@ P01-S03 deliberately activates the ADR 0013 `first-product-schema` and
 `atlas_audit` namespaces. P01-S04 extends those namespaces with OIDC login transactions,
 encrypted application sessions, replay records, and revocation authority; P01-S07 adds the
 Operations-owned `atlas_operations` approval namespace and a narrow caller-transaction Identity
-target boundary. There is still no
+target boundary; P01-S08 adds Identity-owned API credential and immutable mutation-replay tables.
+There is still no
 wallet, ledger, balance, journal, payment, transfer, outbox, or other financial state.
 
 ## Boundaries and roles
@@ -28,7 +29,7 @@ The original S04 PostgreSQL identity remains a local bootstrap identity so exist
 
 Each `db/migrations/*.sql` file has closed metadata covering lock risk, representative data,
 query-plan review, space risk, forward fix, rollback, lock timeout, and statement timeout.
-`db/migrations/MANIFEST.sha256` defines the fourteen-file-pair released inventory. `dbctl verify`
+`db/migrations/MANIFEST.sha256` defines the fifteen-file-pair released inventory. `dbctl verify`
 rejects changes, deletions, unmanifested files, reordering, malformed metadata, embedded
 transaction control, privileged SQL, unratified schemas, and financial terms.
 
@@ -39,8 +40,9 @@ is fixed at `2026-07-26T00:00:00Z`, remains byte-for-byte immutable, maps the th
 subjects to synthetic Atlas principals, and includes two tenants, two memberships, one workforce
 role, one revoked session recovery canary, and one Audit fact. Additive policy seed v2 preserves
 the prior policy boundary; additive policy seed v3 verifies that exact predecessor before advancing
-the 23 permission and 13 role catalogue rows to the current ADR 0016 policy digest. Application
-startup applies neither migrations nor seeds.
+the 23 permission and 13 role catalogue rows to the ADR 0016 digest; additive policy seed v4 verifies
+v3 before advancing the canonical S08 credential rate/fallback policy checksum. Application startup
+applies neither migrations nor seeds.
 
 ## Commands
 
@@ -53,6 +55,7 @@ pwsh -NoProfile -File ./scripts/test-s05-migration-canary.ps1
 pwsh -NoProfile -File ./scripts/verify-p01-s03.ps1
 pwsh -NoProfile -File ./scripts/verify-p01-s05.ps1
 pwsh -NoProfile -File ./scripts/verify-p01-s07.ps1
+pwsh -NoProfile -File ./scripts/verify-p01-s08.ps1
 ```
 
 Local database lifecycle:
@@ -70,7 +73,7 @@ roles, migrates empty and previous-version throwaway databases, rejects released
 rewrites, duplicate subjects, and cross-population
 memberships, proves a tenant-leading repository query against real PostgreSQL, forces a bounded
 product-table lock failure, and confirms real NATS JetStream. `BackupRestore` creates and verifies
-a physical base backup, archives WAL, mutates the revoked-session canary after the target, restores
+a physical base backup, archives WAL, mutates the revoked-session and revoked-credential canaries after the target, restores
 into the separate internal-only recovery service, and proves the restored migration/seed-chain
 checksums, current policy binding, product rows, grants, Audit fact, and revoked authority.
 
@@ -79,6 +82,7 @@ The full command is:
 ```powershell
 pwsh -NoProfile -File ./scripts/verify-s05.ps1 -Live
 pwsh -NoProfile -File ./scripts/verify-p01-s07.ps1 -Live
+pwsh -NoProfile -File ./scripts/verify-p01-s08.ps1 -Live
 ```
 
 Pass `-ContainerRuntime docker` to the PowerShell commands when Docker Compose is the selected provider.
@@ -86,7 +90,7 @@ Pass `-ContainerRuntime docker` to the PowerShell commands when Docker Compose i
 ## Failure posture
 
 The API readiness probe uses its application credential and a 750 ms deadline to require
-migration version 14 with the exact released checksum. Connectivity, authentication, missing
+migration version 15 with the exact released checksum. Connectivity, authentication, missing
 schema, timeout, and checksum mismatch all produce the same topology-free not-ready result;
 liveness and version remain independent.
 
@@ -101,13 +105,15 @@ Migration failures never trigger an automatic destructive down migration. Follow
   includes contracted step-up idempotency, live higher-assurance completion, audit-atomic
   administrator security revocation, recipient-bound invitation acceptance, direct
   viewer/operator member role changes, direct viewer/operator removal, and the sole typed
-  administrator-role approval action. Operations owns immutable canonical payload bindings and
+  administrator-role approval action plus the bounded `identity:read` AtlasKey credential lifecycle.
+  Operations owns immutable canonical payload bindings and
   workflow state; Identity executes the approved target command in the caller-owned transaction;
   Audit remains atomic with both. Administrator removal remains fail-closed pending exact
-  fresh-step-up and last-administrator policy. Credentials and frontend product behavior remain
-  absent.
-- No outbox, inbox, idempotency, object, key, or synthetic financial flow exists to replay or reconcile after restore.
-- Bounded verifier signals cover migration, seed, lock, role, restore, identity and approval
-  operations, provider requests, approval age/status/conflict/integrity, and decision Audit.
+  fresh-step-up and last-administrator policy. Credential-management and other frontend product
+  behavior remain absent.
+- No outbox, inbox, object, financial key, or synthetic financial flow exists to replay or reconcile after restore; credential lifecycle idempotency is deliberately local to Identity.
+- Bounded verifier signals cover migration, seed, lock, role, restore, identity, approval, and
+  credential operations, provider requests, approval age/status/conflict/integrity, credential
+  authentication/anomaly/rate/fallback outcomes, and decision Audit.
   Deployed alert routing remains future environment evidence.
 - The current Windows host required direct in-VM `podman-compose` because the host Podman Compose transport is unhealthy. The repository commands are still the canonical procedure and require clean-host revalidation.

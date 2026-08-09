@@ -167,7 +167,12 @@ func identityOptions(
 		return nil, nil, err
 	}
 	defer wipeRuntimeKey(csrfKey)
-	return identityapplication.NewRuntime(ctx, *config, transactionKey, csrfKey, meter)
+	networkSignalKey, err := decodeRuntimeKey("ATLAS_IDENTITY_NETWORK_SIGNAL_KEY")
+	if err != nil {
+		return nil, nil, err
+	}
+	defer wipeRuntimeKey(networkSignalKey)
+	return identityapplication.NewRuntime(ctx, *config, transactionKey, csrfKey, networkSignalKey, meter)
 }
 
 func approvalOptions(

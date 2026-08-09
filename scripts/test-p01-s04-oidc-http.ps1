@@ -2,7 +2,18 @@
 param(
     [Parameter()]
     [ValidateSet('customer', 'merchant', 'workforce')]
-    [string]$Population = 'customer'
+    [string]$Population = 'customer',
+
+    [Parameter()]
+    [ValidateSet(
+        'synthetic-customer',
+        'synthetic-merchant-operator',
+        'synthetic-workforce-operator',
+        'synthetic-support-analyst',
+        'synthetic-risk-analyst',
+        'synthetic-finance-operator'
+    )]
+    [string]$Username = ''
 )
 
 Set-StrictMode -Version Latest
@@ -15,6 +26,20 @@ $usernames = @{
     customer = 'synthetic-customer'
     merchant = 'synthetic-merchant-operator'
     workforce = 'synthetic-workforce-operator'
+}
+$allowedUsernames = @{
+    customer = @('synthetic-customer')
+    merchant = @('synthetic-merchant-operator')
+    workforce = @(
+        'synthetic-workforce-operator',
+        'synthetic-support-analyst',
+        'synthetic-risk-analyst',
+        'synthetic-finance-operator'
+    )
+}
+$selectedUsername = if ([String]::IsNullOrWhiteSpace($Username)) { $usernames[$Population] } else { $Username }
+if ($allowedUsernames[$Population] -notcontains $selectedUsername) {
+    throw 'Synthetic OIDC username does not belong to the selected isolated population'
 }
 
 function Read-RuntimeEnvironment {
@@ -169,7 +194,7 @@ try {
         -Uri $formAction `
         -Cookie $authorizationCookies `
         -Form @{
-            username = $usernames[$Population]
+            username = $selectedUsername
             password = $runtime['ATLAS_SYNTHETIC_OIDC_TEST_PASSWORD']
             credentialId = ''
             login = 'Sign In'
@@ -248,7 +273,11 @@ try {
     }
     $currentBody = $current.Content.ReadAsStringAsync().GetAwaiter().GetResult()
     $currentDocument = $currentBody | ConvertFrom-Json
-    $expectedPrincipalType = if ($Population -eq 'merchant') { 'merchant_user' } else { 'customer' }
+    $expectedPrincipalType = switch ($Population) {
+        'merchant' { 'merchant_user' }
+        'workforce' { 'workforce' }
+        default { 'customer' }
+    }
     if ($currentBody -match '(?i)(access_token|refresh_token|id_token|authorization_code)' -or
         $currentDocument.type -ne $expectedPrincipalType) {
         throw 'Atlas current-principal response exposed a token or crossed the state-bound population'
@@ -382,7 +411,7 @@ try {
             -Uri $stepUpFormAction `
             -Cookie $providerCookies `
             -Form @{
-                username = $usernames[$Population]
+                username = $selectedUsername
                 password = $runtime['ATLAS_SYNTHETIC_OIDC_TEST_PASSWORD']
                 credentialId = ''
                 login = 'Sign In'
@@ -465,6 +494,7 @@ try {
         throw "Revoked Atlas session remained authoritative with status $([int]$revoked.StatusCode)"
     }
     Write-Output 'p01_s04_logout=PASS(revoked=true,old_cookie=401)'
+    Write-Output "p01_s04_persona=PASS(population=$Population,username=$selectedUsername)"
 }
 finally {
     $script:httpClient.Dispose()

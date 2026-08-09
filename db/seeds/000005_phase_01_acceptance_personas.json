@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "seed_id": "atlas-phase01-acceptance-personas-v5",
+  "predecessor_seed_id": "atlas-phase01-identity-policy-v4",
+  "virtual_time": "2026-08-09T00:00:00Z",
+  "policy_sha256": "9b7c91b9bc78abdcfa15c9f33ba9ee40476d12da8d6c8c991e3255eaf79b3bd2",
+  "principals": [
+    {
+      "principal_id": "usr_01JAT1AS00000000000004",
+      "display_name": "Synthetic Support Analyst",
+      "person_anchor": "syn_person_support_001",
+      "role_id": "support",
+      "username": "synthetic-support-analyst",
+      "external_subject_id": "ext_01JAT1AS00000000000004",
+      "subject": "00000000-0000-4000-8000-000000000302"
+    },
+    {
+      "principal_id": "usr_01JAT1AS00000000000005",
+      "display_name": "Synthetic Risk Analyst",
+      "person_anchor": "syn_person_risk_001",
+      "role_id": "risk_analyst",
+      "username": "synthetic-risk-analyst",
+      "external_subject_id": "ext_01JAT1AS00000000000005",
+      "subject": "00000000-0000-4000-8000-000000000303"
+    },
+    {
+      "principal_id": "usr_01JAT1AS00000000000006",
+      "display_name": "Synthetic Finance Operator",
+      "person_anchor": "syn_person_finance_001",
+      "role_id": "finance_operator",
+      "username": "synthetic-finance-operator",
+      "external_subject_id": "ext_01JAT1AS00000000000006",
+      "subject": "00000000-0000-4000-8000-000000000304"
+    }
+  ]
+}

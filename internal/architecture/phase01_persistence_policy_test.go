@@ -242,6 +242,8 @@ func TestPhase01SeedManifestIsClosedAndChecksumBound(t *testing.T) {
 		"000002_phase_01_policy.json",
 		"000003_phase_01_policy.json",
 		"000004_phase_01_policy.json",
+		"000005_phase_01_acceptance_personas.json",
+		"load-phase-01-acceptance-personas.sql",
 		"load-phase-01-identity.sql",
 		"load-phase-01-policy-v3.sql",
 		"load-phase-01-policy-v4.sql",

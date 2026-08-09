@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "evidence_id": "EVD-P01-S09-CATALOGUE-PRECOMMIT",
+  "created_at": "2026-08-09T00:00:00Z",
+  "phase": "PHASE-01_IDENTITY_ACCESS_TENANCY",
+  "slice": "P01-S09",
+  "source_revision": "UNCOMMITTED_WORKTREE(base=b4a84a6b2fea5d01f267ee082ca978f161636f7d)",
+  "sanitization": "Only public source identities, closed synthetic persona/action/status names, bounded PASS aggregates, artifact digests, requirement/threat/test identifiers, and honest control limitations are included. Passwords, authorization codes, cookies, CSRF/idempotency material, credential secrets/verifiers, database and Redis credentials or URLs, network identifiers, raw browser traces/screenshots/console logs, WAL/data pages, and real identity data are excluded.",
+  "artifacts": [
+    {
+      "evidence_id": "EVD-P01-S09-CLOSURE",
+      "path": "evidence/phase-01/acceptance/S09-phase-01-closure-precommit.md",
+      "sha256": "e3b8e0ae42a81c0c4f54ce3964d7b65cc21cea87f764ddf86380df7be8a26ef4",
+      "result": "PASS",
+      "requirements": ["IAM-001..007", "IAM-010..015", "IAM-020..026", "IAM-030..034", "IAM-040..044"],
+      "threats": ["THR-005..008", "THR-018", "THR-020", "THR-023..024", "THR-028", "THR-037..041", "THR-044", "THR-053", "THR-056..060"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/verify-p01.ps1 -Live -ContainerRuntime podman -Browser msedge",
+      "limitation": "Same-host synthetic local/reference closure; no real IdP/data, production, financial, compliance, scale, availability, or independent-review claim.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S09-CLOSURE-POLICY",
+      "path": "docs/engineering/phase-01-closure-policy.json",
+      "sha256": "6680d967090475f8f02db43f4f8cd0946cf295ed56dd02b780b756119a0de958",
+      "result": "PASS",
+      "requirements": ["IAM-001..007", "IAM-010..015", "IAM-020..026", "IAM-030..034", "IAM-040..044"],
+      "threats": ["THR-005..008", "THR-018", "THR-020", "THR-023..024", "THR-028", "THR-037..041", "THR-044", "THR-053", "THR-056..060"],
+      "reproduce": "go test ./internal/architecture -run ^TestPhase01ClosurePolicyIsCompleteAndHonest$ -count=1",
+      "limitation": "Closes only current Phase 01 actions; named future privileged and financial actions remain reserved fail-closed.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S09-OPERATIONAL-EXERCISES",
+      "path": "docs/engineering/phase-01-operational-exercises.json",
+      "sha256": "b77444731b96ad786733f60e11cc7e578a4e2c08e3d2fad20cef10f897e7cefa",
+      "result": "PASS",
+      "requirements": ["IAM-003..006", "IAM-020..026", "IAM-034", "IAM-044"],
+      "threats": ["THR-006..008", "THR-018", "THR-020", "THR-023", "THR-044", "THR-056..058"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/test-p01-s09-runbook-exercises.ps1",
+      "limitation": "Synthetic exercises and source-controlled alert definitions only; there is no deployed pager, SIEM, production IdP, or enabled break-glass path.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S09-BROWSER-ADVERSARIAL",
+      "path": "apps/web/browser/phase01-acceptance.ts",
+      "sha256": "67a7bae6e801a271b3236751d4783516a4ca896f6e9b177a40c1808fcf6659c6",
+      "result": "PASS",
+      "requirements": ["IAM-002", "IAM-006..007", "IAM-011", "IAM-020..026", "IAM-040..044"],
+      "threats": ["THR-005..007", "THR-020", "THR-023", "THR-028", "THR-041", "THR-044", "THR-057"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/test-p01-s09-browser.ps1 -Browser msedge",
+      "limitation": "Deterministic mocked-API browser proof for client behavior; server transaction truth is separately proven by real PostgreSQL slice verifiers.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S09-KEYCLOAK-BROWSER",
+      "path": "apps/web/browser/live-keycloak-assertions.ts",
+      "sha256": "128a3338aebcf07900cb67f911c3dbf95c147da55ec959c8909b5caffa715383",
+      "result": "PASS",
+      "requirements": ["IAM-001..007"],
+      "threats": ["THR-006", "THR-020", "THR-037", "THR-039", "THR-056"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/test-p01-s09-keycloak-browser.ps1 -Browser msedge",
+      "limitation": "Synthetic Keycloak and installed local Edge only; raw browser artifacts are ignored diagnostics and are not retained evidence.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S09-AGGREGATE-VERIFIER",
+      "path": "scripts/verify-p01.ps1",
+      "sha256": "25af800d12c022f7c6577adc60a3e5733b7f8813f00617f1fa59229a77f7409b",
+      "result": "PASS",
+      "requirements": ["IAM-001..007", "IAM-010..015", "IAM-020..026", "IAM-030..034", "IAM-040..044"],
+      "threats": ["THR-005..008", "THR-018", "THR-020", "THR-023..024", "THR-028", "THR-037..041", "THR-044", "THR-053", "THR-056..060"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/verify-p01.ps1",
+      "limitation": "History and supply-chain sub-gates require their explicit switches and applicable hosted/network/container tooling.",
+      "revalidate_by": "2026-11-09"
+    }
+  ]
+}

@@ -57,6 +57,7 @@ func TestMetricCatalogEnforcesCardinalityAndRuntimeCoverage(t *testing.T) {
 		"atlas.identity.api_credential.anomaly.count":        "emitted",
 		"atlas.identity.api_credential.rate_rejection.count": "emitted",
 		"atlas.identity.api_credential.rate_fallback.count":  "emitted",
+		"atlas.identity.break_glass.attempt.count":           "definition-only",
 		"atlas.database.readiness.count":                     "emitted", "atlas.database.readiness.duration": "emitted",
 		"atlas.database.pool.connections": "emitted", "atlas.build.info": "emitted",
 		"atlas.queue.lag": "definition-only", "atlas.worker.retry.count": "definition-only",

@@ -93,6 +93,65 @@ func TestCanonicalPhase01IdentitySeed(t *testing.T) {
 		v4.PolicySHA256 != hex.EncodeToString(policyDigest[:]) {
 		t.Fatalf("identity policy seed v4 chain drifted: %#v", v4)
 	}
+	v5Content, err := os.ReadFile(filepath.Join(root, "db", "seeds", "000005_phase_01_acceptance_personas.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var v5 struct {
+		SchemaVersion     int    `json:"schema_version"`
+		SeedID            string `json:"seed_id"`
+		PredecessorSeedID string `json:"predecessor_seed_id"`
+		PolicySHA256      string `json:"policy_sha256"`
+		Principals        []struct {
+			RoleID   string `json:"role_id"`
+			Subject  string `json:"subject"`
+			Username string `json:"username"`
+		} `json:"principals"`
+	}
+	if err := json.Unmarshal(v5Content, &v5); err != nil {
+		t.Fatal(err)
+	}
+	roles := make(map[string]bool, len(v5.Principals))
+	subjects := make(map[string]bool, len(v5.Principals))
+	usernames := make(map[string]string, len(v5.Principals))
+	for _, principal := range v5.Principals {
+		roles[principal.RoleID] = true
+		subjects[principal.Subject] = true
+		usernames[principal.Username] = principal.Subject
+	}
+	if v5.SchemaVersion != 1 ||
+		v5.SeedID != "atlas-phase01-acceptance-personas-v5" ||
+		v5.PredecessorSeedID != v4.SeedID ||
+		v5.PolicySHA256 != v4.PolicySHA256 ||
+		len(v5.Principals) != 3 || len(subjects) != 3 ||
+		!roles["support"] || !roles["risk_analyst"] || !roles["finance_operator"] {
+		t.Fatalf("identity acceptance persona seed v5 drifted: %#v", v5)
+	}
+	realmContent, err := os.ReadFile(filepath.Join(root, "deploy", "local", "keycloak", "atlas-workforce-local-realm.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var realm struct {
+		Users []struct {
+			ID       string `json:"id"`
+			Username string `json:"username"`
+		} `json:"users"`
+	}
+	if err := json.Unmarshal(realmContent, &realm); err != nil {
+		t.Fatal(err)
+	}
+	for username, subject := range usernames {
+		matched := false
+		for _, user := range realm.Users {
+			if user.Username == username && user.ID == subject {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			t.Errorf("acceptance persona %s is not subject-bound in the workforce realm", username)
+		}
+	}
 }
 
 func TestIdentitySeedPolicyAndSubjectMutationsAreRejected(t *testing.T) {

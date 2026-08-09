@@ -2,16 +2,15 @@
 
 ## Status and scope
 
-- **Completed slices:** `P01-S01` planning; `P01-S02` contract/decision closure; `P01-S03` Identity/Audit persistence and recovery; `P01-S04` synthetic OIDC/session lifecycle; `P01-S05` merchant tenancy; `P01-S06` deny-default authorization; `P01-S07` typed maker-checker approval and execution-time reauthorization; `P01-S08` merchant API credentials, one-time secret handling, rotation, and scoped anomaly controls.
-- **Current slice:** `P01-S09 — frontend flows, operational proof, adversarial acceptance, and phase closure` is next. S08 closes `IAM-040..044` for the bounded `identity:read` AtlasKey surface; administrator removal remains fail-closed pending exact fresh-step-up and last-administrator policy. No event, worker job, financial scope, managed production secret provider, or financial behavior was added by S08.
+- **Completed slices:** `P01-S01` planning; `P01-S02` contract/decision closure; `P01-S03` Identity/Audit persistence and recovery; `P01-S04` synthetic OIDC/session lifecycle; `P01-S05` merchant tenancy; `P01-S06` deny-default authorization; `P01-S07` typed maker-checker approval and execution-time reauthorization; `P01-S08` merchant API credentials, one-time secret handling, rotation, and scoped anomaly controls; `P01-S09` frontend flows, operational proof, adversarial acceptance, and phase closure.
+- **Current slice:** Phase 01 is complete at bounded synthetic local/reference evidence depth. All thirty IAM rows have exact dispositions and the aggregate S09 static/live acceptance passes. Administrator removal and break-glass remain fail-closed, and named future privileged/financial actions remain reserved fail-closed. Phase 02 planning is next; this closure does not authorize wallet or money-movement implementation.
 - **Audit date:** 2026-07-23
 - **Audited base revision:** `2884484a99eeb2b846a56c90177163e37e419d11`
 - **Base tree:** `b921b93cb8341e28344b97e1202d37f0376dff19`
-- **Current evidence posture:** the S01-S04 core checkpoint is committed at `d276ad4`. S01 is
-  planning evidence, S02 is contract/decision evidence, S03 is real PostgreSQL
-  persistence/recovery evidence, and S04 core has revision-bound synthetic
-  OIDC/application-session static/live evidence. S04 changes only its directly evidenced IAM
-  rows; Phase 01 acceptance remains open.
+- **Current evidence posture:** S04-S08 have additive revision-bound post-commit catalogues. S09
+  adds the sanitized phase-closure report and catalogue, generated-contract browser proof, an
+  empty-provider six-subject Keycloak rebuild, support/risk/finance journeys, inherited full-stack
+  and PITR regression, observability/runbook canaries, and the exact thirty-row closure policy.
 - **Allowed environment:** synthetic local/reference identities and data only under ADR 0008 and ADR 0012.
 
 S04 composes the ratified `atlas_identity`/`atlas_audit` persistence foundations into the approved
@@ -429,24 +428,16 @@ No hosted release, merge, production/reference deployment, real identity provide
 
 ## Exact next implementation checkpoint
 
-The cumulative P01-S08 static/live verifier passes against migration 15 and the isolated synthetic
-PostgreSQL/Redis reference stack. After the S08 closure commit, the next unblocked checkpoint is
-**P01-S09 — frontend flows, operational proof, adversarial acceptance, and phase closure**. Do not
-begin S09 from a failed or evidence-unbound S08 revision.
+Phase 01 is closed at its bounded synthetic local/reference depth by `EVD-P01-S09-CLOSURE` and
+`scripts/verify-p01.ps1`. The next allowed checkpoint is **Phase 02 planning and contract/decision
+closure**, beginning from the canonical roadmap and Phase 02 specification. Do not implement a
+wallet, balance, hold, journal, payment, refund, payout, transfer, beneficiary, or other
+money-moving surface until that phase's prerequisite, accounting, idempotency, recovery,
+authorization, and acceptance decisions are explicitly ratified.
 
-S08 closes `IAM-040..044` at bounded evidence depth for the sole `identity:read` AtlasKey scope.
-Identity owns credential authority and lifecycle; API owns strict parsing/machine-principal
-composition; Audit remains atomic; Redis owns no authorization truth. Real PostgreSQL/Redis proof
-covers one-time secret disclosure and redacted replay, exact machine bindings, simultaneous
-rotation, savepoint-safe losing claims, ten-minute old/new overlap, explicit next-request
-revocation, expiry, Audit-outage rollback, three-dimensional abuse limits, stricter bounded Redis
-fallback, recovery, telemetry, and least-privilege grants. No financial scope, event, worker job,
-managed production secret provider, credential-management UI, or financial state exists.
-
-S09 must execute the canonical Phase 01 customer, merchant member, support, risk, finance, and
-merchant-developer acceptance journeys; prove cross-tenant denial, maker-permission-change
-execution denial, credential rotation under in-flight traffic, browser cache/storage/BFCache
-posture, complete synchronous Audit inspection, recovery, telemetry/alert/runbook evidence, and
-honest claims. It must give a precise final disposition for `IAM-002` and `IAM-006`; administrator
-membership removal remains fail-closed unless the exact fresh-step-up and last-administrator policy
-is ratified and evidenced rather than inferred.
+Preserve the Phase 01 limitations: administrator membership removal requires a future exact
+fresh-step-up plus last-administrator policy; break-glass is disabled; future payout, beneficiary,
+contact-change, refund, restriction-removal, and privileged-export actions are reserved
+fail-closed. The current evidence proves synthetic identities and infrastructure only and makes no
+real-IdP/data, production, financial-readiness, compliance, scale, availability, or independent
+review claim.

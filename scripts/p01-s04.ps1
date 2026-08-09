@@ -12,7 +12,14 @@ $repositoryRoot = Split-Path -Parent $PSScriptRoot
 
 Push-Location -LiteralPath $repositoryRoot
 try {
-    & (Join-Path $PSScriptRoot 's04.ps1') -Action Down -ContainerRuntime $ContainerRuntime
+    # The realm import is part of the live proof. A normal stop preserves the
+    # Keycloak data volume and can silently skip newly source-controlled users.
+    # Reset only the explicitly named synthetic local environment so every run
+    # proves the checked-in realm from an empty provider store.
+    & (Join-Path $PSScriptRoot 's04.ps1') `
+        -Action Reset `
+        -Confirmation 'RESET ATLAS LOCAL' `
+        -ContainerRuntime $ContainerRuntime
     & (Join-Path $PSScriptRoot 's05.ps1') -Action Verify -ContainerRuntime $ContainerRuntime
     & (Join-Path $PSScriptRoot 'p01-s04-session-repository.ps1') -ContainerRuntime $ContainerRuntime
     & (Join-Path $PSScriptRoot 's04.ps1') -Action Up -ContainerRuntime $ContainerRuntime

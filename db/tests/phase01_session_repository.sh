@@ -42,7 +42,7 @@ case "$ATLAS_P01_S04_SESSION_TEST_ACTION" in
       -Atqc "
         SELECT CASE
           WHEN (SELECT count(*) FROM atlas_foundation.schema_migrations) = $expected_migration_count
-           AND (SELECT count(*) FROM atlas_identity.principals) = 3
+           AND (SELECT count(*) FROM atlas_identity.principals) = 6
           THEN true
           ELSE false
         END

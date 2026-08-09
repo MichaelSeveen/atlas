@@ -215,6 +215,7 @@ services:
       ATLAS_ENVIRONMENT: local
       ATLAS_ENVIRONMENT_BANNER: LOCAL — SYNTHETIC DATA ONLY
       ATLAS_MOCK_MODE: "false"
+      ATLAS_API_ORIGIN: http://127.0.0.1:18080
       ATLAS_WEB_PORT: "3000"
     ports:
       - "127.0.0.1:13000:3000"

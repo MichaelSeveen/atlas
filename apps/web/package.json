@@ -5,6 +5,8 @@
   "packageManager": "bun@1.3.0",
   "scripts": {
     "build": "bun build ./src/main.tsx --outdir ./dist --target browser --minify",
+    "check:api": "bunx --bun openapi-typescript ../../docs/atlas-prd/03-contracts/openapi.yaml -o ./src/generated/openapi.ts --immutable --check",
+    "generate:api": "bunx --bun openapi-typescript ../../docs/atlas-prd/03-contracts/openapi.yaml -o ./src/generated/openapi.ts --immutable",
     "lint": "bun run typecheck",
     "start": "bun run ./src/server.ts",
     "test": "bun test",
@@ -15,9 +17,11 @@
     "react-dom": "19.2.7"
   },
   "devDependencies": {
+    "@playwright/cli": "0.1.18",
     "@types/bun": "1.3.0",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
+    "openapi-typescript": "7.13.0",
     "typescript": "5.9.3"
   }
 }

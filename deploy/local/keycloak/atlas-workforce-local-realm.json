@@ -87,6 +87,36 @@
       "firstName": "Synthetic",
       "lastName": "Workforce Operator",
       "attributes": {"synthetic_data": ["true"]}
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000302",
+      "username": "synthetic-support-analyst",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "support-analyst@synthetic.invalid",
+      "firstName": "Synthetic",
+      "lastName": "Support Analyst",
+      "attributes": {"synthetic_data": ["true"]}
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000303",
+      "username": "synthetic-risk-analyst",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "risk-analyst@synthetic.invalid",
+      "firstName": "Synthetic",
+      "lastName": "Risk Analyst",
+      "attributes": {"synthetic_data": ["true"]}
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000304",
+      "username": "synthetic-finance-operator",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "finance-operator@synthetic.invalid",
+      "firstName": "Synthetic",
+      "lastName": "Finance Operator",
+      "attributes": {"synthetic_data": ["true"]}
     }
   ]
 }

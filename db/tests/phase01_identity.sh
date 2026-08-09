@@ -8,7 +8,7 @@ set -eu
 test_database='atlas_p01_s03_seed_test'
 failure_output='/tmp/atlas-p01-s03-denial.out'
 expected_migration_count='15'
-expected_seed_count='4'
+expected_seed_count='5'
 expected_policy_checksum='9b7c91b9bc78abdcfa15c9f33ba9ee40476d12da8d6c8c991e3255eaf79b3bd2'
 
 admin_sql() {
@@ -53,10 +53,10 @@ ATLAS_SEED_TARGET_DATABASE="$test_database" /database/tools/apply-phase-01-seeds
 [ "$(query 'SELECT count(*) FROM atlas_identity.role_permissions')" = '119' ]
 [ "$(query 'SELECT count(*) FROM atlas_identity.role_delegations')" = '6' ]
 [ "$(query 'SELECT count(*) FROM atlas_identity.organizations')" = '2' ]
-[ "$(query 'SELECT count(*) FROM atlas_identity.principals')" = '3' ]
-[ "$(query 'SELECT count(*) FROM atlas_identity.external_subjects')" = '3' ]
+[ "$(query 'SELECT count(*) FROM atlas_identity.principals')" = '6' ]
+[ "$(query 'SELECT count(*) FROM atlas_identity.external_subjects')" = '6' ]
 [ "$(query 'SELECT count(*) FROM atlas_identity.memberships')" = '2' ]
-[ "$(query 'SELECT count(*) FROM atlas_identity.principal_roles')" = '1' ]
+[ "$(query 'SELECT count(*) FROM atlas_identity.principal_roles')" = '4' ]
 [ "$(query "SELECT count(*) FROM atlas_identity.sessions WHERE status = 'revoked' AND revoked_at IS NOT NULL")" = '1' ]
 [ "$(query 'SELECT count(*) FROM atlas_audit.audit_events')" = '1' ]
 [ "$(query 'SELECT count(*) FROM atlas_identity.api_credentials')" = '0' ]

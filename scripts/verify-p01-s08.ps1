@@ -97,7 +97,7 @@ try {
     & (Join-Path $PSScriptRoot 'test-p01-s08-credential-alert-catalog-canary.ps1')
     if (-not $?) { throw 'API credential observability catalogue verification failed' }
 
-    $s08Catalogue = 'evidence/phase-01/api-credentials/P01-S08-evidence-catalogue-precommit.json'
+    $s08Catalogue = 'evidence/phase-01/api-credentials/P01-S08-evidence-catalogue-postcommit.json'
     & (Join-Path $PSScriptRoot 'test-p01-evidence-integrity.ps1') `
         -CatalogueRelativePath $s08Catalogue `
         -ExpectedSlice 'P01-S08'

@@ -29,8 +29,8 @@
           "/v1/organizations/{organization_id}/members",
           "/v1/organizations/{organization_id}/members/{member_id}",
           "/v1/organizations/{organization_id}/invitations",
-          "/v1/organization-invitations/{invitation_id}/authentication",
-          "/v1/organization-invitations/{invitation_id}/acceptance",
+          "/v1/organization-invitations/{invitation_route}",
+          "/v1/api-credentials/{credential_route}",
           "/v1/approvals/{approval_route}",
           "unmatched"
         ]
@@ -63,8 +63,8 @@
           "/v1/organizations/{organization_id}/members",
           "/v1/organizations/{organization_id}/members/{member_id}",
           "/v1/organizations/{organization_id}/invitations",
-          "/v1/organization-invitations/{invitation_id}/authentication",
-          "/v1/organization-invitations/{invitation_id}/acceptance",
+          "/v1/organization-invitations/{invitation_route}",
+          "/v1/api-credentials/{credential_route}",
           "/v1/approvals/{approval_route}",
           "unmatched"
         ]
@@ -209,6 +209,15 @@
         "atlas.identity.provider.operation": ["discovery", "token"],
         "atlas.identity.population": ["customer", "merchant", "workforce"],
         "atlas.outcome": ["ok", "error"]
+      }
+    },
+    {
+      "name": "atlas.identity.break_glass.attempt.count",
+      "kind": "counter",
+      "status": "definition-only",
+      "owner": "security-on-call",
+      "labels": {
+        "atlas.outcome": ["authorized", "rejected", "error"]
       }
     },
     {
@@ -390,6 +399,26 @@
       "rationale": "Redis is not authorization truth, but prolonged fallback reduces abuse-control capacity and warrants recovery while PostgreSQL validity remains fail-closed.",
       "runbook": "docs/runbooks/API_CREDENTIAL_COMPROMISE_AND_ROTATION.md",
       "test": "scripts/test-p01-s08-credential-alert-catalog-canary.ps1"
+    },
+    {
+      "id": "P01-S09-ALR-001",
+      "metric": "atlas.identity.break_glass.attempt.count",
+      "severity": "page",
+      "owner": "security-on-call",
+      "condition": "any authorized or rejected break-glass attempt is observed after the separately governed capability is enabled",
+      "rationale": "Break-glass is disabled and has no executable route in Phase 01; the definition-only metric and page are activation gates, not a claim that dormant code emits telemetry.",
+      "runbook": "docs/runbooks/AUTHORIZATION_INCIDENT_AND_INVALIDATION.md",
+      "test": "scripts/test-p01-s09-operational-catalog-canary.ps1"
+    },
+    {
+      "id": "P01-S09-ALR-002",
+      "metric": "atlas.identity.operation.count",
+      "severity": "ticket",
+      "owner": "identity-on-call",
+      "condition": "step_up rejected outcomes exceed 20 in five minutes",
+      "rationale": "A bounded aggregate spike may indicate user lockout, provider failure, replay, or hostile verification attempts without adding principal, session, tenant, request, or network identifiers.",
+      "runbook": "docs/runbooks/IDENTITY_PROVIDER_UNAVAILABLE.md",
+      "test": "scripts/test-p01-s09-operational-catalog-canary.ps1"
     }
   ],
   "dashboards": [
@@ -436,6 +465,23 @@
         "atlas.identity.api_credential.anomaly.count",
         "atlas.identity.api_credential.rate_rejection.count",
         "atlas.identity.api_credential.rate_fallback.count"
+      ]
+    },
+    {
+      "name": "phase-01-identity-access-tenancy",
+      "owner": "security-on-call",
+      "panels": [
+        "atlas.identity.operation.count",
+        "atlas.identity.operation.duration",
+        "atlas.identity.provider.request.count",
+        "atlas.operations.approval.operation.count",
+        "atlas.operations.approval.status.count",
+        "atlas.operations.approval.conflict.count",
+        "atlas.operations.approval.integrity_failure.count",
+        "atlas.identity.api_credential.authentication.count",
+        "atlas.identity.api_credential.anomaly.count",
+        "atlas.identity.api_credential.rate_rejection.count",
+        "atlas.identity.break_glass.attempt.count"
       ]
     }
   ]

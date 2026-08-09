@@ -5,6 +5,7 @@ import {
   classifyPageRestore,
   clearSensitiveClientState,
   clearSyntheticSignedOut,
+  createSecurityBoundaryChannel,
   isProtectedShell,
   isSyntheticSignedOut,
   markSyntheticSignedOut,
@@ -94,5 +95,34 @@ describe("synthetic shell client state", () => {
     expect(classifyPageRestore(false, "back_forward")).toBe("history-reload");
     expect(classifyPageRestore(false, "reload")).toBe("ordinary");
     expect(classifyPageRestore(false, undefined)).toBe("ordinary");
+  });
+
+  test("cross-tab security boundary accepts only closed messages", () => {
+    const observed: string[] = [];
+    const posted: unknown[] = [];
+    let listener: ((event: MessageEvent<unknown>) => void) | undefined;
+    const fakeChannel = {
+      name: "atlas.security-boundary.v1",
+      onmessage: null,
+      onmessageerror: null,
+      addEventListener(_type: string, callback: EventListenerOrEventListenerObject) {
+        listener = callback as (event: MessageEvent<unknown>) => void;
+      },
+      removeEventListener() {},
+      dispatchEvent() { return true; },
+      postMessage(value: unknown) { posted.push(value); },
+      close() {},
+    } as BroadcastChannel;
+    const channel = createSecurityBoundaryChannel(
+      (boundary) => observed.push(boundary),
+      () => fakeChannel,
+    );
+
+    listener?.({data: "tenant-switch"} as MessageEvent<unknown>);
+    listener?.({data: "untrusted-message"} as MessageEvent<unknown>);
+    channel.publish("logout");
+
+    expect(observed).toEqual(["tenant-switch"]);
+    expect(posted).toEqual(["logout"]);
   });
 });

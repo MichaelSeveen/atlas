@@ -112,7 +112,11 @@ func (a *App) requestMetadata(next http.Handler) http.Handler {
 		attributes := requestAttributes(method, route, outcome, capture.status)
 		safeAdd(a.requestCounter, request.Context(), 1, metricapi.WithAttributes(attributes...))
 		safeRecord(a.requestDuration, request.Context(), duration.Seconds(), metricapi.WithAttributes(attributes...))
-		if operation := identityOperation(method, route); operation != "" {
+		operationRoute := identityRoute(request.URL.Path)
+		if operationRoute == "" {
+			operationRoute = credentialRoute(request.URL.Path)
+		}
+		if operation := identityOperation(method, operationRoute); operation != "" {
 			identityAttributes := []attribute.KeyValue{
 				attribute.String("atlas.identity.operation", operation),
 				attribute.String("atlas.outcome", outcome),
@@ -158,13 +162,16 @@ func telemetryRoute(path string) string {
 		}
 	}
 	if route := identityRoute(path); route != "" {
+		if strings.HasPrefix(route, "/v1/organization-invitations/") {
+			return "/v1/organization-invitations/{invitation_route}"
+		}
 		return route
 	}
 	if route := approvalRoute(path); route != "" {
 		return "/v1/approvals/{approval_route}"
 	}
 	if route := credentialRoute(path); route != "" {
-		return route
+		return "/v1/api-credentials/{credential_route}"
 	}
 	return "unmatched"
 }

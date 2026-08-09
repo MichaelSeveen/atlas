@@ -481,6 +481,36 @@ try {
             LastName = 'Workforce Operator'
             IdleSeconds = 600
             MaximumSeconds = 3600
+        },
+        @{
+            Realm = 'atlas-workforce-local'
+            Username = 'synthetic-support-analyst'
+            Subject = '00000000-0000-4000-8000-000000000302'
+            Email = 'support-analyst@synthetic.invalid'
+            FirstName = 'Synthetic'
+            LastName = 'Support Analyst'
+            IdleSeconds = 600
+            MaximumSeconds = 3600
+        },
+        @{
+            Realm = 'atlas-workforce-local'
+            Username = 'synthetic-risk-analyst'
+            Subject = '00000000-0000-4000-8000-000000000303'
+            Email = 'risk-analyst@synthetic.invalid'
+            FirstName = 'Synthetic'
+            LastName = 'Risk Analyst'
+            IdleSeconds = 600
+            MaximumSeconds = 3600
+        },
+        @{
+            Realm = 'atlas-workforce-local'
+            Username = 'synthetic-finance-operator'
+            Subject = '00000000-0000-4000-8000-000000000304'
+            Email = 'finance-operator@synthetic.invalid'
+            FirstName = 'Synthetic'
+            LastName = 'Finance Operator'
+            IdleSeconds = 600
+            MaximumSeconds = 3600
         }
     )
 
@@ -542,8 +572,24 @@ try {
         $encodedUsername = [Uri]::EscapeDataString($population.Username)
         $userResponse = Invoke-IdentityAdmin -Method Get -Path "/admin/realms/$realmName/users?username=$encodedUsername&exact=true"
         $users = @($userResponse | ForEach-Object { $_ })
+        if ($users.Count -eq 0) {
+            $newUser = @{
+                id = $population.Subject
+                username = $population.Username
+                enabled = $true
+                emailVerified = $true
+                email = $population.Email
+                firstName = $population.FirstName
+                lastName = $population.LastName
+                attributes = @{ synthetic_data = @('true') }
+            }
+            Invoke-IdentityAdmin -Method Post -Path "/admin/realms/$realmName/users" -Body $newUser | Out-Null
+            $userResponse = Invoke-IdentityAdmin -Method Get -Path "/admin/realms/$realmName/users?username=$encodedUsername&exact=true"
+            $users = @($userResponse | ForEach-Object { $_ })
+        }
         if ($users.Count -ne 1 -or [string]$users[0].id -ne [string]$population.Subject) {
-            throw "Synthetic realm $realmName user identity does not match the source-controlled external subject"
+            $observedSubjects = @($users | ForEach-Object { [string]$_.id }) -join ','
+            throw "Synthetic realm $realmName user $($population.Username) identity does not match the source-controlled external subject (expected=$($population.Subject), observed=$observedSubjects, count=$($users.Count))"
         }
         if (-not [bool]$users[0].enabled) {
             throw "Synthetic realm $realmName user is disabled"
@@ -571,7 +617,7 @@ try {
 
     Write-Output 'p01_s04_keycloak_clients=PASS(count=3,public=true,pkce=S256,direct_grants=false)'
     Write-Output 'p01_s04_keycloak_step_up=PASS(count=3,loa1=password,loa2=fresh-password,max-age=0,mfa-claim=false)'
-    Write-Output 'p01_s04_keycloak_subjects=PASS(count=3,passwords=runtime-only)'
+    Write-Output 'p01_s04_keycloak_subjects=PASS(count=6,passwords=runtime-only)'
 }
 finally {
     $script:adminToken = $null

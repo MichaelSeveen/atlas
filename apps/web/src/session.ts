@@ -16,6 +16,12 @@ export type BrowserStorageSummary = {
 };
 
 export type PageRestoreKind = "ordinary" | "history-reload" | "bfcache";
+export type SecurityBoundary = "logout" | "session-invalid" | "tenant-switch" | "membership-change";
+
+export type SecurityBoundaryChannel = {
+  publish(boundary: SecurityBoundary): void;
+  close(): void;
+};
 
 export function cacheSyntheticValue(key: string, value: string): void {
   syntheticQueryCache.set(key, value);
@@ -94,6 +100,29 @@ export function canAccessShell(sessionActive: boolean, path: string): boolean {
   return sessionActive || !isProtectedShell(path);
 }
 
+export function createSecurityBoundaryChannel(
+  onBoundary: (boundary: SecurityBoundary) => void,
+  channelFactory: ((name: string) => BroadcastChannel) | undefined = defaultChannelFactory(),
+): SecurityBoundaryChannel {
+  if (!channelFactory) {
+    return {publish() {}, close() {}};
+  }
+  const channel = channelFactory("atlas.security-boundary.v1");
+  channel.addEventListener("message", (event: MessageEvent<unknown>) => {
+    if (isSecurityBoundary(event.data)) {
+      onBoundary(event.data);
+    }
+  });
+  return {
+    publish(boundary) {
+      channel.postMessage(boundary);
+    },
+    close() {
+      channel.close();
+    },
+  };
+}
+
 function atlasKeys(storage: ClientStorage): string[] {
   const keys: string[] = [];
   for (let index = 0; index < storage.length; index += 1) {
@@ -103,4 +132,15 @@ function atlasKeys(storage: ClientStorage): string[] {
     }
   }
   return keys.sort();
+}
+
+function defaultChannelFactory(): ((name: string) => BroadcastChannel) | undefined {
+  if (typeof BroadcastChannel === "undefined") {
+    return undefined;
+  }
+  return (name) => new BroadcastChannel(name);
+}
+
+function isSecurityBoundary(value: unknown): value is SecurityBoundary {
+  return value === "logout" || value === "session-invalid" || value === "tenant-switch" || value === "membership-change";
 }

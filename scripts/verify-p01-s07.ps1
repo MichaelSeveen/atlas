@@ -19,7 +19,6 @@ $env:GOMODCACHE = Join-Path $repositoryRoot '.tmp/go-mod'
 
 function Invoke-NativeChecked {
     param([string]$Command, [string[]]$Arguments = @())
-
     & $Command @Arguments
     if ($LASTEXITCODE -ne 0) {
         throw "Command failed with exit code ${LASTEXITCODE}: $Command $($Arguments -join ' ')"
@@ -32,9 +31,7 @@ function Read-RuntimeEnvironment {
     }
     $values = @{}
     foreach ($line in Get-Content -LiteralPath $runtimeFile) {
-        if ([String]::IsNullOrWhiteSpace($line) -or $line.StartsWith('#')) {
-            continue
-        }
+        if ([String]::IsNullOrWhiteSpace($line) -or $line.StartsWith('#')) { continue }
         $parts = $line.Split('=', 2)
         if ($parts.Count -ne 2 -or [String]::IsNullOrWhiteSpace($parts[0])) {
             throw 'Prepared local runtime environment contains a malformed entry'
@@ -47,35 +44,21 @@ function Read-RuntimeEnvironment {
 Push-Location -LiteralPath $repositoryRoot
 try {
     $baseRevision = (& git rev-parse HEAD 2>$null | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0) {
-        $baseRevision = 'UNBORN'
-    }
+    if ($LASTEXITCODE -ne 0) { $baseRevision = 'UNBORN' }
     $changes = (& git status --porcelain=v1 | Out-String).Trim()
-    $sourceRevision = if ($changes.Length -eq 0) {
-        $baseRevision
-    }
-    else {
-        "UNCOMMITTED_WORKTREE(base=$baseRevision)"
-    }
+    $sourceRevision = if ($changes.Length -eq 0) { $baseRevision } else { "UNCOMMITTED_WORKTREE(base=$baseRevision)" }
 
     if ($Live) {
-        & (Join-Path $PSScriptRoot 'verify-p01-s05.ps1') -Live -ContainerRuntime $ContainerRuntime
+        & (Join-Path $PSScriptRoot 'verify-p01-s06.ps1') -Live -ContainerRuntime $ContainerRuntime
     }
     else {
-        & (Join-Path $PSScriptRoot 'verify-p01-s05.ps1')
+        & (Join-Path $PSScriptRoot 'verify-p01-s06.ps1')
     }
-    if (-not $?) {
-        throw 'Phase 01 S05 regression verification failed'
-    }
+    if (-not $?) { throw 'Phase 01 S06 regression verification failed' }
 
     Invoke-NativeChecked -Command 'go' -Arguments @(
-        'test',
-        './internal/identity',
-        './internal/identity/persistence',
-        './cmd/api/internal/server',
-        './tests/contract',
-        './internal/architecture',
-        '-count=1'
+        'test', './internal/operations/...', './internal/identity/...',
+        './cmd/api/internal/server', './tests/contract', './internal/architecture', '-count=1'
     )
     Invoke-NativeChecked -Command 'go' -Arguments @(
         'run', './cmd/contractctl', 'lint',
@@ -85,33 +68,30 @@ try {
     Invoke-NativeChecked -Command 'go' -Arguments @(
         'run', './cmd/dbctl', 'verify', '--migration-dir', 'db/migrations'
     )
-    & (Join-Path $PSScriptRoot 'test-s06-alert-catalog-canary.ps1')
-    if (-not $?) {
-        throw 'Authorization observability catalogue verification failed'
-    }
+    Invoke-NativeChecked -Command 'go' -Arguments @(
+        'build', './cmd/api', './cmd/worker', './cmd/simulator'
+    )
 
-    $s06Catalogue = 'evidence/phase-01/authorization/P01-S06-evidence-catalogue-postcommit.json'
+    & (Join-Path $PSScriptRoot 'test-s07-approval-alert-catalog-canary.ps1')
+    if (-not $?) { throw 'Approval observability catalogue verification failed' }
+
+    $s07Catalogue = 'evidence/phase-01/approvals/P01-S07-evidence-catalogue-precommit.json'
     & (Join-Path $PSScriptRoot 'test-p01-evidence-integrity.ps1') `
-        -CatalogueRelativePath $s06Catalogue `
-        -ExpectedSlice 'P01-S06'
-    if (-not $?) {
-        throw 'Phase 01 S06 evidence integrity verification failed'
-    }
+        -CatalogueRelativePath $s07Catalogue `
+        -ExpectedSlice 'P01-S07'
+    if (-not $?) { throw 'Phase 01 S07 evidence integrity verification failed' }
 
     if ($Live) {
         $runtime = Read-RuntimeEnvironment
         foreach ($required in @(
-            'ATLAS_POSTGRES_API_USER',
-            'ATLAS_POSTGRES_API_PASSWORD',
-            'ATLAS_POSTGRES_MIGRATION_USER',
-            'ATLAS_POSTGRES_MIGRATION_PASSWORD',
+            'ATLAS_POSTGRES_API_USER', 'ATLAS_POSTGRES_API_PASSWORD',
+            'ATLAS_POSTGRES_MIGRATION_USER', 'ATLAS_POSTGRES_MIGRATION_PASSWORD',
             'ATLAS_POSTGRES_DB'
         )) {
             if (-not $runtime.ContainsKey($required) -or [String]::IsNullOrWhiteSpace($runtime[$required])) {
                 throw "Prepared local runtime environment is missing $required"
             }
         }
-
         $apiUser = [Uri]::EscapeDataString($runtime['ATLAS_POSTGRES_API_USER'])
         $apiPassword = [Uri]::EscapeDataString($runtime['ATLAS_POSTGRES_API_PASSWORD'])
         $migrationUser = [Uri]::EscapeDataString($runtime['ATLAS_POSTGRES_MIGRATION_USER'])
@@ -121,10 +101,8 @@ try {
         $env:ATLAS_P01_MIGRATION_DATABASE_URL = "postgres://${migrationUser}:${migrationPassword}@127.0.0.1:15432/${database}?sslmode=disable"
         try {
             Invoke-NativeChecked -Command 'go' -Arguments @(
-                'test',
-                './internal/identity/persistence',
-                '-run',
-                '^TestAuthorizationRealPostgresMultiReplicaRoleRestrictionAndAssuranceInvalidationWithoutCache$',
+                'test', './internal/operations/persistence', '-run',
+                '^TestApprovalRealPostgresSeparationReauthorizationIntegrityConcurrencyAndAuditRollback$',
                 '-count=1'
             )
         }
@@ -134,18 +112,22 @@ try {
             $runtime['ATLAS_POSTGRES_API_PASSWORD'] = $null
             $runtime['ATLAS_POSTGRES_MIGRATION_PASSWORD'] = $null
         }
-        Write-Output 'p01_s06_live_verification=PASS'
+        & (Join-Path $PSScriptRoot 's05.ps1') -Action Verify -ContainerRuntime $ContainerRuntime
+        if (-not $?) { throw 'Phase 01 S07 database role and recovery verification failed' }
+        Write-Output 'p01_s07_live_verification=PASS'
     }
     else {
-        Write-Output 'p01_s06_live_verification=NOT_REQUESTED'
+        Write-Output 'p01_s07_live_verification=NOT_REQUESTED'
     }
 
-    Write-Output 'p01_s06_scope=deny-default,tenant-concealment,purpose,field-masking,decision-audit,postgresql-invalidation'
-    Write-Output 'p01_s06_authorization_cache=ABSENT'
-    Write-Output 'p01_s06_search_autocomplete_surface=ABSENT'
-    Write-Output 'p01_s06_financial_state=ABSENT'
+    Write-Output 'p01_s07_scope=typed-approval,maker-checker,payload-integrity,execution-reauthorization,terminal-state,replay'
+    Write-Output 'p01_s07_executable_action=identity.organization.membership.change_admin'
+    Write-Output 'p01_s07_approval_event=ABSENT'
+    Write-Output 'p01_s07_worker_job=ABSENT'
+    Write-Output 'p01_s07_credential_behavior=ABSENT'
+    Write-Output 'p01_s07_financial_state=ABSENT'
     Write-Output "source_revision=$sourceRevision"
-    Write-Output 'p01_s06_verification=PASS'
+    Write-Output 'p01_s07_verification=PASS'
 }
 finally {
     Pop-Location

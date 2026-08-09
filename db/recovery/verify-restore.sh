@@ -1,9 +1,14 @@
 #!/bin/sh
 set -eu
 
-expected_migration_count='13'
+expected_migration_count='14'
 expected_policy_checksum='2acd97d4467eed25c0991331e5283b303df3fd52d0f4c9d5f6851353db64c2d1'
 export PGPASSWORD="$ATLAS_POSTGRES_MIGRATION_PASSWORD"
+if [ "${ATLAS_RESTORE_ASSERTION_TRACE:-false}" = 'true' ]; then
+  # Enabled only for local synthetic recovery diagnosis. Password assignment
+  # occurs before tracing and the value is never passed as a command argument.
+  set -x
+fi
 query() {
   psql -X -h 127.0.0.1 -U "$ATLAS_POSTGRES_MIGRATION_USER" -d "$ATLAS_POSTGRES_DB" -v ON_ERROR_STOP=1 -Atqc "$1"
 }
@@ -24,6 +29,12 @@ query() {
 [ "$(query "SELECT to_regclass('atlas_identity.session_revocation_requests') IS NOT NULL")" = 't' ]
 [ "$(query "SELECT to_regclass('atlas_identity.step_up_challenge_requests') IS NOT NULL")" = 't' ]
 [ "$(query "SELECT to_regclass('atlas_identity.admin_session_revocation_requests') IS NOT NULL")" = 't' ]
+[ "$(query "SELECT count(*) FROM atlas_foundation.data_scope_registry WHERE schema_name = 'atlas_operations' AND scope_kind = 'tenant' AND tenant_column = 'tenant_id'")" = '5' ]
+[ "$(query "SELECT to_regclass('atlas_operations.approvals') IS NOT NULL")" = 't' ]
+[ "$(query "SELECT to_regclass('atlas_operations.approval_requests') IS NOT NULL")" = 't' ]
+[ "$(query "SELECT to_regclass('atlas_operations.approval_decisions') IS NOT NULL")" = 't' ]
+[ "$(query "SELECT to_regclass('atlas_operations.approval_executions') IS NOT NULL")" = 't' ]
+[ "$(query "SELECT to_regclass('atlas_operations.approval_cancellations') IS NOT NULL")" = 't' ]
 [ "$(query "SELECT has_table_privilege('atlas_api', 'atlas_identity.memberships', 'SELECT')")" = 't' ]
 [ "$(query "SELECT has_column_privilege('atlas_api', 'atlas_identity.principals', 'authorization_version', 'UPDATE')")" = 't' ]
 [ "$(query "SELECT has_column_privilege('atlas_api', 'atlas_identity.principals', 'status', 'UPDATE')")" = 'f' ]
@@ -36,6 +47,11 @@ query() {
 [ "$(query "SELECT has_table_privilege('atlas_api', 'atlas_identity.step_up_challenge_requests', 'DELETE')")" = 'f' ]
 [ "$(query "SELECT has_table_privilege('atlas_api', 'atlas_identity.admin_session_revocation_requests', 'SELECT,INSERT')")" = 't' ]
 [ "$(query "SELECT has_table_privilege('atlas_api', 'atlas_identity.admin_session_revocation_requests', 'UPDATE,DELETE')")" = 'f' ]
+[ "$(query "SELECT has_table_privilege('atlas_api', 'atlas_operations.approvals', 'SELECT,INSERT')")" = 't' ]
+[ "$(query "SELECT has_column_privilege('atlas_api', 'atlas_operations.approvals', 'status', 'UPDATE')")" = 't' ]
+[ "$(query "SELECT has_column_privilege('atlas_api', 'atlas_operations.approvals', 'payload_canonical', 'UPDATE')")" = 'f' ]
+[ "$(query "SELECT has_table_privilege('atlas_api', 'atlas_operations.approvals', 'DELETE')")" = 'f' ]
+[ "$(query "SELECT has_table_privilege('atlas_api', 'atlas_operations.approval_decisions', 'DELETE')")" = 'f' ]
 [ "$(query "SELECT has_table_privilege('atlas_api', 'atlas_audit.audit_events', 'INSERT')")" = 't' ]
 [ "$(query "SELECT has_table_privilege('atlas_api', 'atlas_audit.audit_events', 'UPDATE')")" = 'f' ]
 [ "$(query "SELECT has_table_privilege('atlas_worker', 'atlas_identity.sessions', 'SELECT')")" = 'f' ]
@@ -43,6 +59,8 @@ query() {
 [ "$(query "SELECT has_table_privilege('atlas_reporting_read', 'atlas_identity.session_revocation_requests', 'SELECT')")" = 'f' ]
 [ "$(query "SELECT has_table_privilege('atlas_worker', 'atlas_identity.step_up_challenge_requests', 'SELECT')")" = 'f' ]
 [ "$(query "SELECT has_table_privilege('atlas_worker', 'atlas_identity.admin_session_revocation_requests', 'SELECT')")" = 'f' ]
+[ "$(query "SELECT has_table_privilege('atlas_worker', 'atlas_operations.approvals', 'SELECT')")" = 'f' ]
+[ "$(query "SELECT has_table_privilege('atlas_reporting_read', 'atlas_operations.approvals', 'SELECT')")" = 'f' ]
 
 unset PGPASSWORD
-echo 'database_isolated_pitr_restore=PASS product_identity_state=verified revoked_authority=preserved'
+echo 'database_isolated_pitr_restore=PASS product_identity_operations_state=verified revoked_authority=preserved'

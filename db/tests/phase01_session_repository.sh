@@ -9,7 +9,7 @@ set -eu
 : "${ATLAS_POSTGRES_MIGRATION_USER:?required}"
 
 test_database='atlas_p01_s04_session_test'
-expected_migration_count='13'
+expected_migration_count='14'
 
 admin_sql() {
   PGPASSWORD="$ATLAS_POSTGRES_PASSWORD" psql \

@@ -104,6 +104,11 @@ function Invoke-BackupRestore {
     $started = [DateTimeOffset]::UtcNow
     Invoke-Compose -Arguments @('--profile', 'recovery', 'up', '--detach', '--force-recreate', 'postgres-restore')
     Wait-Postgres -Service 'postgres-restore'
+    # podman-compose can report readiness for the old instance while a
+    # force-recreate replacement is still settling. Require a second bounded
+    # readiness observation before running the non-retryable restore assertions.
+    Start-Sleep -Seconds 2
+    Wait-Postgres -Service 'postgres-restore'
     Invoke-Compose -Arguments @('--profile', 'recovery', 'exec', '-T', 'postgres-restore', 'sh', '/recovery/verify-restore.sh')
     $elapsed = [Math]::Ceiling(([DateTimeOffset]::UtcNow - $started).TotalSeconds)
     Write-Output "database_restore_rto_seconds=$elapsed"

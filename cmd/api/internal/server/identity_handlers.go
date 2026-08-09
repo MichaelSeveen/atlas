@@ -208,6 +208,13 @@ func (a *App) updateOrganizationMemberRole(response http.ResponseWriter, request
 		a.writeIdentityError(response, request, identity.ErrIdentityUnavailable)
 		return
 	}
+	if body.Role == "merchant_admin" && a.approvals != nil {
+		a.createMembershipRoleApprovalFromPatch(
+			response, request, cookie, csrfToken, idempotencyKey, correlationID,
+			organizationID, membershipID, ifMatch, body.Role, body.Purpose,
+		)
+		return
+	}
 	result, err := a.identity.UpdateOrganizationMemberRole(
 		request.Context(), identity.UpdateOrganizationMemberRoleRequest{
 			CookieValue: cookie, CSRFToken: csrfToken, OrganizationID: organizationID,
@@ -219,6 +226,13 @@ func (a *App) updateOrganizationMemberRole(response http.ResponseWriter, request
 		response.Header().Set("X-Authorization-Decision-Id", result.DecisionID.String())
 	}
 	if err != nil {
+		if errors.Is(err, identity.ErrMembershipApprovalRequired) && a.approvals != nil {
+			a.createMembershipRoleApprovalFromPatch(
+				response, request, cookie, csrfToken, idempotencyKey, correlationID,
+				organizationID, membershipID, ifMatch, body.Role, body.Purpose,
+			)
+			return
+		}
 		a.writeIdentityError(response, request, err)
 		return
 	}

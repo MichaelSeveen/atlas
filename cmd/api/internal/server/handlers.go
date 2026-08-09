@@ -26,6 +26,14 @@ var identityRoutes = []string{
 	"/v1/organization-invitations/{invitation_id}/acceptance",
 }
 
+var approvalRoutes = []string{
+	"/v1/approvals",
+	"/v1/approvals/{approval_id}",
+	"/v1/approvals/{approval_id}/decisions",
+	"/v1/approvals/{approval_id}/executions",
+	"/v1/approvals/{approval_id}/cancellations",
+}
+
 type statusResponse struct {
 	Status string `json:"status"`
 }
@@ -55,8 +63,14 @@ func (a *App) route(response http.ResponseWriter, request *http.Request) {
 		}
 	}
 	if !operational {
-		if identityRoute(request.URL.Path) == "" {
+		identityTemplate := identityRoute(request.URL.Path)
+		approvalTemplate := approvalRoute(request.URL.Path)
+		if identityTemplate == "" && approvalTemplate == "" {
 			a.writeProblem(response, request, http.StatusNotFound, "route-not-found", "Not found", "ROUTE_NOT_FOUND", false)
+			return
+		}
+		if approvalTemplate != "" {
+			a.routeApproval(response, request)
 			return
 		}
 		a.routeIdentity(response, request)
@@ -155,7 +169,42 @@ func identityRoute(path string) string {
 	return ""
 }
 
+func approvalRoute(path string) string {
+	if path == "/v1/approvals" {
+		return path
+	}
+	const prefix = "/v1/approvals/"
+	if !strings.HasPrefix(path, prefix) {
+		return ""
+	}
+	remainder := strings.TrimPrefix(path, prefix)
+	if remainder == "" {
+		return ""
+	}
+	parts := strings.Split(remainder, "/")
+	if len(parts) == 1 && parts[0] != "" {
+		return "/v1/approvals/{approval_id}"
+	}
+	if len(parts) == 2 && parts[0] != "" {
+		switch parts[1] {
+		case "decisions", "executions", "cancellations":
+			return "/v1/approvals/{approval_id}/" + parts[1]
+		}
+	}
+	return ""
+}
+
 func allowedMethods(path string) []string {
+	switch approvalRoute(path) {
+	case "/v1/approvals":
+		return []string{http.MethodGet, http.MethodPost}
+	case "/v1/approvals/{approval_id}":
+		return []string{http.MethodGet}
+	case "/v1/approvals/{approval_id}/decisions",
+		"/v1/approvals/{approval_id}/executions",
+		"/v1/approvals/{approval_id}/cancellations":
+		return []string{http.MethodPost}
+	}
 	switch identityRoute(path) {
 	case "/v1/me", "/v1/auth/login", "/v1/auth/callback", "/v1/sessions",
 		"/v1/organizations", "/v1/organizations/{organization_id}/members":

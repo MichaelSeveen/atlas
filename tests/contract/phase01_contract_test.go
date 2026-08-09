@@ -131,6 +131,33 @@ func TestPhase01CookieMutationsRequireCSRF(t *testing.T) {
 	}
 }
 
+func TestApprovalResponsesDeclareConcurrencyReplayAndDecisionHeaders(t *testing.T) {
+	document := readOpenAPIDocument(t)
+	paths := objectAt(t, document, "paths")
+	tests := []struct {
+		method  string
+		path    string
+		status  string
+		headers []string
+	}{
+		{"post", "/v1/approvals", "201", []string{"ETag", "Idempotency-Replayed", "Location", "X-Authorization-Decision-Id"}},
+		{"get", "/v1/approvals/{approval_id}", "200", []string{"ETag", "X-Authorization-Decision-Id"}},
+		{"post", "/v1/approvals/{approval_id}/decisions", "200", []string{"ETag", "Idempotency-Replayed", "Location", "X-Authorization-Decision-Id"}},
+		{"post", "/v1/approvals/{approval_id}/executions", "200", []string{"ETag", "Idempotency-Replayed", "Location", "X-Authorization-Decision-Id"}},
+		{"post", "/v1/approvals/{approval_id}/cancellations", "200", []string{"ETag", "Idempotency-Replayed", "Location", "X-Authorization-Decision-Id"}},
+	}
+	for _, test := range tests {
+		operation := objectAt(t, objectAt(t, paths, test.path), test.method)
+		response := objectAt(t, objectAt(t, operation, "responses"), test.status)
+		headers := objectAt(t, response, "headers")
+		for _, header := range test.headers {
+			if _, ok := headers[header].(map[string]any); !ok {
+				t.Errorf("%s %s response %s omits %s", strings.ToUpper(test.method), test.path, test.status, header)
+			}
+		}
+	}
+}
+
 func TestOrganizationMemberListCarriesClosedPurposeHeader(t *testing.T) {
 	document := readOpenAPIDocument(t)
 	operation := objectAt(t, objectAt(t,

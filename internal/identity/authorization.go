@@ -190,6 +190,58 @@ func DefaultAuthorizationPolicy() *AuthorizationPolicy {
 				minimumAssurance: AssuranceBaseline, tenantScoped: true,
 				resourceStatuses: stringSet("active"),
 			},
+			ApprovalActionCreate: {
+				permission: "approvals.create", resource: "membership",
+				populations:      populationSet(PopulationMerchant),
+				purposes:         stringSet("organization_administration"),
+				minimumAssurance: AssuranceBaseline, tenantScoped: true,
+				resourceStatuses: stringSet("active"),
+			},
+			ApprovalActionRead: {
+				permission: "approvals.read", resource: "approval",
+				populations:      populationSet(PopulationMerchant),
+				purposes:         stringSet("self_service", "organization_administration", "approval_review"),
+				minimumAssurance: AssuranceBaseline, tenantScoped: true,
+				resourceStatuses: stringSet(
+					"pending", "approved", "rejected", "cancelled", "expired",
+					"executed", "execution_failed", "superseded",
+				),
+			},
+			ApprovalActionDecide: {
+				permission: "approvals.decide", resource: "approval",
+				populations:      populationSet(PopulationMerchant),
+				purposes:         stringSet("approval_review"),
+				minimumAssurance: AssuranceBaseline, tenantScoped: true,
+				resourceStatuses: stringSet("pending"),
+			},
+			ApprovalActionExecute: {
+				permission: "approvals.execute", resource: "approval",
+				populations:      populationSet(PopulationMerchant),
+				purposes:         stringSet("organization_administration"),
+				minimumAssurance: AssuranceBaseline, tenantScoped: true,
+				resourceStatuses: stringSet("approved", "execution_failed"),
+			},
+			ApprovalActionCancel: {
+				permission: "approvals.cancel", resource: "approval",
+				populations:      populationSet(PopulationMerchant),
+				purposes:         stringSet("organization_administration"),
+				minimumAssurance: AssuranceBaseline, tenantScoped: true,
+				resourceStatuses: stringSet("pending"),
+			},
+			ApprovalCheckerEligibilityAction: {
+				permission: "approvals.decide", resource: "approval",
+				populations:      populationSet(PopulationMerchant),
+				purposes:         stringSet("approval_review"),
+				minimumAssurance: AssuranceBaseline, tenantScoped: true,
+				resourceStatuses: stringSet("pending", "approved", "execution_failed"),
+			},
+			ApprovedRoleChangeAction: {
+				permission: "organization.members.roles.update", resource: "membership",
+				populations:      populationSet(PopulationMerchant),
+				purposes:         stringSet("organization_administration"),
+				minimumAssurance: AssuranceBaseline, tenantScoped: true,
+				resourceStatuses: stringSet("active"),
+			},
 		},
 		fields: map[string]authorizationFieldRule{
 			"organization_member.email_hint": {

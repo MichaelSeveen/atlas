@@ -37,6 +37,7 @@ func TestOrganizationInvitationRealPostgresDelegationReplayAndAuditRollback(t *t
 		t.Fatal(err)
 	}
 	t.Cleanup(migrationPool.Close)
+	cleanupStaleInvitationIntegrationFixtures(t, ctx, migrationPool)
 	recorder := auditapplication.NewRecorder()
 	sessionStore, err := NewSessionStore(apiPool, recorder)
 	if err != nil {
@@ -105,24 +106,9 @@ INSERT INTO atlas_identity.memberships (
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cleanupCancel()
-		_, _ = migrationPool.Exec(cleanupCtx, `DELETE FROM atlas_identity.organization_invitations WHERE invited_by_principal_id = $1`, principalID.String())
-		_, _ = migrationPool.Exec(cleanupCtx, `DELETE FROM atlas_audit.audit_events WHERE actor_id = $1`, principalID.String())
-		_, _ = migrationPool.Exec(cleanupCtx, `DELETE FROM atlas_audit.audit_events WHERE actor_id = $1`, recipientPrincipalID.String())
-		_, _ = migrationPool.Exec(cleanupCtx, `DELETE FROM atlas_identity.sessions WHERE principal_id = $1`, recipientPrincipalID.String())
-		_, _ = migrationPool.Exec(cleanupCtx, `DELETE FROM atlas_identity.memberships WHERE membership_id = $1`, acceptedMembershipID.String())
-		_, _ = migrationPool.Exec(cleanupCtx, `DELETE FROM atlas_identity.external_subjects WHERE external_subject_id = $1`, recipientExternalSubjectID.String())
-		_, _ = migrationPool.Exec(cleanupCtx, `DELETE FROM atlas_identity.principals WHERE principal_id = $1`, recipientPrincipalID.String())
-		_, _ = migrationPool.Exec(cleanupCtx, `DELETE FROM atlas_audit.audit_events WHERE actor_id = $1`, failurePrincipalID.String())
-		_, _ = migrationPool.Exec(cleanupCtx, `DELETE FROM atlas_identity.sessions WHERE principal_id = $1`, failurePrincipalID.String())
-		_, _ = migrationPool.Exec(cleanupCtx, `DELETE FROM atlas_identity.memberships WHERE membership_id = $1`, failureMembershipID.String())
-		_, _ = migrationPool.Exec(cleanupCtx, `DELETE FROM atlas_identity.external_subjects WHERE external_subject_id = $1`, failureExternalSubjectID.String())
-		_, _ = migrationPool.Exec(cleanupCtx, `DELETE FROM atlas_identity.principals WHERE principal_id = $1`, failurePrincipalID.String())
-		_, _ = migrationPool.Exec(cleanupCtx, `DELETE FROM atlas_identity.sessions WHERE principal_id = $1`, principalID.String())
-		_, _ = migrationPool.Exec(cleanupCtx, `DELETE FROM atlas_identity.memberships WHERE membership_id = $1`, membershipID.String())
-		_, _ = migrationPool.Exec(cleanupCtx, `DELETE FROM atlas_identity.external_subjects WHERE external_subject_id = $1`, externalSubjectID.String())
-		_, _ = migrationPool.Exec(cleanupCtx, `DELETE FROM atlas_identity.principals WHERE principal_id = $1`, principalID.String())
+		cleanupStaleInvitationIntegrationFixtures(t, cleanupCtx, migrationPool)
 	})
 
 	_, steppedDigest := integrationToken(t)
@@ -509,6 +495,59 @@ WHERE table_schema = 'atlas_identity' AND table_name = 'organization_invitations
 		if column == "email" || column == "token" || column == "acceptance_token" {
 			t.Fatalf("recoverable invitation material column exists: %s", column)
 		}
+	}
+}
+
+func cleanupStaleInvitationIntegrationFixtures(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+) {
+	t.Helper()
+	transaction, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = transaction.Rollback(ctx) }()
+	fixturePrincipals := `
+SELECT principal_id
+FROM atlas_identity.principals
+WHERE person_anchor LIKE 'syn_person_invitation_%'
+   OR person_anchor LIKE 'syn_person_invited_%'`
+	issuerPrincipals := `
+SELECT principal_id
+FROM atlas_identity.principals
+WHERE person_anchor LIKE 'syn_person_invitation_%'`
+	statements := []string{
+		`DELETE FROM atlas_identity.sessions
+         WHERE principal_id IN (` + fixturePrincipals + `)
+           AND invitation_id IS NOT NULL`,
+		`DELETE FROM atlas_identity.oidc_transactions
+         WHERE invitation_id IN (
+             SELECT invitation_id
+             FROM atlas_identity.organization_invitations
+             WHERE invited_by_principal_id IN (` + issuerPrincipals + `)
+         )`,
+		`DELETE FROM atlas_identity.organization_invitations
+         WHERE invited_by_principal_id IN (` + issuerPrincipals + `)`,
+		`DELETE FROM atlas_audit.audit_events
+         WHERE actor_id IN (` + fixturePrincipals + `)`,
+		`DELETE FROM atlas_identity.sessions
+         WHERE principal_id IN (` + fixturePrincipals + `)`,
+		`DELETE FROM atlas_identity.memberships
+         WHERE principal_id IN (` + fixturePrincipals + `)`,
+		`DELETE FROM atlas_identity.external_subjects
+         WHERE principal_id IN (` + fixturePrincipals + `)`,
+		`DELETE FROM atlas_identity.principals
+         WHERE principal_id IN (` + fixturePrincipals + `)`,
+	}
+	for _, statement := range statements {
+		if _, err := transaction.Exec(ctx, statement); err != nil {
+			t.Fatalf("clean stale invitation integration fixtures: %v", err)
+		}
+	}
+	if err := transaction.Commit(ctx); err != nil {
+		t.Fatal(err)
 	}
 }
 

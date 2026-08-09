@@ -698,8 +698,10 @@ paths:
                     type: array
                     items: {$ref: '#/components/schemas/Approval'}
                   page: {$ref: '#/components/schemas/PageInfo'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
         '403': {$ref: '#/components/responses/Forbidden'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
     post:
       operationId: createApproval
       tags: [Approvals]
@@ -716,15 +718,19 @@ paths:
         '201':
           description: Approval request created
           headers:
+            ETag: {$ref: '#/components/headers/ETag'}
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
             Location: {$ref: '#/components/headers/Location'}
             X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Approval'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
         '403': {$ref: '#/components/responses/StepUpRequired'}
         '409': {$ref: '#/components/responses/Conflict'}
         '422': {$ref: '#/components/responses/ValidationFailed'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
 
   /v1/approvals/{approval_id}:
     parameters:
@@ -736,12 +742,16 @@ paths:
       responses:
         '200':
           description: Approval detail
+          headers:
+            ETag: {$ref: '#/components/headers/ETag'}
+            X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Approval'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
 
   /v1/approvals/{approval_id}/decisions:
     parameters:
@@ -764,15 +774,19 @@ paths:
           description: Approval decision recorded
           headers:
             ETag: {$ref: '#/components/headers/ETag'}
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            Location: {$ref: '#/components/headers/Location'}
             X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Approval'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
         '403': {$ref: '#/components/responses/StepUpRequired'}
         '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
         '409': {$ref: '#/components/responses/Conflict'}
         '412': {$ref: '#/components/responses/PreconditionFailed'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
 
   /v1/approvals/{approval_id}/executions:
     parameters:
@@ -790,10 +804,13 @@ paths:
           description: Approved action executed
           headers:
             ETag: {$ref: '#/components/headers/ETag'}
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            Location: {$ref: '#/components/headers/Location'}
             X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Approval'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
         '403': {$ref: '#/components/responses/StepUpRequired'}
         '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
@@ -822,14 +839,19 @@ paths:
           description: Approval cancelled
           headers:
             ETag: {$ref: '#/components/headers/ETag'}
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            Location: {$ref: '#/components/headers/Location'}
+            X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Approval'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
         '409': {$ref: '#/components/responses/Conflict'}
         '412': {$ref: '#/components/responses/PreconditionFailed'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
 
   /v1/wallets:
     get:

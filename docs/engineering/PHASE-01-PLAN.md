@@ -2,20 +2,8 @@
 
 ## Status and scope
 
-- **Completed slices:** `P01-S01 — identity/access/tenancy audit and execution plan`; `P01-S02 — canonical contract, ownership, and security-decision closure`; `P01-S03 — identity/audit persistence, deterministic seeds, roles, and recovery revalidation`; `P01-S04 — synthetic OIDC BFF and durable session lifecycle`
-- **Current slice:** `P01-S05 — merchant organizations, memberships, invitations, and
-  active-tenant switching` is in progress. Its focused sub-slices implement
-  principal-organization listing, zero-grace Audit-atomic active-tenant session rotation, and
-  hash-only-verifier invitation issuance, tenant-authorized count-free member pagination, and
-  ADR 0016 invitation-bound authentication plus atomic recipient acceptance, and direct
-  viewer/operator member role changes and direct removal with exact strong ETags, durable
-  idempotency, immediate authority/session invalidation, and atomic Audit. Administrator-involved
-  role transitions remain fail-closed pending the S07 typed maker-checker capability;
-  administrator removal remains fail-closed pending exact fresh-step-up and last-administrator policy.
-  S04 core sessions, idempotent
-  step-up/live higher-assurance completion, bounded three-population account-enumeration,
-  real-browser logout/navigation protection, audit-atomic administrator security revocation,
-  additive seed evolution, and the complete live gate pass.
+- **Completed slices:** `P01-S01` planning; `P01-S02` contract/decision closure; `P01-S03` Identity/Audit persistence and recovery; `P01-S04` synthetic OIDC/session lifecycle; `P01-S05` merchant tenancy; `P01-S06` deny-default authorization; `P01-S07` typed maker-checker approval and execution-time reauthorization.
+- **Current slice:** `P01-S08 — merchant API credentials, one-time secret handling, rotation, and scoped anomaly controls` is next. S07 leaves only `identity.organization.membership.change_admin` executable through approval; administrator removal remains fail-closed pending exact fresh-step-up and last-administrator policy. No event, worker job, credential, or financial behavior was added by S07.
 - **Audit date:** 2026-07-23
 - **Audited base revision:** `2884484a99eeb2b846a56c90177163e37e419d11`
 - **Base tree:** `b921b93cb8341e28344b97e1202d37f0376dff19`
@@ -441,25 +429,24 @@ No hosted release, merge, production/reference deployment, real identity provide
 
 ## Exact next implementation checkpoint
 
-The cumulative P01-S06 static/live verifier has passed against migration 13 and the synthetic
-reference stack. After the S06 closure commit, the next unblocked checkpoint is **P01-S07 — typed
-maker-checker approval foundation and execution-time reauthorization**. Do not begin S07 from a
-failed or evidence-unbound S06 revision.
+The cumulative P01-S07 static/live verifier passes against migration 14 and the isolated synthetic
+reference database. After the S07 closure commit, the next unblocked checkpoint is **P01-S08 —
+merchant API credentials, one-time secret handling, rotation, and scoped anomaly controls**. Do
+not begin S08 from a failed or evidence-unbound S07 revision.
 
-S06 closes the current authorization boundary at bounded evidence depth: exact canonical
-permission/role/purpose/field parity; unknown/stale default denial; server-side tenant/action/
-object/field/purpose/assurance/version/resource checks before pagination work; uniform concealed
-HTTP shape and bounded known-foreign/absent PostgreSQL timing; permission/purpose-bound already-
-masked invitation hints with Audit rollback; and two-pool role/resource/assurance invalidation
-without Redis or process-local authorization truth. `IAM-013` and `IAM-020..026` are Verified for
-the complete current Phase 01 surface. No search, suggestion, or autocomplete operation exists;
-adding one reopens `IAM-023` and its differential gate.
+S07 closes `IAM-030..034` at bounded evidence depth for the sole non-financial
+`identity.organization.membership.change_admin` action. Operations owns immutable approval state;
+Identity owns transaction-bound authorization and the target command; Audit remains atomic. Real
+PostgreSQL proof covers immutable Atlas-principal separation, RFC 8785/SHA-256 payload binding,
+dynamic checker eligibility, simultaneous decisions, execution-time maker/checker/executor and
+step-up reauthorization, locked target state/version, tamper and target-race supersession, every
+required terminal state, response-loss replay, and Audit-outage rollback. No generic JSON write,
+event, worker job, credential, or financial state exists.
 
-S07 must introduce the Operations-owned typed approval state machine only for the S02-ratified
-synthetic non-financial actions. Maker/checker separation, immutable payload hash, expiry/terminal
-state, exact ETag/idempotency, fresh action-bound step-up, target version/state, current permission,
-and execution-time authorization must all be rechecked at the commit boundary with Audit atomicity.
-Administrator-involved membership transitions remain fail-closed until that typed execution path
-passes; administrator removal additionally remains fail-closed until exact fresh-step-up and
-last-administrator policy are closed. No event, worker job, credential, frontend product flow, or
-financial state is added by the S07 checkpoint.
+S08 must implement only the S02-ratified merchant credential contract and `IAM-040..044` boundary.
+It must preserve PostgreSQL authority on every request, one-time secret disclosure, non-recoverable
+stored verifier material, exact tenant/environment/audience/scope/status checks, a ten-minute
+rotation overlap, explicit old-key revocation, linearizable concurrency, fresh action-bound
+step-up, Audit atomicity, bounded rate/anomaly controls, safe logs, and response-loss semantics.
+Administrator membership removal remains independently fail-closed pending exact fresh-step-up and
+last-administrator policy.

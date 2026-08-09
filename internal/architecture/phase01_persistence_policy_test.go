@@ -16,7 +16,7 @@ import (
 	"github.com/MichaelSeveen/atlas/internal/platform/migration"
 )
 
-var phase01ProductTablePattern = regexp.MustCompile(`(?i)CREATE TABLE (atlas_(?:identity|audit))\.([a-z][a-z0-9_]*)`)
+var phase01ProductTablePattern = regexp.MustCompile(`(?i)CREATE TABLE (atlas_(?:identity|operations|audit))\.([a-z][a-z0-9_]*)`)
 
 func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 	root := repositoryRoot(t)
@@ -31,10 +31,11 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 	membershipRoleChangeSQL := readPhase01PolicyFile(t, root, "db/migrations/000011_phase_01_membership_role_changes.sql")
 	membershipRevocationSQL := readPhase01PolicyFile(t, root, "db/migrations/000012_phase_01_membership_revocations.sql")
 	membershipEmailHintSQL := readPhase01PolicyFile(t, root, "db/migrations/000013_phase_01_membership_email_hint.sql")
+	approvalSQL := readPhase01PolicyFile(t, root, "db/migrations/000014_phase_01_approval_workflow.sql")
 	allSQL := identitySQL + "\n" + auditSQL + "\n" + sessionSQL + "\n" +
 		sessionGrantSQL + "\n" + stepUpSQL + "\n" + adminRevocationSQL + "\n" + invitationSQL + "\n" +
 		invitationAcceptanceSQL + "\n" + membershipRoleChangeSQL + "\n" + membershipRevocationSQL + "\n" +
-		membershipEmailHintSQL
+		membershipEmailHintSQL + "\n" + approvalSQL
 
 	tables := make([]string, 0)
 	for _, match := range phase01ProductTablePattern.FindAllStringSubmatch(allSQL, -1) {
@@ -60,6 +61,11 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 		"atlas_identity.session_revocation_requests",
 		"atlas_identity.sessions",
 		"atlas_identity.step_up_challenge_requests",
+		"atlas_operations.approval_cancellations",
+		"atlas_operations.approval_decisions",
+		"atlas_operations.approval_executions",
+		"atlas_operations.approval_requests",
+		"atlas_operations.approvals",
 	}
 	if !reflect.DeepEqual(tables, wantTables) {
 		t.Fatalf("closed product-table inventory = %#v", tables)
@@ -83,6 +89,7 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 		"GRANT INSERT ON atlas_audit.audit_events TO atlas_api;",
 		"GRANT USAGE ON SCHEMA atlas_identity TO atlas_api;",
 		"GRANT USAGE ON SCHEMA atlas_audit TO atlas_api;",
+		"GRANT USAGE ON SCHEMA atlas_operations TO atlas_api;",
 		"GRANT SELECT, INSERT, UPDATE ON atlas_identity.oidc_transactions TO atlas_api;",
 		"GRANT UPDATE (authorization_version) ON atlas_identity.principals TO atlas_api;",
 		"GRANT SELECT, INSERT ON atlas_identity.admin_session_revocation_requests TO atlas_api;",
@@ -96,6 +103,12 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 		"verified_email_sha256 bytea",
 		"acceptance_idempotency_key_sha256 bytea",
 		"global_scope = 'invitation-acceptance'",
+		"('atlas_operations', 'approvals', 'tenant', 'tenant_id', NULL)",
+		"eligible_checker_policy",
+		"payload_canonicalization",
+		"payload_hash_algorithm",
+		"GRANT UPDATE (\n    status, decision_reason, decider_principal_id, decider_session_id,",
+		"membership_role_changes_approval_fk",
 	} {
 		if !strings.Contains(allSQL, required) {
 			t.Errorf("persistence policy is missing %q", required)
@@ -107,13 +120,49 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 		"GRANT DELETE ON atlas_audit.audit_events",
 		"GRANT USAGE ON SCHEMA atlas_identity TO atlas_worker",
 		"GRANT USAGE ON SCHEMA atlas_audit TO atlas_reporting_read",
-		"atlas_operations.",
+		"GRANT UPDATE ON atlas_operations.approvals",
+		"GRANT DELETE ON atlas_operations.",
 		"atlas_wallet.",
 		"atlas_ledger.",
 	} {
 		if strings.Contains(allSQL, forbidden) {
 			t.Errorf("persistence policy contains forbidden capability %q", forbidden)
 		}
+	}
+}
+
+func TestApprovalPersistenceIsTypedTenantScopedAndCrossContextSafe(t *testing.T) {
+	root := repositoryRoot(t)
+	operationsSources := ""
+	for _, relative := range []string{
+		"internal/operations/persistence/create_read.go",
+		"internal/operations/persistence/decision.go",
+		"internal/operations/persistence/execution.go",
+	} {
+		operationsSources += "\n" + readPhase01PolicyFile(t, root, relative)
+	}
+	for _, forbidden := range []string{"atlas_identity.", "atlas_audit."} {
+		if strings.Contains(operationsSources, forbidden) {
+			t.Errorf("Operations persistence bypasses a context boundary with %q", forbidden)
+		}
+	}
+	for _, required := range []string{
+		"WHERE tenant_id = $1",
+		"loadApprovalForTenant",
+		"payload_sha256",
+		"payload_canonical",
+		"IdempotencyDigest",
+		"ExpectedVersion",
+		"ValidateMembershipRoleChangeTarget",
+		"ExecuteApprovedMembershipRoleChange",
+	} {
+		if !strings.Contains(operationsSources, required) {
+			t.Errorf("Operations approval persistence is missing %q", required)
+		}
+	}
+	identityTarget := readPhase01PolicyFile(t, root, "internal/identity/persistence/approval.go")
+	if strings.Contains(identityTarget, "atlas_operations.") {
+		t.Error("Identity target adapter writes Operations-owned tables directly")
 	}
 }
 

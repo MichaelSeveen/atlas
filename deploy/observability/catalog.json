@@ -31,6 +31,7 @@
           "/v1/organizations/{organization_id}/invitations",
           "/v1/organization-invitations/{invitation_id}/authentication",
           "/v1/organization-invitations/{invitation_id}/acceptance",
+          "/v1/approvals/{approval_route}",
           "unmatched"
         ]
       }
@@ -64,6 +65,7 @@
           "/v1/organizations/{organization_id}/invitations",
           "/v1/organization-invitations/{invitation_id}/authentication",
           "/v1/organization-invitations/{invitation_id}/acceptance",
+          "/v1/approvals/{approval_route}",
           "unmatched"
         ]
       }
@@ -99,6 +101,67 @@
         "atlas.identity.provider.operation": ["discovery", "token"],
         "atlas.identity.population": ["customer", "merchant", "workforce"],
         "atlas.outcome": ["ok", "error"]
+      }
+    },
+    {
+      "name": "atlas.operations.approval.operation.count",
+      "kind": "counter",
+      "status": "emitted",
+      "owner": "operations-on-call",
+      "labels": {
+        "atlas.operations.approval.operation": ["create", "list", "get", "decide", "execute", "cancel"],
+        "atlas.outcome": ["ok", "rejected", "error"],
+        "http.response.status_code": ["bounded-http-status"]
+      }
+    },
+    {
+      "name": "atlas.operations.approval.operation.duration",
+      "kind": "histogram",
+      "status": "emitted",
+      "owner": "operations-on-call",
+      "labels": {
+        "atlas.operations.approval.operation": ["create", "list", "get", "decide", "execute", "cancel"],
+        "atlas.outcome": ["ok", "rejected", "error"],
+        "http.response.status_code": ["bounded-http-status"]
+      }
+    },
+    {
+      "name": "atlas.operations.approval.status.count",
+      "kind": "counter",
+      "status": "emitted",
+      "owner": "operations-on-call",
+      "labels": {
+        "atlas.operations.approval.operation": ["create", "list", "get", "decide", "execute", "cancel"],
+        "atlas.operations.approval.status": ["pending", "approved", "rejected", "cancelled", "expired", "executed", "execution_failed", "superseded"]
+      }
+    },
+    {
+      "name": "atlas.operations.approval.age",
+      "kind": "histogram",
+      "status": "emitted",
+      "owner": "operations-on-call",
+      "labels": {
+        "atlas.operations.approval.operation": ["create", "list", "get", "decide", "execute", "cancel"],
+        "atlas.operations.approval.status": ["pending", "approved", "rejected", "cancelled", "expired", "executed", "execution_failed", "superseded"]
+      }
+    },
+    {
+      "name": "atlas.operations.approval.conflict.count",
+      "kind": "counter",
+      "status": "emitted",
+      "owner": "operations-on-call",
+      "labels": {
+        "atlas.operations.approval.operation": ["create", "decide", "execute", "cancel"],
+        "atlas.operations.approval.conflict": ["state", "precondition", "idempotency", "superseded"]
+      }
+    },
+    {
+      "name": "atlas.operations.approval.integrity_failure.count",
+      "kind": "counter",
+      "status": "emitted",
+      "owner": "operations-on-call",
+      "labels": {
+        "atlas.operations.approval.integrity_reason": ["payload_metadata_invalid", "payload_digest_mismatch", "payload_canonicalization_invalid", "payload_revalidation_failed", "payload_binding_mismatch", "maker_checker_integrity_failure"]
       }
     },
     {
@@ -221,6 +284,46 @@
       "rationale": "The concealed response is intentionally uniform, while a bounded aggregate spike may indicate tenant-identifier probing; tenant, actor, request, decision, and resource identifiers remain excluded from metric labels.",
       "runbook": "docs/runbooks/AUTHORIZATION_INCIDENT_AND_INVALIDATION.md",
       "test": "scripts/test-s06-alert-catalog-canary.ps1"
+    },
+    {
+      "id": "P01-S07-ALR-001",
+      "metric": "atlas.operations.approval.age",
+      "severity": "ticket",
+      "owner": "operations-on-call",
+      "condition": "pending approvals older than 20 hours are observed in two consecutive five-minute windows",
+      "rationale": "Warns before the fixed 24-hour expiry without adding tenant, actor, target, request, decision, or approval identifiers to telemetry.",
+      "runbook": "docs/runbooks/APPROVAL_INTEGRITY_AND_RECOVERY.md",
+      "test": "scripts/test-s07-approval-alert-catalog-canary.ps1"
+    },
+    {
+      "id": "P01-S07-ALR-002",
+      "metric": "atlas.operations.approval.status.count",
+      "severity": "ticket",
+      "owner": "operations-on-call",
+      "condition": "expired or execution_failed approval observations exceed 10 in fifteen minutes",
+      "rationale": "Detects stuck review or execution behavior using only closed status labels.",
+      "runbook": "docs/runbooks/APPROVAL_INTEGRITY_AND_RECOVERY.md",
+      "test": "scripts/test-s07-approval-alert-catalog-canary.ps1"
+    },
+    {
+      "id": "P01-S07-ALR-003",
+      "metric": "atlas.operations.approval.integrity_failure.count",
+      "severity": "page",
+      "owner": "operations-on-call",
+      "condition": "any approval payload or maker-checker integrity failure is observed",
+      "rationale": "Canonical payload or principal-separation failures are never expected in normal operation and execution is already fail-closed.",
+      "runbook": "docs/runbooks/APPROVAL_INTEGRITY_AND_RECOVERY.md",
+      "test": "scripts/test-s07-approval-alert-catalog-canary.ps1"
+    },
+    {
+      "id": "P01-S07-ALR-004",
+      "metric": "atlas.operations.approval.conflict.count",
+      "severity": "ticket",
+      "owner": "operations-on-call",
+      "condition": "approval state, precondition, idempotency, or supersession conflicts exceed 20 in five minutes",
+      "rationale": "A bounded aggregate spike may indicate stale clients, racing checkers, replay misuse, or repeated stale-target execution attempts.",
+      "runbook": "docs/runbooks/APPROVAL_INTEGRITY_AND_RECOVERY.md",
+      "test": "scripts/test-s07-approval-alert-catalog-canary.ps1"
     }
   ],
   "dashboards": [
@@ -244,6 +347,18 @@
         "atlas.identity.operation.duration",
         "atlas.identity.provider.request.count",
         "atlas.identity.provider.request.duration"
+      ]
+    },
+    {
+      "name": "phase-01-approval",
+      "owner": "operations-on-call",
+      "panels": [
+        "atlas.operations.approval.operation.count",
+        "atlas.operations.approval.operation.duration",
+        "atlas.operations.approval.status.count",
+        "atlas.operations.approval.age",
+        "atlas.operations.approval.conflict.count",
+        "atlas.operations.approval.integrity_failure.count"
       ]
     }
   ]

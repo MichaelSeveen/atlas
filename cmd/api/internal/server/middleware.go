@@ -121,6 +121,15 @@ func (a *App) requestMetadata(next http.Handler) http.Handler {
 			safeAdd(a.identityCounter, request.Context(), 1, metricapi.WithAttributes(identityAttributes...))
 			safeRecord(a.identityDuration, request.Context(), duration.Seconds(), metricapi.WithAttributes(identityAttributes...))
 		}
+		if operation := approvalOperation(method, approvalRoute(request.URL.Path)); operation != "" {
+			approvalAttributes := []attribute.KeyValue{
+				attribute.String("atlas.operations.approval.operation", operation),
+				attribute.String("atlas.outcome", outcome),
+				attribute.Int("http.response.status_code", capture.status),
+			}
+			safeAdd(a.approvalCounter, request.Context(), 1, metricapi.WithAttributes(approvalAttributes...))
+			safeRecord(a.approvalDuration, request.Context(), duration.Seconds(), metricapi.WithAttributes(approvalAttributes...))
+		}
 		severity := logging.SeverityInfo
 		if capture.status >= 500 {
 			severity = logging.SeverityError
@@ -150,6 +159,9 @@ func telemetryRoute(path string) string {
 	}
 	if route := identityRoute(path); route != "" {
 		return route
+	}
+	if route := approvalRoute(path); route != "" {
+		return "/v1/approvals/{approval_route}"
 	}
 	return "unmatched"
 }
@@ -200,6 +212,26 @@ func identityOperation(method, route string) string {
 		return "invitation_authenticate"
 	case "/v1/organization-invitations/{invitation_id}/acceptance":
 		return "invitation_accept"
+	default:
+		return ""
+	}
+}
+
+func approvalOperation(method, route string) string {
+	switch route {
+	case "/v1/approvals":
+		if method == http.MethodPost {
+			return "create"
+		}
+		return "list"
+	case "/v1/approvals/{approval_id}":
+		return "get"
+	case "/v1/approvals/{approval_id}/decisions":
+		return "decide"
+	case "/v1/approvals/{approval_id}/executions":
+		return "execute"
+	case "/v1/approvals/{approval_id}/cancellations":
+		return "cancel"
 	default:
 		return ""
 	}

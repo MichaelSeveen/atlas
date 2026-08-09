@@ -328,6 +328,78 @@ func TestOrganizationMemberRoleChangeHTTPContractAndReplay(t *testing.T) {
 	}
 }
 
+func TestOrganizationMemberRevocationHTTPContractAndReplay(t *testing.T) {
+	service, store, _ := newHTTPIdentityService(t)
+	cookieValue := strings.Repeat("Y", 43)
+	principalID, _ := identifier.Parse("usr_00000000000000000111")
+	sessionID, _ := identifier.Parse("ses_00000000000000000111")
+	tenantID, _ := identifier.Parse("ten_00000000000000000111")
+	membershipID, _ := identifier.Parse("mem_00000000000000000112")
+	store.sessions[sha256.Sum256([]byte(cookieValue))] = identity.Session{
+		SessionID: sessionID, PrincipalID: principalID, PrincipalType: "merchant",
+		DisplayName: "Synthetic Merchant Security Administrator", Population: identity.PopulationMerchant,
+		TenantID: tenantID, Assurance: identity.AssuranceBaseline,
+		AuthorizationVersion: 1, RotationVersion: 2,
+		CreatedAt: testBuildTime, LastSeenAt: testBuildTime,
+		IdleExpiresAt:     testBuildTime.Add(20 * time.Minute),
+		AbsoluteExpiresAt: testBuildTime.Add(8 * time.Hour),
+		Permissions:       []string{"organization.members.remove"},
+	}
+	_, csrfToken, err := service.Current(context.Background(), cookieValue)
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := newTestApp(t, ReadinessState{DependenciesReady: true, MigrationsCurrent: true}, func(options *Options) {
+		options.Identity = service
+		options.WebOrigin = "https://web.test.invalid"
+		options.CORS = CORSConfig{AllowedOrigins: []string{"https://web.test.invalid"}, AllowCredentials: true}
+	})
+	path := "/v1/organizations/" + tenantID.String() + "/members/" + membershipID.String()
+	call := func() *httptest.ResponseRecorder {
+		request := httptest.NewRequest(http.MethodDelete, path, nil)
+		request.Header.Set(identity.CSRFHeaderName, csrfToken)
+		request.Header.Set("Idempotency-Key", "http-member-revoke-0001")
+		request.Header.Set("If-Match", "\"membership-v3\"")
+		request.AddCookie(&http.Cookie{Name: identity.SessionCookieName, Value: cookieValue})
+		response := httptest.NewRecorder()
+		app.Handler().ServeHTTP(response, request)
+		return response
+	}
+	first := call()
+	if first.Code != http.StatusNoContent || first.Body.Len() != 0 ||
+		first.Header().Get("Idempotency-Replayed") != "false" ||
+		!strings.HasPrefix(first.Header().Get("X-Authorization-Decision-Id"), "dec_") {
+		t.Fatalf("member revocation status=%d headers=%v body=%s", first.Code, first.Header(), first.Body)
+	}
+	second := call()
+	if second.Code != http.StatusNoContent || second.Header().Get("Idempotency-Replayed") != "true" ||
+		second.Header().Get("X-Authorization-Decision-Id") != first.Header().Get("X-Authorization-Decision-Id") {
+		t.Fatalf("member revocation replay status=%d headers=%v body=%s", second.Code, second.Header(), second.Body)
+	}
+
+	withBody := httptest.NewRequest(http.MethodDelete, path, strings.NewReader(`{}`))
+	withBody.Header.Set("Content-Type", "application/json")
+	withBodyResponse := httptest.NewRecorder()
+	app.Handler().ServeHTTP(withBodyResponse, withBody)
+	if withBodyResponse.Code != http.StatusBadRequest {
+		t.Fatalf("DELETE body status=%d body=%s", withBodyResponse.Code, withBodyResponse.Body)
+	}
+
+	preflight := httptest.NewRequest(http.MethodOptions, path, nil)
+	preflight.Header.Set("Origin", "https://web.test.invalid")
+	preflight.Header.Set("Access-Control-Request-Method", http.MethodDelete)
+	preflight.Header.Set("Access-Control-Request-Headers", "Idempotency-Key, If-Match, X-Atlas-CSRF-Token")
+	preflightResponse := httptest.NewRecorder()
+	app.Handler().ServeHTTP(preflightResponse, preflight)
+	if preflightResponse.Code != http.StatusNoContent ||
+		preflightResponse.Header().Get("Access-Control-Allow-Methods") != http.MethodDelete ||
+		preflightResponse.Header().Get("Access-Control-Allow-Headers") !=
+			"Idempotency-Key, If-Match, X-Atlas-CSRF-Token" {
+		t.Fatalf("member revocation preflight status=%d headers=%v body=%s",
+			preflightResponse.Code, preflightResponse.Header(), preflightResponse.Body)
+	}
+}
+
 func TestOrganizationMemberListHTTPPaginationAndConcealmentContract(t *testing.T) {
 	service, store, _ := newHTTPIdentityService(t)
 	cookieValue := strings.Repeat("W", 43)
@@ -770,6 +842,29 @@ type httpOrganizationStore struct {
 	invitation    identity.CreateInvitationStoreResult
 	acceptance    identity.AcceptInvitationStoreResult
 	roleChange    identity.UpdateOrganizationMemberRoleResult
+	revocation    identity.RevokeOrganizationMemberResult
+}
+
+func (store *httpOrganizationStore) RevokeMember(
+	_ context.Context,
+	command identity.RevokeOrganizationMemberCommand,
+) (identity.RevokeOrganizationMemberResult, error) {
+	if !store.revocation.Member.MembershipID.IsZero() {
+		replayed := store.revocation
+		replayed.Replay = true
+		return replayed, nil
+	}
+	revokedAt := command.Now
+	store.revocation = identity.RevokeOrganizationMemberResult{
+		Member: identity.OrganizationMember{
+			MembershipID: command.MembershipID, OrganizationID: command.OrganizationID,
+			PrincipalID: command.Actor.PrincipalID, Role: "merchant_viewer",
+			Status: "revoked", Version: command.ExpectedVersion + 1,
+			CreatedAt: command.Now, RevokedAt: &revokedAt,
+		},
+		DecisionID: command.AuditEvent.DecisionID,
+	}
+	return store.revocation, nil
 }
 
 func (store *httpOrganizationStore) UpdateMemberRole(

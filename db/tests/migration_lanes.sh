@@ -7,7 +7,7 @@ set -eu
 
 empty_database='atlas_s05_empty_test'
 previous_database='atlas_s05_previous_test'
-expected_migration_count='11'
+expected_migration_count='12'
 export PGPASSWORD="$ATLAS_POSTGRES_PASSWORD"
 
 cleanup() {

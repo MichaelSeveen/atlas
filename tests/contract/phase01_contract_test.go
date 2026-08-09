@@ -194,6 +194,53 @@ func TestPhase01MemberRoleChangeContractFailsClosedAroundApproval(t *testing.T) 
 	}
 }
 
+func TestPhase01MemberRevocationContractClosesDirectBoundary(t *testing.T) {
+	document := readOpenAPIDocument(t)
+	operation := objectAt(t, objectAt(t,
+		objectAt(t, document, "paths"),
+		"/v1/organizations/{organization_id}/members/{member_id}"), "delete")
+	description := stringAt(t, operation, "description")
+	for _, boundary := range []string{
+		"limited to merchant_viewer and merchant_operator",
+		"Administrator targets remain fail-closed",
+		"fresh-step-up and last-administrator execution policy",
+	} {
+		if !strings.Contains(description, boundary) {
+			t.Errorf("member-revocation description does not close boundary %q", boundary)
+		}
+	}
+	parameters := arrayAt(t, operation, "parameters")
+	parameterRefs := map[string]bool{}
+	for _, raw := range parameters {
+		parameter, ok := raw.(map[string]any)
+		if !ok {
+			t.Fatalf("member-revocation parameter has type %T", raw)
+		}
+		parameterRefs[stringAt(t, parameter, "$ref")] = true
+	}
+	for _, required := range []string{
+		"#/components/parameters/XAtlasCSRFToken",
+		"#/components/parameters/IdempotencyKey",
+		"#/components/parameters/IfMatch",
+	} {
+		if !parameterRefs[required] {
+			t.Errorf("member revocation does not require %s", required)
+		}
+	}
+	responses := objectAt(t, operation, "responses")
+	okHeaders := objectAt(t, objectAt(t, responses, "204"), "headers")
+	for _, required := range []string{"X-Authorization-Decision-Id", "Idempotency-Replayed", "Cache-Control"} {
+		if _, ok := okHeaders[required].(map[string]any); !ok {
+			t.Errorf("member-revocation 204 response has no %s header", required)
+		}
+	}
+	for _, required := range []string{"400", "401", "403", "404", "409", "412", "503"} {
+		if _, ok := responses[required].(map[string]any); !ok {
+			t.Errorf("member-revocation contract has no %s response", required)
+		}
+	}
+}
+
 func TestPhase01MachineCredentialIsLeastPrivilege(t *testing.T) {
 	document := readOpenAPIDocument(t)
 	schemes := objectAt(t, objectAt(t, document, "components"), "securitySchemes")

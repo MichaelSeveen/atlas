@@ -283,8 +283,7 @@ SELECT membership_id, tenant_id, target_principal_id, after_role_id,
 FROM atlas_identity.membership_role_changes
 WHERE tenant_id = $1
   AND actor_principal_id = $2
-  AND idempotency_key_sha256 = $3
-FOR SHARE`,
+  AND idempotency_key_sha256 = $3`,
 		command.OrganizationID.String(), command.Actor.PrincipalID.String(),
 		command.IdempotencyDigest[:],
 	).Scan(

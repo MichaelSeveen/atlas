@@ -29,9 +29,10 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 	invitationSQL := readPhase01PolicyFile(t, root, "db/migrations/000009_phase_01_organization_invitations.sql")
 	invitationAcceptanceSQL := readPhase01PolicyFile(t, root, "db/migrations/000010_phase_01_invitation_acceptance.sql")
 	membershipRoleChangeSQL := readPhase01PolicyFile(t, root, "db/migrations/000011_phase_01_membership_role_changes.sql")
+	membershipRevocationSQL := readPhase01PolicyFile(t, root, "db/migrations/000012_phase_01_membership_revocations.sql")
 	allSQL := identitySQL + "\n" + auditSQL + "\n" + sessionSQL + "\n" +
 		sessionGrantSQL + "\n" + stepUpSQL + "\n" + adminRevocationSQL + "\n" + invitationSQL + "\n" +
-		invitationAcceptanceSQL + "\n" + membershipRoleChangeSQL
+		invitationAcceptanceSQL + "\n" + membershipRoleChangeSQL + "\n" + membershipRevocationSQL
 
 	tables := make([]string, 0)
 	for _, match := range phase01ProductTablePattern.FindAllStringSubmatch(allSQL, -1) {
@@ -42,6 +43,7 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 		"atlas_audit.audit_events",
 		"atlas_identity.admin_session_revocation_requests",
 		"atlas_identity.external_subjects",
+		"atlas_identity.membership_revocations",
 		"atlas_identity.membership_role_changes",
 		"atlas_identity.memberships",
 		"atlas_identity.oidc_transactions",
@@ -84,8 +86,10 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 		"GRANT SELECT, INSERT ON atlas_identity.admin_session_revocation_requests TO atlas_api;",
 		"GRANT SELECT, INSERT, UPDATE ON atlas_identity.organization_invitations TO atlas_api;",
 		"GRANT SELECT, INSERT ON atlas_identity.membership_role_changes TO atlas_api;",
+		"GRANT SELECT, INSERT ON atlas_identity.membership_revocations TO atlas_api;",
 		"UNIQUE (tenant_id, actor_principal_id, idempotency_key_sha256)",
 		"result_membership_version = expected_membership_version + 1",
+		"target_role_id IN ('merchant_viewer', 'merchant_operator')",
 		"invitation_token_sha256 bytea",
 		"verified_email_sha256 bytea",
 		"acceptance_idempotency_key_sha256 bytea",
@@ -191,6 +195,19 @@ func TestPhase01TenantRepositorySignatureAndPredicateAreExplicit(t *testing.T) {
 	} {
 		if !strings.Contains(roleChangeSource, required) {
 			t.Errorf("membership role-change repository is missing %q", required)
+		}
+	}
+	revocationSource := readPhase01PolicyFile(t, root, "internal/identity/persistence/membership_revocation.go")
+	for _, required := range []string{
+		"command.OrganizationID.String()",
+		"WHERE tenant_id = $1 AND membership_id = $2 AND population = 'merchant'",
+		"authorization_version = authorization_version + 1",
+		"status = 'revoked', revoked_at = $3",
+		"organization.members.remove",
+		"administrator_removal_unavailable",
+	} {
+		if !strings.Contains(revocationSource, required) {
+			t.Errorf("membership revocation repository is missing %q", required)
 		}
 	}
 }

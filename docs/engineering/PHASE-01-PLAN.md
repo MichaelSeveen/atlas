@@ -8,9 +8,10 @@
   principal-organization listing, zero-grace Audit-atomic active-tenant session rotation, and
   hash-only-verifier invitation issuance, tenant-authorized count-free member pagination, and
   ADR 0016 invitation-bound authentication plus atomic recipient acceptance, and direct
-  viewer/operator member role changes with exact strong ETags, durable idempotency, immediate
-  authority/session invalidation, and atomic Audit. Administrator-involved transitions remain
-  fail-closed pending the S07 typed maker-checker capability; member removal remains pending.
+  viewer/operator member role changes and direct removal with exact strong ETags, durable
+  idempotency, immediate authority/session invalidation, and atomic Audit. Administrator-involved
+  role transitions remain fail-closed pending the S07 typed maker-checker capability;
+  administrator removal remains fail-closed pending exact fresh-step-up and last-administrator policy.
   S04 core sessions, idempotent
   step-up/live higher-assurance completion, bounded three-population account-enumeration,
   real-browser logout/navigation protection, audit-atomic administrator security revocation,
@@ -318,7 +319,7 @@ decision to its owning slice; no runtime capability is claimed.
 - **Tests:** real PostgreSQL two-tenant negative matrix, valid foreign IDs with timing/count differential, invitation expiry/double acceptance/delegation, `ADV-IAM-007..008`, removed-member stale tab and removal/commit race, Unicode confusable property corpus.
 - **Telemetry/alerts/runbooks:** role/membership/invitation/switch/revocation metrics with bounded role/action labels; mass-role-change and cross-tenant-denial alerts; membership compromise runbook.
 - **Rollback/forward fix:** disable invitation/role mutation routes while preserving membership truth; forward-fix schema/state. Never restore removed access from Redis or UI state.
-- **Evidence/reproduce:** proposed `pwsh -NoProfile -File ./scripts/verify-p01-s05.ps1 -Live`; PostgreSQL concurrency/authorization suite; browser cross-tab test; `EVD-P01-S05-*`.
+- **Evidence/reproduce:** `pwsh -NoProfile -File ./scripts/verify-p01-s05.ps1 -Live`; PostgreSQL concurrency/authorization suite; browser cross-tab test; `EVD-P01-S05-*`.
 - **Phase 00 triggers:** migration and product-restore guard updates; no event/job trigger.
 
 ### P01-S06 — deny-by-default authorization, purpose, masking, and decision audit

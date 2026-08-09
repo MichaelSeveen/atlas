@@ -28,6 +28,30 @@ type fakeOrganizationStore struct {
 	roleChangeCommand UpdateOrganizationMemberRoleCommand
 	roleChangeResult  UpdateOrganizationMemberRoleResult
 	roleChangeErr     error
+	revocationCommand RevokeOrganizationMemberCommand
+	revocationResult  RevokeOrganizationMemberResult
+	revocationErr     error
+}
+
+func (store *fakeOrganizationStore) RevokeMember(
+	_ context.Context,
+	command RevokeOrganizationMemberCommand,
+) (RevokeOrganizationMemberResult, error) {
+	store.revocationCommand = command
+	result := store.revocationResult
+	if result.Member.MembershipID.IsZero() {
+		revokedAt := command.Now
+		result.Member = OrganizationMember{
+			MembershipID: command.MembershipID, OrganizationID: command.OrganizationID,
+			PrincipalID: command.Actor.PrincipalID, Role: "merchant_viewer",
+			Status: "revoked", Version: command.ExpectedVersion + 1,
+			CreatedAt: command.Now, RevokedAt: &revokedAt,
+		}
+	}
+	if result.DecisionID.IsZero() {
+		result.DecisionID = command.AuditEvent.DecisionID
+	}
+	return result, store.revocationErr
 }
 
 func (store *fakeOrganizationStore) UpdateMemberRole(
@@ -340,6 +364,87 @@ func TestUpdateOrganizationMemberRoleRejectsProtocolAndScopeBeforeStore(t *testi
 	}
 	if !organizationStore.roleChangeCommand.RoleChangeID.IsZero() {
 		t.Fatal("invalid role change reached the persistence boundary")
+	}
+}
+
+func TestRevokeOrganizationMemberBindsPreconditionReplayAndAudit(t *testing.T) {
+	now := time.Date(2026, 8, 9, 9, 0, 0, 0, time.UTC)
+	sessionStore := newFakeSessionStore(t, now)
+	sessionStore.session.Population = PopulationMerchant
+	sessionStore.session.PrincipalType = "merchant"
+	sessionStore.session.TenantID = mustTestID(t, "ten", 130)
+	sessionStore.session.Permissions = []string{"organization.members.remove"}
+	cookie := strings.Repeat("T", 43)
+	sessionStore.sessions[sha256.Sum256([]byte(cookie))] = sessionStore.session
+	organizationStore := &fakeOrganizationStore{}
+	service := newTestService(t, sessionStore, &fakeProvider{}, now)
+	service.organizations = organizationStore
+	_, csrfToken, err := service.Current(context.Background(), cookie)
+	if err != nil {
+		t.Fatal(err)
+	}
+	membershipID := mustTestID(t, "mem", 131)
+	result, err := service.RevokeOrganizationMember(
+		context.Background(), RevokeOrganizationMemberRequest{
+			CookieValue: cookie, CSRFToken: csrfToken,
+			OrganizationID: sessionStore.session.TenantID, MembershipID: membershipID,
+			IfMatch: OrganizationMemberETag(4), IdempotencyKey: "member-revoke-key-0001",
+			CorrelationID: mustTestID(t, "cor", 132),
+		},
+	)
+	if err != nil || result.Member.Version != 5 || result.Member.Status != "revoked" ||
+		result.Member.RevokedAt == nil || result.DecisionID.IsZero() {
+		t.Fatalf("member revocation result=%+v err=%v", result, err)
+	}
+	command := organizationStore.revocationCommand
+	if command.Actor.SessionID != sessionStore.session.SessionID ||
+		command.OrganizationID != sessionStore.session.TenantID ||
+		command.MembershipID != membershipID || command.ExpectedVersion != 4 ||
+		command.IdempotencyDigest == ([32]byte{}) || command.RequestDigest == ([32]byte{}) ||
+		command.AuditEvent.Action != "identity.organization.membership.revoke" ||
+		command.AuditEvent.TargetID != membershipID.String() ||
+		command.AuditEvent.DecisionID != result.DecisionID ||
+		command.AuditEvent.SafeAfterReference != "membership-status:revoked" {
+		t.Fatalf("member-revocation command=%+v", command)
+	}
+}
+
+func TestRevokeOrganizationMemberRejectsProtocolBeforeStore(t *testing.T) {
+	now := time.Date(2026, 8, 9, 9, 30, 0, 0, time.UTC)
+	sessionStore := newFakeSessionStore(t, now)
+	sessionStore.session.Population = PopulationMerchant
+	sessionStore.session.PrincipalType = "merchant"
+	sessionStore.session.TenantID = mustTestID(t, "ten", 133)
+	cookie := strings.Repeat("U", 43)
+	sessionStore.sessions[sha256.Sum256([]byte(cookie))] = sessionStore.session
+	organizationStore := &fakeOrganizationStore{}
+	service := newTestService(t, sessionStore, &fakeProvider{}, now)
+	service.organizations = organizationStore
+	_, csrfToken, err := service.Current(context.Background(), cookie)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := RevokeOrganizationMemberRequest{
+		CookieValue: cookie, CSRFToken: csrfToken,
+		OrganizationID: sessionStore.session.TenantID,
+		MembershipID:   mustTestID(t, "mem", 134),
+		IfMatch:        OrganizationMemberETag(1),
+		IdempotencyKey: "member-revoke-key-0002", CorrelationID: mustTestID(t, "cor", 135),
+	}
+	invalidCSRF := base
+	invalidCSRF.CSRFToken = strings.Repeat("X", 43)
+	if _, err := service.RevokeOrganizationMember(context.Background(), invalidCSRF); !errors.Is(err, ErrCSRFValidationFailed) {
+		t.Fatalf("invalid CSRF error=%v", err)
+	}
+	for _, invalidETag := range []string{"", "*", "membership-v1", "W/\"membership-v1\"", "\"membership-v01\""} {
+		request := base
+		request.IfMatch = invalidETag
+		if _, err := service.RevokeOrganizationMember(context.Background(), request); !errors.Is(err, ErrInputInvalid) {
+			t.Fatalf("invalid If-Match %q error=%v", invalidETag, err)
+		}
+	}
+	if !organizationStore.revocationCommand.RevocationID.IsZero() {
+		t.Fatal("invalid membership revocation reached the persistence boundary")
 	}
 }
 

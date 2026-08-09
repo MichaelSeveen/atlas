@@ -163,7 +163,7 @@ func allowedMethods(path string) []string {
 	case "/v1/me/active-organization":
 		return []string{http.MethodPut}
 	case "/v1/organizations/{organization_id}/members/{member_id}":
-		return []string{http.MethodPatch}
+		return []string{http.MethodPatch, http.MethodDelete}
 	case "/v1/logout", "/v1/sessions/revoke-all",
 		"/v1/security/sessions/{session_id}/revocations", "/v1/step-up/challenges",
 		"/v1/organizations/{organization_id}/invitations",

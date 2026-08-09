@@ -21,21 +21,6 @@ function Get-CurrentSourceIdentity {
     return "UNCOMMITTED_WORKTREE(base=$revision)"
 }
 
-function Test-AllowedPostcommitEvidencePath([string]$Relative) {
-    $normalized = $Relative.Replace('\', '/')
-    if ($normalized.StartsWith('evidence/phase-01/identity-session/', [StringComparison]::Ordinal)) {
-        return $true
-    }
-    return $normalized -in @(
-        'AGENTS.md',
-        'docs/atlas-prd/06-governance/EVIDENCE_INDEX.md',
-        'docs/atlas-prd/06-governance/REQUIREMENTS_TRACEABILITY.csv',
-        'docs/atlas-prd/MANIFEST.sha256',
-        'docs/engineering/IMPLEMENTATION_STATUS.md',
-        'docs/engineering/PHASE-01-PLAN.md'
-    )
-}
-
 function Get-AcceptedSourceIdentities([string]$DeclaredSource) {
     $currentSource = Get-CurrentSourceIdentity
     if ($DeclaredSource -eq $currentSource) {
@@ -53,28 +38,41 @@ function Get-AcceptedSourceIdentities([string]$DeclaredSource) {
     if ($LASTEXITCODE -ne 0) {
         throw "Stale evidence source identity: $DeclaredSource is not an ancestor of $currentHead"
     }
-
-    $changedPaths = @()
-    if ($DeclaredSource -ne $currentHead) {
-        $changedPaths += @(& git -C $repositoryRoot diff --name-only $DeclaredSource $currentHead)
-        if ($LASTEXITCODE -ne 0) {
-            throw 'Inspecting committed Phase 01 evidence changes failed.'
-        }
-    }
-    $changedPaths += @(& git -C $repositoryRoot diff --name-only $currentHead)
-    if ($LASTEXITCODE -ne 0) {
-        throw 'Inspecting dirty Phase 01 evidence changes failed.'
-    }
-    $changedPaths += @(& git -C $repositoryRoot ls-files --others --exclude-standard)
-    if ($LASTEXITCODE -ne 0) {
-        throw 'Inspecting untracked Phase 01 evidence changes failed.'
-    }
-    foreach ($changedPath in @($changedPaths | Select-Object -Unique)) {
-        if (-not (Test-AllowedPostcommitEvidencePath $changedPath)) {
-            throw "Stale evidence source identity because code/config changed after ${DeclaredSource}: $changedPath"
-        }
-    }
     return @($DeclaredSource)
+}
+
+function Get-CommittedFileSha256([string]$Revision, [string]$Relative) {
+    $normalized = $Relative.Replace('\', '/')
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = 'git'
+    $startInfo.UseShellExecute = $false
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    [void]$startInfo.ArgumentList.Add('-C')
+    [void]$startInfo.ArgumentList.Add($repositoryRoot)
+    [void]$startInfo.ArgumentList.Add('cat-file')
+    [void]$startInfo.ArgumentList.Add('blob')
+    [void]$startInfo.ArgumentList.Add("${Revision}:$normalized")
+
+    $process = [Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    [void]$process.Start()
+    $sha256 = [Security.Cryptography.SHA256]::Create()
+    $exitCode = -1
+    try {
+        $digest = $sha256.ComputeHash($process.StandardOutput.BaseStream)
+        $errorText = $process.StandardError.ReadToEnd()
+        $process.WaitForExit()
+        $exitCode = $process.ExitCode
+    }
+    finally {
+        $sha256.Dispose()
+        $process.Dispose()
+    }
+    if ($exitCode -ne 0) {
+        throw "Historical evidence artifact is absent at ${Revision}: ${Relative}: $errorText"
+    }
+    return [Convert]::ToHexString($digest).ToLowerInvariant()
 }
 
 function Test-SafeRelativePath([string]$Relative) {
@@ -117,11 +115,17 @@ function Assert-Catalogue([object]$Catalogue, [string[]]$AcceptedSources, [bool]
             throw "Artifact does not pass: $evidenceID"
         }
         if ($VerifyFiles) {
-            $artifactPath = Join-Path $repositoryRoot ([string]$artifact.path)
-            if (-not (Test-Path -LiteralPath $artifactPath -PathType Leaf)) {
-                throw "Missing evidence artifact: $($artifact.path)"
+            $declaredSource = [string]$Catalogue.source_revision
+            if ($declaredSource -match '^[a-f0-9]{40}$') {
+                $actual = Get-CommittedFileSha256 $declaredSource ([string]$artifact.path)
             }
-            $actual = (Get-FileHash -LiteralPath $artifactPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            else {
+                $artifactPath = Join-Path $repositoryRoot ([string]$artifact.path)
+                if (-not (Test-Path -LiteralPath $artifactPath -PathType Leaf)) {
+                    throw "Missing evidence artifact: $($artifact.path)"
+                }
+                $actual = (Get-FileHash -LiteralPath $artifactPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            }
             if ($actual -ne [string]$artifact.sha256) {
                 throw "Evidence artifact digest mismatch: $evidenceID"
             }

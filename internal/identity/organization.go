@@ -45,6 +45,11 @@ var (
 		domainerror.KindConflict,
 		false,
 	)
+	ErrMembershipAdministratorRemovalUnavailable = domainerror.New(
+		domainerror.MustCode("MEMBERSHIP_ADMINISTRATOR_REMOVAL_UNAVAILABLE"),
+		domainerror.KindConflict,
+		false,
+	)
 )
 
 const invitationLifetime = 72 * time.Hour
@@ -259,6 +264,37 @@ type UpdateOrganizationMemberRoleResult struct {
 	Replay     bool
 }
 
+// RevokeOrganizationMemberRequest is the cookie-authenticated direct membership-revocation request.
+type RevokeOrganizationMemberRequest struct {
+	CookieValue    string
+	CSRFToken      string
+	OrganizationID identifier.ID
+	MembershipID   identifier.ID
+	IfMatch        string
+	IdempotencyKey string
+	CorrelationID  identifier.ID
+}
+
+// RevokeOrganizationMemberCommand carries locked authority, precondition, and durable replay state.
+type RevokeOrganizationMemberCommand struct {
+	Actor             Session
+	RevocationID      identifier.ID
+	OrganizationID    identifier.ID
+	MembershipID      identifier.ID
+	ExpectedVersion   int64
+	IdempotencyDigest [32]byte
+	RequestDigest     [32]byte
+	Now               time.Time
+	AuditEvent        audit.Event
+}
+
+// RevokeOrganizationMemberResult is the committed revocation or its durable replay.
+type RevokeOrganizationMemberResult struct {
+	Member     OrganizationMember
+	DecisionID identifier.ID
+	Replay     bool
+}
+
 // OrganizationStore is the Identity-owned persistence boundary for organization context.
 type OrganizationStore interface {
 	ListOrganizations(context.Context, Session) ([]Organization, error)
@@ -267,6 +303,7 @@ type OrganizationStore interface {
 	CreateInvitation(context.Context, CreateInvitationCommand) (CreateInvitationStoreResult, error)
 	AcceptInvitation(context.Context, AcceptInvitationCommand) (AcceptInvitationStoreResult, error)
 	UpdateMemberRole(context.Context, UpdateOrganizationMemberRoleCommand) (UpdateOrganizationMemberRoleResult, error)
+	RevokeMember(context.Context, RevokeOrganizationMemberCommand) (RevokeOrganizationMemberResult, error)
 }
 
 // UpdateOrganizationMemberRole executes only the direct viewer/operator lane. Administrator
@@ -335,6 +372,73 @@ func (service *Service) UpdateOrganizationMemberRole(
 			TargetID: request.MembershipID.String(), DecisionID: decisionID, Decision: "executed",
 			ReasonCode: "organization_membership_role_changed", CorrelationID: request.CorrelationID,
 			OccurredAt: now, SafeAfterReference: "membership-role:" + request.Role,
+		},
+	})
+}
+
+// RevokeOrganizationMember executes only the direct viewer/operator lane.
+// Administrator removal remains fail-closed until its exact step-up and
+// last-administrator execution policy is implemented.
+func (service *Service) RevokeOrganizationMember(
+	ctx context.Context,
+	request RevokeOrganizationMemberRequest,
+) (RevokeOrganizationMemberResult, error) {
+	actor, expectedCSRF, err := service.Current(ctx, request.CookieValue)
+	if err != nil {
+		return RevokeOrganizationMemberResult{}, err
+	}
+	if actor.InvitationAcceptanceOnly {
+		return RevokeOrganizationMemberResult{}, ErrActionNotAuthorized
+	}
+	if !constantTimeStringEqual(expectedCSRF, request.CSRFToken) {
+		return RevokeOrganizationMemberResult{}, ErrCSRFValidationFailed
+	}
+	if service.organizations == nil {
+		return RevokeOrganizationMemberResult{}, ErrIdentityUnavailable
+	}
+	if actor.Population != PopulationMerchant {
+		return RevokeOrganizationMemberResult{}, ErrActionNotAuthorized
+	}
+	if request.OrganizationID.IsZero() || request.OrganizationID.Prefix() != "ten" ||
+		request.MembershipID.IsZero() || request.MembershipID.Prefix() != "mem" ||
+		request.CorrelationID.IsZero() || request.CorrelationID.Prefix() != "cor" ||
+		!validIdempotencyKey(request.IdempotencyKey) {
+		return RevokeOrganizationMemberResult{}, ErrInputInvalid
+	}
+	expectedVersion, err := parseOrganizationMemberETag(request.IfMatch)
+	if err != nil {
+		return RevokeOrganizationMemberResult{}, ErrInputInvalid
+	}
+	revocationID, err := service.generatedID("mrv")
+	if err != nil {
+		return RevokeOrganizationMemberResult{}, ErrIdentityUnavailable
+	}
+	auditID, err := service.generatedID("aud")
+	if err != nil {
+		return RevokeOrganizationMemberResult{}, ErrIdentityUnavailable
+	}
+	decisionID, err := service.generatedID("dec")
+	if err != nil {
+		return RevokeOrganizationMemberResult{}, ErrIdentityUnavailable
+	}
+	now := service.clock.Now().UTC()
+	idempotencyDigest := sha256.Sum256([]byte(request.IdempotencyKey))
+	requestDigest := sha256.Sum256([]byte(
+		"v1\norganization=" + request.OrganizationID.String() +
+			"\nmembership=" + request.MembershipID.String() +
+			"\nexpected_version=" + strconv.FormatInt(expectedVersion, 10),
+	))
+	return service.organizations.RevokeMember(ctx, RevokeOrganizationMemberCommand{
+		Actor: actor, RevocationID: revocationID, OrganizationID: request.OrganizationID,
+		MembershipID: request.MembershipID, ExpectedVersion: expectedVersion,
+		IdempotencyDigest: idempotencyDigest, RequestDigest: requestDigest, Now: now,
+		AuditEvent: audit.Event{
+			AuditEventID: auditID, ActorID: actor.PrincipalID, ActorType: actor.PrincipalType,
+			TenantID: actor.TenantID, SessionAssurance: string(actor.Assurance),
+			Action: "identity.organization.membership.revoke", TargetType: "membership",
+			TargetID: request.MembershipID.String(), DecisionID: decisionID, Decision: "executed",
+			ReasonCode: "organization_membership_revoked", CorrelationID: request.CorrelationID,
+			OccurredAt: now, SafeAfterReference: "membership-status:revoked",
 		},
 	})
 }

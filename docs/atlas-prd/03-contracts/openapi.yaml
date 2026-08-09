@@ -560,17 +560,25 @@ paths:
       operationId: revokeOrganizationMember
       tags: [Organizations]
       summary: Revoke organization membership subject to last-admin policy
+      description: Direct revocation is currently limited to merchant_viewer and merchant_operator memberships. Administrator targets remain fail-closed until their fresh-step-up and last-administrator execution policy is implemented.
       parameters:
         - $ref: '#/components/parameters/XAtlasCSRFToken'
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/IfMatch'
       responses:
-        '204': {description: Membership revoked}
+        '204':
+          description: Membership revoked or an identical committed revocation replayed
+          headers:
+            X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
-        '403': {$ref: '#/components/responses/StepUpRequired'}
+        '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
         '409': {$ref: '#/components/responses/Conflict'}
         '412': {$ref: '#/components/responses/PreconditionFailed'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
 
   /v1/api-credentials:
     get:

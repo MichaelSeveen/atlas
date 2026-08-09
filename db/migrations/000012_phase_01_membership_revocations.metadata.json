@@ -1,0 +1,13 @@
+{
+  "version": 12,
+  "name": "phase_01_membership_revocations",
+  "released": true,
+  "lock_timeout_ms": 500,
+  "statement_timeout_ms": 5000,
+  "lock_risk": "Creates an initially empty immutable membership-revocation replay table and one tenant-leading index without rewriting organization, membership, session, or Audit rows.",
+  "representative_data": "Runs against empty, previous-version, and deterministic Phase 01 identity lanes; live tests execute concurrent identical revocations, a simultaneous role-change-versus-removal race, stale post-revocation role mutation, target-session invalidation, and Audit-outage rollback through the atlas_api role.",
+  "query_plan_review": "The actor-and-idempotency unique key serializes response-loss replay, the membership tenant key supports one-target locking, and the tenant-leading history index avoids cross-tenant scans.",
+  "space_risk": "Stores hash-only idempotency/request digests plus bounded immutable membership, actor, role, version, decision, and Audit references; no cookie, CSRF value, email, or arbitrary payload is retained.",
+  "forward_fix": "Disable the membership-revocation route and add a new ordered migration for replay, grant, constraint, step-up, or last-administrator corrections while preserving revoked membership and Audit history.",
+  "rollback": "Disable the direct revocation route before a forward fix; never reactivate a revoked membership or session, delete replay/Audit facts, or enable administrator removal without its ratified controls."
+}

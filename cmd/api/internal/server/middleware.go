@@ -112,7 +112,7 @@ func (a *App) requestMetadata(next http.Handler) http.Handler {
 		attributes := requestAttributes(method, route, outcome, capture.status)
 		safeAdd(a.requestCounter, request.Context(), 1, metricapi.WithAttributes(attributes...))
 		safeRecord(a.requestDuration, request.Context(), duration.Seconds(), metricapi.WithAttributes(attributes...))
-		if operation := identityOperation(route); operation != "" {
+		if operation := identityOperation(method, route); operation != "" {
 			identityAttributes := []attribute.KeyValue{
 				attribute.String("atlas.identity.operation", operation),
 				attribute.String("atlas.outcome", outcome),
@@ -156,14 +156,14 @@ func telemetryRoute(path string) string {
 
 func telemetryMethod(method string) string {
 	switch method {
-	case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete:
+	case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
 		return method
 	default:
 		return "OTHER"
 	}
 }
 
-func identityOperation(route string) string {
+func identityOperation(method, route string) string {
 	switch route {
 	case "/v1/auth/login":
 		return "login"
@@ -190,6 +190,9 @@ func identityOperation(route string) string {
 	case "/v1/organizations/{organization_id}/members":
 		return "organization_member_list"
 	case "/v1/organizations/{organization_id}/members/{member_id}":
+		if method == http.MethodDelete {
+			return "organization_member_revoke"
+		}
 		return "organization_member_role_change"
 	case "/v1/organizations/{organization_id}/invitations":
 		return "invitation_create"

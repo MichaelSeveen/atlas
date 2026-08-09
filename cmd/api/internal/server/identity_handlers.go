@@ -152,6 +152,10 @@ func (a *App) routeIdentity(response http.ResponseWriter, request *http.Request)
 	case "/v1/organizations/{organization_id}/members":
 		a.listOrganizationMembers(response, request)
 	case "/v1/organizations/{organization_id}/members/{member_id}":
+		if request.Method == http.MethodDelete {
+			a.revokeOrganizationMember(response, request)
+			return
+		}
 		a.updateOrganizationMemberRole(response, request)
 	case "/v1/organizations/{organization_id}/invitations":
 		a.createOrganizationInvitation(response, request)
@@ -221,6 +225,59 @@ func (a *App) updateOrganizationMemberRole(response http.ResponseWriter, request
 	response.Header().Set("ETag", identity.OrganizationMemberETag(result.Member.Version))
 	response.Header().Set("Idempotency-Replayed", strconv.FormatBool(result.Replay))
 	writeJSON(response, http.StatusOK, organizationMemberFromDomain(result.Member))
+}
+
+func (a *App) revokeOrganizationMember(response http.ResponseWriter, request *http.Request) {
+	if request.URL.RawQuery != "" || requestHasBody(request) {
+		a.malformed(response, request)
+		return
+	}
+	organizationID, membershipID, err := organizationMemberIDsFromPath(request.URL.Path)
+	if err != nil {
+		a.writeIdentityError(response, request, identity.ErrMembershipNotFound)
+		return
+	}
+	cookie, err := sessionCookie(request)
+	if err != nil {
+		a.writeIdentityError(response, request, identity.ErrAuthenticationRequired)
+		return
+	}
+	csrfToken, ok := singleHeader(request.Header, identity.CSRFHeaderName)
+	if !ok {
+		a.writeIdentityError(response, request, identity.ErrCSRFValidationFailed)
+		return
+	}
+	idempotencyKey, ok := singleHeader(request.Header, "Idempotency-Key")
+	if !ok {
+		a.malformed(response, request)
+		return
+	}
+	ifMatch, ok := singleHeader(request.Header, "If-Match")
+	if !ok {
+		a.malformed(response, request)
+		return
+	}
+	correlationID, ok := requestCorrelationID(request)
+	if !ok {
+		a.writeIdentityError(response, request, identity.ErrIdentityUnavailable)
+		return
+	}
+	result, err := a.identity.RevokeOrganizationMember(
+		request.Context(), identity.RevokeOrganizationMemberRequest{
+			CookieValue: cookie, CSRFToken: csrfToken, OrganizationID: organizationID,
+			MembershipID: membershipID, IfMatch: ifMatch,
+			IdempotencyKey: idempotencyKey, CorrelationID: correlationID,
+		},
+	)
+	if !result.DecisionID.IsZero() {
+		response.Header().Set("X-Authorization-Decision-Id", result.DecisionID.String())
+	}
+	if err != nil {
+		a.writeIdentityError(response, request, err)
+		return
+	}
+	response.Header().Set("Idempotency-Replayed", strconv.FormatBool(result.Replay))
+	response.WriteHeader(http.StatusNoContent)
 }
 
 func organizationMemberIDsFromPath(path string) (identifier.ID, identifier.ID, error) {
@@ -972,6 +1029,8 @@ func (a *App) writeIdentityError(response http.ResponseWriter, request *http.Req
 		a.writeProblem(response, request, http.StatusPreconditionFailed, "precondition-failed", "Precondition failed", "MEMBERSHIP_PRECONDITION_FAILED", false)
 	case errors.Is(err, identity.ErrMembershipApprovalRequired):
 		a.writeProblem(response, request, http.StatusConflict, "approval-required", "Conflict", "MEMBERSHIP_APPROVAL_REQUIRED", false)
+	case errors.Is(err, identity.ErrMembershipAdministratorRemovalUnavailable):
+		a.writeProblem(response, request, http.StatusConflict, "conflict", "Conflict", "MEMBERSHIP_ADMINISTRATOR_REMOVAL_UNAVAILABLE", false)
 	case errors.Is(err, identity.ErrSessionConflict):
 		a.writeProblem(response, request, http.StatusConflict, "conflict", "Conflict", "CONFLICT", false)
 	case errors.Is(err, identity.ErrIdempotencyConflict):

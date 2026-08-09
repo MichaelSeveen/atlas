@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-expected_migration_count='11'
+expected_migration_count='12'
 expected_policy_checksum='2acd97d4467eed25c0991331e5283b303df3fd52d0f4c9d5f6851353db64c2d1'
 export PGPASSWORD="$ATLAS_POSTGRES_MIGRATION_PASSWORD"
 query() {

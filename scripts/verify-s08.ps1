@@ -75,7 +75,9 @@ try {
     }
 
     if ($CleanClone) {
-        Invoke-NativeChecked -Command 'pwsh' -Arguments @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'test-s08-clean-clone.ps1'))
+        $cleanCloneArguments = @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'test-s08-clean-clone.ps1'))
+        if ($HistoricalEvidence) { $cleanCloneArguments += '-HistoricalEvidence' }
+        Invoke-NativeChecked -Command 'pwsh' -Arguments $cleanCloneArguments
     }
     else {
         Write-Output 's08_clean_clone=NOT_REQUESTED(use -CleanClone from a committed clean tree)'

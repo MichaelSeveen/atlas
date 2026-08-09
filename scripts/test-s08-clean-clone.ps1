@@ -1,5 +1,8 @@
 [CmdletBinding()]
-param()
+param(
+    [Parameter()]
+    [switch]$HistoricalEvidence
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -27,7 +30,9 @@ try {
     # this disposable clone, so keep its directories writable for bounded cleanup.
     $goFlags = @($originalGoFlags, '-modcacherw') | Where-Object { -not [String]::IsNullOrWhiteSpace($_) }
     $env:GOFLAGS = ($goFlags -join ' ').Trim()
-    & pwsh -NoProfile -File (Join-Path $cloneRoot 'scripts/verify-s08.ps1')
+    $verificationArguments = @('-NoProfile', '-File', (Join-Path $cloneRoot 'scripts/verify-s08.ps1'))
+    if ($HistoricalEvidence) { $verificationArguments += '-HistoricalEvidence' }
+    & pwsh @verificationArguments
     if ($LASTEXITCODE -ne 0) { throw 'Clean-clone S08 static acceptance failed.' }
 }
 finally {

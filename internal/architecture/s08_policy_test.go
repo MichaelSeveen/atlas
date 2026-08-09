@@ -110,7 +110,7 @@ func TestS08AcceptanceWiresFailureChecksAndHonestAbsences(t *testing.T) {
 	}
 
 	verifier := readText(t, filepath.Join(root, "scripts", "verify-s08.ps1"))
-	for _, required := range []string{"verify-s07.ps1", "test-s08-evidence-integrity.ps1", "TestPhase00GateClosurePolicy", "s06.ps1", "s05.ps1", "test-s08-constrained-pool.ps1", "test-s08-clean-clone.ps1", "finally", "s08_phase_00_completion=PASS(scope=synthetic-feature-free;accepted=FND-026,FND-040,FND-042)"} {
+	for _, required := range []string{"verify-s07.ps1", "test-s08-evidence-integrity.ps1", "TestPhase00GateClosurePolicy", "s06.ps1", "s05.ps1", "test-s08-constrained-pool.ps1", "test-s08-clean-clone.ps1", "$cleanCloneArguments += '-HistoricalEvidence'", "finally", "s08_phase_00_completion=PASS(scope=synthetic-feature-free;accepted=FND-026,FND-040,FND-042)"} {
 		if !strings.Contains(verifier, required) {
 			t.Errorf("S08 verifier omits %q", required)
 		}
@@ -191,6 +191,13 @@ func TestS08CleanCloneKeepsItsGoModuleCacheRemovable(t *testing.T) {
 			t.Fatal("clean-clone policy accepted a seeded read-only Go module cache")
 		}
 	})
+
+	t.Run("seeded dropped historical evidence mode is rejected", func(t *testing.T) {
+		seeded := strings.Replace(script, "$verificationArguments += '-HistoricalEvidence'", "$verificationArguments += '-CurrentEvidence'", 1)
+		if cleanCloneUsesWritableModuleCache(seeded) {
+			t.Fatal("clean-clone policy accepted a nested verifier that drops historical-evidence mode")
+		}
+	})
 }
 
 func assertCleanCloneUsesWritableModuleCache(t *testing.T, script string) {
@@ -206,6 +213,9 @@ func cleanCloneUsesWritableModuleCache(script string) bool {
 		"'-modcacherw'",
 		"$env:GOFLAGS",
 		"Remove-Item Env:GOFLAGS",
+		"[switch]$HistoricalEvidence",
+		"$verificationArguments += '-HistoricalEvidence'",
+		"& pwsh @verificationArguments",
 	} {
 		if !strings.Contains(script, required) {
 			return false

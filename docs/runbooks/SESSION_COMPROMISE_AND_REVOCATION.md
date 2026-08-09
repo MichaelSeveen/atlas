@@ -25,12 +25,15 @@ cover future financial commands, real identity data, or production incident resp
    phishing-resistant step-up bound to `identity.session.admin_revoke`. Use a new idempotency key
    and one closed reason code. Do not reuse the self-owned route, edit session rows directly, or
    broaden the API database role.
-4. When `P01-S05-ALR-001` reports a burst of successful member role changes, correlate each
+4. When `P01-S05-ALR-001` reports a burst of successful member role changes or removals, correlate each
    bounded decision ID with its append-only Audit fact and the target membership. Direct changes
    are limited to `merchant_viewer` and `merchant_operator`, require the exact current strong
    membership ETag and a unique idempotency key, and immediately invalidate the target's tenant
-   sessions. Administrator-involved transitions require typed maker-checker execution and remain
-   fail-closed until that capability exists. Do not edit membership or session rows directly.
+   sessions. Direct removal is limited to `merchant_viewer` and `merchant_operator`, records one
+   immutable replay fact, and marks the membership revoked. Administrator-involved transitions
+   require typed maker-checker execution and remain fail-closed until that capability exists;
+   administrator removal additionally requires exact fresh-step-up and last-administrator policy.
+   Do not edit membership or session rows directly.
 5. If the database is unavailable, fail closed. Do not move revocation truth to Redis or process
    memory.
 
@@ -39,10 +42,11 @@ cover future financial commands, real identity data, or production incident resp
 Run `pwsh -NoProfile -File ./scripts/verify-p01-s04.ps1 -Live`. Confirm revoke-one, concurrent
 revoke-all and administrator-revocation replay, changed-request conflict, action-bound step-up
 denial, atomic Audit persistence and outage rollback, old-cookie rejection, and restored revoked
-authority. For the P01-S05 direct role-change boundary, also run
-`pwsh -NoProfile -File ./scripts/p01-s04-session-repository.ps1 -ContainerRuntime podman` and
-confirm concurrent replay, stale-ETag denial, target-session invalidation, administrator-role
-approval gating, and Audit-outage rollback. Preserve new evidence rather than overwriting
+authority. For the P01-S05 membership boundary, also run
+`pwsh -NoProfile -File ./scripts/verify-p01-s05.ps1 -Live -ContainerRuntime podman` and confirm
+concurrent replay, stale-ETag denial, simultaneous role-change/removal serialization,
+target-session invalidation, administrator fail-closure, Unicode/confusable organization-name
+collision rejection, and Audit-outage rollback. Preserve new evidence rather than overwriting
 historical reports.
 
 Known limitation: Phase 01 local evidence is synthetic and same-host; no real account recovery,

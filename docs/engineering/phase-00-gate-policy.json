@@ -157,7 +157,7 @@
     {"path": "deploy/environments/test.json", "sha256": "5dfa70d9d1dabe62b0da29244b2837b0afbc283778667dce5ff08514c105e0a7"},
     {"path": "deploy/environments/staging.json", "sha256": "623983eb09bd417014b737cac860613a08639f7ed15ed5298d6b7b4104714bc3"},
     {"path": "deploy/environments/production-reference.json", "sha256": "884cd96d38ee6756a4937c9320ac7df81c1893546b29c15b65e24266ac3a7865"},
-    {"path": "deploy/observability/catalog.json", "sha256": "976f48d58964c08071bb3a36047028d5f39d00763058b3c189ab5a619fc317fd"},
+    {"path": "deploy/observability/catalog.json", "sha256": "a6e60d2bdad7d70749bcdc47f2048ccd939682c6af89bef5d5ef95293011a41e"},
     {"path": "deploy/seeds/foundation.json", "sha256": "d350303e1f1129c41ba96af24ea33315fb1739f721b6bc7b7bcf96c774debe4d"}
   ],
   "guarded_directories": [

@@ -99,6 +99,38 @@ func TestIdentitySeedPolicyAndSubjectMutationsAreRejected(t *testing.T) {
 	}
 }
 
+func TestIdentitySeedOrganizationNameProjectionMutationsAreRejected(t *testing.T) {
+	root := identityRepositoryRoot(t)
+	manifest, _, err := LoadSeedManifest(
+		filepath.Join(root, "db", "seeds", "000001_phase_01_identity.json"),
+		filepath.Join(root, "docs", "atlas-prd", "03-contracts", "identity-access-policy.json"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, mutate := range map[string]func(*SeedManifest){
+		"non-canonical normalized name": func(candidate *SeedManifest) {
+			candidate.Organizations[0].NormalizedName = "NOT-CANONICAL"
+		},
+		"normalized collision": func(candidate *SeedManifest) {
+			candidate.Organizations[1].DisplayName = candidate.Organizations[0].DisplayName
+			candidate.Organizations[1].NormalizedName = candidate.Organizations[0].NormalizedName
+		},
+		"confusable skeleton collision": func(candidate *SeedManifest) {
+			candidate.Organizations[1].ConfusableSkeleton = candidate.Organizations[0].ConfusableSkeleton
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			candidate := manifest
+			candidate.Organizations = append([]SeedOrganization(nil), manifest.Organizations...)
+			mutate(&candidate)
+			if err := candidate.Validate(); err == nil {
+				t.Fatal("mutated organization name projection was accepted")
+			}
+		})
+	}
+}
+
 func identityRepositoryRoot(t *testing.T) string {
 	t.Helper()
 	_, current, _, ok := runtime.Caller(0)

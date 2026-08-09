@@ -69,7 +69,7 @@ func TestMetricCatalogEnforcesCardinalityAndRuntimeCoverage(t *testing.T) {
 				}
 			}
 			maximumValues := 16
-			if label == "http.route" {
+			if label == "http.route" || label == "atlas.identity.operation" {
 				maximumValues = 32
 			}
 			if len(values) == 0 || len(values) > maximumValues {

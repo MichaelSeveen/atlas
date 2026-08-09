@@ -2,7 +2,7 @@
 
 - **Status date:** 2026-08-09
 - **Current phase:** [Phase 01 — Identity, access, tenancy, and privileged workforce controls](../atlas-prd/02-phases/PHASE-01_IDENTITY_ACCESS_TENANCY.md)
-- **Current slice:** `P01-S05` merchant organizations, memberships, invitations, and active-tenant switching is in progress. Principal-organization listing, zero-grace Audit-atomic active-tenant rotation, hash-only-verifier invitation issuance, tenant-authorized member listing, ADR 0016 invitation-bound authentication/acceptance, direct viewer/operator member role changes, and direct viewer/operator removal are implemented locally. Administrator-involved role transitions remain fail-closed pending the S07 typed maker-checker capability; administrator removal remains fail-closed pending exact fresh-step-up and last-administrator policy. The committed S05 checkpoint through direct member role changes is `ff96a6f`; `EVD-P01-S04-CLOSURE` remains the last complete slice evidence.
+- **Current slice:** `P01-S05` merchant organizations, memberships, invitations, and active-tenant switching is complete at its bounded evidence depth. `EVD-P01-S05-TENANCY-CLOSURE` binds the full static/live gate, real PostgreSQL races and Audit rollback, Unicode stored-projection collision rejection, telemetry, and recovery procedure. Administrator-involved role transitions remain fail-closed pending the S07 typed maker-checker capability; administrator removal remains fail-closed pending exact fresh-step-up and last-administrator policy. `P01-S06` deny-by-default authorization, purpose, masking, and decision audit is next.
 - **Implementation state:** Phase 00 remains historically complete for its bounded synthetic feature-free foundation, P01-S03 consumed the `first-product-schema`/`first-product-durable-state` triggers, and the runtime now exposes the nine approved S04 identity/session operations plus eight S05 organization/tenancy operations alongside the three operational routes. Merchant sessions validate their explicit selected tenant even when a principal has multiple active memberships; switching rechecks current and target authority in one PostgreSQL transaction, revokes the old verifier with zero grace, creates a CSRF-rebound session without extending its absolute lifetime, and records Audit atomically. Member listing rechecks authoritative membership under lock before evaluating a tenant-bound cursor, returns at most 100 masked rows with no total count, and records concealed/permission denials with a bounded decision ID. Invitation issuance creates 256-bit one-time material, persists only its SHA-256 verifier plus a recipient digest/masked hint, expires after 72 hours, applies the closed delegation lattice, requires action-bound phishing-resistant step-up for administrator invitations, suppresses secret redisplay on idempotent replay, and records Audit in the same PostgreSQL transaction. Invitation authentication binds a merchant OIDC callback to the invitation token digest and verified canonical recipient before issuing a 15-minute tenantless, permissionless bootstrap session; acceptance serializes recipient/token/expiry/organization checks, membership creation, invitation consumption, zero-grace session rotation, and Audit in one PostgreSQL transaction. Direct viewer/operator role changes and removals require exact strong ETags, bind idempotency to actor and tenant, recheck authority in serializable transactions, increment membership authority/version, revoke the target's tenant sessions with zero grace, and persist immutable replay plus Audit atomically. Removal marks the membership revoked; an already-open tab cannot commit a later role mutation, and a simultaneous role-change/removal race permits exactly one mutation to commit. No administrator-role approval execution, administrator removal, general authorization evaluator, credential, event, worker job, financial workflow, managed production secret provider, or wallet UI exists.
 
 ## Repository baseline
@@ -34,12 +34,12 @@
 
 | Classification | Count | Requirement IDs |
 |---|---:|---|
-| Verified | 5 | `IAM-001`, `IAM-003..005`, `IAM-007` |
-| Planned | 25 | `IAM-002`, `IAM-006`, `IAM-010..015`, `IAM-020..026`, `IAM-030..034`, `IAM-040..044` |
+| Verified | 10 | `IAM-001`, `IAM-003..005`, `IAM-007`, `IAM-010..012`, `IAM-014..015` |
+| Planned | 20 | `IAM-002`, `IAM-006`, `IAM-013`, `IAM-020..026`, `IAM-030..034`, `IAM-040..044` |
 
-These five rows are verified only for their explicit S04 synthetic application-session scope.
-Phase 01 remains open; later organization, authorization, approval, credential, and acceptance
-slices must verify their own rows without reinterpreting S04 evidence.
+These ten rows are verified only for their explicit S04 application-session and S05
+organization/tenancy scopes. Phase 01 remains open; authorization, approval, credential, and
+acceptance slices must verify their own rows without reinterpreting earlier evidence.
 
 ## Completed requirement IDs
 
@@ -139,6 +139,8 @@ invitation-bound bootstrap and atomic persistence boundary.
 - [Phase 01 S04 account-enumeration evidence](../../evidence/phase-01/identity-session/S04-account-enumeration-precommit.md)
 - [Phase 01 S04 closure evidence](../../evidence/phase-01/identity-session/S04-closure-precommit.md)
 - [Phase 01 S04 closure catalogue](../../evidence/phase-01/identity-session/P01-S04-evidence-catalogue-closure-precommit.json)
+- [Phase 01 S05 tenancy closure evidence](../../evidence/phase-01/tenancy-authorization/S05-tenancy-closure-precommit.md)
+- [Phase 01 S05 tenancy closure catalogue](../../evidence/phase-01/tenancy-authorization/P01-S05-evidence-catalogue-precommit.json)
 - [Phase 01 S04 step-up post-commit verification](../../evidence/phase-01/identity-session/S04-step-up-idempotency-and-assurance-post-commit.md)
 - [Phase 01 S04 step-up post-commit catalogue](../../evidence/phase-01/identity-session/P01-S04-evidence-catalogue-step-up-postcommit.json)
 - [ADR 0014 identity/access contract boundary](../atlas-prd/06-governance/adrs/0014-phase-01-identity-access-contract-boundary.md)

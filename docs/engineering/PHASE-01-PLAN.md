@@ -441,41 +441,23 @@ No hosted release, merge, production/reference deployment, real identity provide
 
 ## Exact next implementation checkpoint
 
-The complete S04 pre-commit verifier has passed. After the S04 closure commit, the next unblocked
-checkpoint is **P01-S05 — merchant organizations, memberships, invitations, and active-tenant
-switching**. Do not begin S05 from a failed or unbound S04 revision.
+The cumulative P01-S05 static/live verifier has passed against migration 12 and the synthetic
+reference stack. After the S05 closure commit, the next unblocked checkpoint is **P01-S06 —
+deny-by-default authorization, purpose, masking, and decision audit**. Do not begin S06 from a
+failed or evidence-unbound S05 revision.
 
-S03 completed the first Go/database implementation slice. S04 core now composes that boundary
-through the ADR 0014-owned OpenAPI surface. The current checkpoint:
+S05 closes its organization/tenancy boundary at bounded evidence depth: zero-grace tenant/session
+rotation, masked count-free member listing, hash-only recipient-bound invitations, direct
+viewer/operator role changes and removal, real PostgreSQL mutation races, Audit rollback, Unicode
+stored-projection collision rejection, bounded telemetry, and a linked recovery procedure.
+`IAM-010..012` and `IAM-014..015` are Verified; `IAM-013` deliberately remains Planned until S06
+proves the complete status/body/count/cursor/timing concealment matrix.
 
-- preserves and revalidates the `FND-011:first-product-schema` and
-  `FND-064:first-product-durable-state` controls;
-- preserves released identity seed v1 byte-for-byte and advances the current policy binding only
-  through additive seed v2, with upgrade/fresh/replay/backup/restore proof;
-- uses real PostgreSQL roles for session/revocation concurrency, migration, lock, permission, and
-  backup/WAL/PITR checks;
-- validates issuer/audience/state/nonce/PKCE/redirect/timing and rotates durable encrypted
-  application sessions through customer/merchant flows;
-- persists scoped hash-only step-up replay state, returns the exact stored response for matching
-  retries, rejects changed requests, and proves live LoA 2 session/CSRF rotation with old-cookie
-  rejection;
-- keeps workforce baseline authentication fail-closed and existing low-risk sessions available
-  during an injected provider outage;
-- bounds known/absent-user response status, generic copy, median delta/ratio, and p95 delta across
-  all three synthetic realms with interleaved fresh OIDC transactions;
-- preserves signed-out state across reload, history traversal, and direct protected-route
-  navigation without storing a browser credential; real browser history traversal reloads instead
-  of restoring a BFCache actor shell;
-- implements ADR 0015’s distinct administrator-revocation command with closed workforce
-  permission/purpose/reason, fresh phishing-resistant action binding, exact replay/conflict,
-  authority recheck, concealed target handling, stable decision IDs, and Audit-outage rollback in
-  one PostgreSQL transaction;
-- preserves historical catalogues and adds source-bound `EVD-P01-S04-*`;
-- adds no Redis authorization truth, event/outbox, worker job, authorization/approval/credential
-  behavior, frontend product behavior, or financial state.
-
-S04 closes only the synthetic local/reference boundary after its full gate passes. The shell is
-not yet a generated product API consumer; Keycloak is not a real provider or MFA/phishing-resistant
-deployment claim; and production recovery, throttling, bot defense, and independent review remain
-later provider/deployment triggers rather than fabricated S04 evidence. The checkpoint makes no
-phase-wide completion claim.
+S06 must introduce the source-controlled evaluator and decision-audit boundary without Redis
+authorization truth or browser authority. Unknown role, permission, action, object, field, purpose,
+assurance, or resource state must deny; sensitive mutations must recheck authority in their commit
+protocol; and list/search/autocomplete authorization must precede totals, cursors, rank, and timing-
+observable work. Administrator-involved role transitions remain fail-closed until S07 typed
+maker-checker execution, and administrator removal remains fail-closed until exact fresh-step-up and
+last-administrator policy are closed. No event, worker job, credential, frontend product flow, or
+financial state is added by the S06 checkpoint.

@@ -9,7 +9,7 @@
       "owner": "platform-on-call",
       "labels": {
         "atlas.outcome": ["ok", "rejected", "error"],
-        "http.request.method": ["GET", "POST", "PUT", "DELETE", "OTHER"],
+        "http.request.method": ["GET", "POST", "PUT", "PATCH", "DELETE", "OTHER"],
         "http.response.status_code": ["bounded-http-status"],
         "http.route": [
           "/health/live",
@@ -42,7 +42,7 @@
       "owner": "platform-on-call",
       "labels": {
         "atlas.outcome": ["ok", "rejected", "error"],
-        "http.request.method": ["GET", "POST", "PUT", "DELETE", "OTHER"],
+        "http.request.method": ["GET", "POST", "PUT", "PATCH", "DELETE", "OTHER"],
         "http.response.status_code": ["bounded-http-status"],
         "http.route": [
           "/health/live",
@@ -74,7 +74,7 @@
       "status": "emitted",
       "owner": "identity-on-call",
       "labels": {
-        "atlas.identity.operation": ["login", "callback", "current", "logout", "session_list", "session_revoke", "session_revoke_all", "session_admin_revoke", "step_up", "organization_list", "organization_member_list", "organization_member_role_change", "organization_switch", "invitation_create", "invitation_authenticate", "invitation_accept"],
+        "atlas.identity.operation": ["login", "callback", "current", "logout", "session_list", "session_revoke", "session_revoke_all", "session_admin_revoke", "step_up", "organization_list", "organization_member_list", "organization_member_role_change", "organization_member_revoke", "organization_switch", "invitation_create", "invitation_authenticate", "invitation_accept"],
         "atlas.outcome": ["ok", "rejected", "error"],
         "http.response.status_code": ["bounded-http-status"]
       }
@@ -85,7 +85,7 @@
       "status": "emitted",
       "owner": "identity-on-call",
       "labels": {
-        "atlas.identity.operation": ["login", "callback", "current", "logout", "session_list", "session_revoke", "session_revoke_all", "session_admin_revoke", "step_up", "organization_list", "organization_member_list", "organization_member_role_change", "organization_switch", "invitation_create", "invitation_authenticate", "invitation_accept"],
+        "atlas.identity.operation": ["login", "callback", "current", "logout", "session_list", "session_revoke", "session_revoke_all", "session_admin_revoke", "step_up", "organization_list", "organization_member_list", "organization_member_role_change", "organization_member_revoke", "organization_switch", "invitation_create", "invitation_authenticate", "invitation_accept"],
         "atlas.outcome": ["ok", "rejected", "error"],
         "http.response.status_code": ["bounded-http-status"]
       }
@@ -207,8 +207,8 @@
       "metric": "atlas.identity.operation.count",
       "severity": "ticket",
       "owner": "identity-on-call",
-      "condition": "organization_member_role_change ok outcome exceeds 20 in five minutes",
-      "rationale": "Direct role changes are individually audited; a bounded aggregate spike warrants review without putting tenant or actor identifiers into telemetry.",
+      "condition": "combined organization_member_role_change and organization_member_revoke ok outcomes exceed 20 in five minutes",
+      "rationale": "Direct membership mutations are individually audited; a bounded aggregate spike warrants review without putting tenant or actor identifiers into telemetry.",
       "runbook": "docs/runbooks/SESSION_COMPROMISE_AND_REVOCATION.md",
       "test": "scripts/test-s06-alert-catalog-canary.ps1"
     }

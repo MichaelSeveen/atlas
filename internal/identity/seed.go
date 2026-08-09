@@ -203,6 +203,8 @@ func (manifest SeedManifest) Validate() error {
 	}
 
 	tenants := make(map[string]string, len(manifest.Organizations))
+	normalizedOrganizationNames := make(map[string]struct{}, len(manifest.Organizations))
+	organizationSkeletons := make(map[string]struct{}, len(manifest.Organizations))
 	for _, organization := range manifest.Organizations {
 		if err := requireID(organization.TenantID, "ten"); err != nil {
 			return err
@@ -212,6 +214,17 @@ func (manifest SeedManifest) Validate() error {
 			(organization.OrganizationType != "customer" && organization.OrganizationType != "merchant") {
 			return errors.New("identity seed organization naming fixture is incomplete")
 		}
+		if organization.NormalizedName != normalizeOrganizationName(organization.DisplayName) {
+			return errors.New("identity seed organization normalized name is not canonical")
+		}
+		if _, duplicate := normalizedOrganizationNames[organization.NormalizedName]; duplicate {
+			return errors.New("identity seed organization normalized name collides")
+		}
+		if _, duplicate := organizationSkeletons[organization.ConfusableSkeleton]; duplicate {
+			return errors.New("identity seed organization confusable skeleton collides")
+		}
+		normalizedOrganizationNames[organization.NormalizedName] = struct{}{}
+		organizationSkeletons[organization.ConfusableSkeleton] = struct{}{}
 		tenants[organization.TenantID] = organization.OrganizationType
 	}
 

@@ -63,6 +63,13 @@ try {
         throw 'Phase 01 S04 regression verification failed'
     }
 
+    & (Join-Path $PSScriptRoot 'test-p01-evidence-integrity.ps1') `
+        -CatalogueRelativePath 'evidence/phase-01/tenancy-authorization/P01-S05-evidence-catalogue-precommit.json' `
+        -ExpectedSlice 'P01-S05'
+    if (-not $?) {
+        throw 'Phase 01 S05 evidence integrity verification failed'
+    }
+
     if ($Live) {
         & (Join-Path $PSScriptRoot 's05.ps1') -Action Migrate -ContainerRuntime $ContainerRuntime
         if (-not $?) {
@@ -94,7 +101,7 @@ try {
                 'test',
                 './internal/identity/persistence',
                 '-run',
-                '^Test(OrganizationStoreRealPostgresListAndZeroGraceSwitch|OrganizationInvitationRealPostgresDelegationReplayAndAuditRollback|MembershipRoleChangeRealPostgresConcurrencyAuthorityAndAuditRollback|MembershipRevocationRealPostgresConcurrencyStaleTabAndAuditRollback)$',
+                '^Test(OrganizationStoreRealPostgresListAndZeroGraceSwitch|OrganizationNameProjectionRealPostgresRejectsUnicodeConfusableCollisions|OrganizationInvitationRealPostgresDelegationReplayAndAuditRollback|MembershipRoleChangeRealPostgresConcurrencyAuthorityAndAuditRollback|MembershipRevocationRealPostgresConcurrencyStaleTabAndAuditRollback)$',
                 '-count=1'
             )
         }
@@ -110,7 +117,7 @@ try {
         Write-Output 'p01_s05_live_verification=NOT_REQUESTED'
     }
 
-    Write-Output 'p01_s05_scope=organization-list,active-tenant-switch,masked-members,invitations,recipient-acceptance,direct-role-change,direct-member-revocation'
+    Write-Output 'p01_s05_scope=organization-list,unicode-name-collision,active-tenant-switch,masked-members,invitations,recipient-acceptance,direct-role-change,direct-member-revocation'
     Write-Output 'p01_s05_administrator_mutations=FAIL_CLOSED_PENDING_S07_AND_EXACT_REMOVAL_POLICY'
     Write-Output 'p01_s05_financial_state=ABSENT'
     Write-Output "source_revision=$sourceRevision"

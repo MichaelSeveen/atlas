@@ -133,6 +133,13 @@ func TestReleasePublishesOnlyAfterFullLiveAcceptance(t *testing.T) {
 		}
 	})
 
+	t.Run("seeded current Phase 00 evidence mode is rejected", func(t *testing.T) {
+		seeded := strings.Replace(workflow, " -HistoricalEvidence", "", 1)
+		if releaseWorkflowClosed(seeded) {
+			t.Fatal("release policy accepted a seeded workflow that would revalidate closed Phase 00 evidence as current")
+		}
+	})
+
 	t.Run("seeded publish before preflight is rejected", func(t *testing.T) {
 		seeded := strings.Replace(workflow, "- name: Authenticate to GHCR", "- name: Authenticate to GHCR\n        # seeded before-preflight marker", 1)
 		seeded = strings.Replace(seeded, "      - name: Run release preflight", "      - name: Authenticate to GHCR\n        # seeded before-preflight marker\n      - name: Run release preflight", 1)
@@ -154,6 +161,23 @@ func TestReleasePublishesOnlyAfterFullLiveAcceptance(t *testing.T) {
 			t.Fatal("release policy accepted incomplete attestation verification")
 		}
 	})
+}
+
+func TestNightlyValidatesClosedPhase00EvidenceHistorically(t *testing.T) {
+	root := repositoryRoot(t)
+	workflow := readText(t, filepath.Join(root, ".github", "workflows", "nightly.yml"))
+	if !nightlyWorkflowValidatesPhase00Historically(workflow) {
+		t.Fatal("nightly workflow does not validate the closed Phase 00 catalogue in historical-evidence mode")
+	}
+
+	seeded := strings.Replace(workflow, " -HistoricalEvidence", "", 1)
+	if nightlyWorkflowValidatesPhase00Historically(seeded) {
+		t.Fatal("nightly policy accepted a seeded workflow that would revalidate closed Phase 00 evidence as current")
+	}
+}
+
+func nightlyWorkflowValidatesPhase00Historically(workflow string) bool {
+	return strings.Contains(workflow, "verify-s08.ps1 -Live -History -SupplyChain -CleanClone -HistoricalEvidence -ContainerRuntime docker")
 }
 
 func TestS08CleanCloneKeepsItsGoModuleCacheRemovable(t *testing.T) {
@@ -204,7 +228,7 @@ func releaseWorkflowClosed(workflow string) bool {
 	for _, required := range []string{
 		"github.ref == 'refs/heads/main'",
 		"startsWith(github.ref, 'refs/tags/v')",
-		"verify-s08.ps1 -Live -History -SupplyChain -CleanClone -ContainerRuntime docker",
+		"verify-s08.ps1 -Live -History -SupplyChain -CleanClone -HistoricalEvidence -ContainerRuntime docker",
 		"GH_TOKEN: ${{ github.token }}",
 		"--signer-workflow",
 		"--source-digest",

@@ -2,9 +2,12 @@
 
 S05 established the feature-free PostgreSQL controls for `FND-021`, `FND-025`, and `FND-060..064`.
 P01-S03 deliberately activates the ADR 0013 `first-product-schema` and
-`first-product-durable-state` triggers by adding only the ADR 0014-owned `atlas_identity` and
-`atlas_audit` namespaces. P01-S04 extends only those namespaces with OIDC login transactions,
-encrypted application sessions, replay records, and revocation authority. There is still no
+`first-product-durable-state` triggers by adding the ADR 0014-owned `atlas_identity` and
+`atlas_audit` namespaces. P01-S04 extends those namespaces with OIDC login transactions,
+encrypted application sessions, replay records, and revocation authority; P01-S07 adds the
+Operations-owned `atlas_operations` approval namespace and a narrow caller-transaction Identity
+target boundary; P01-S08 adds Identity-owned API credential and immutable mutation-replay tables.
+There is still no
 wallet, ledger, balance, journal, payment, transfer, outbox, or other financial state.
 
 ## Boundaries and roles
@@ -13,10 +16,10 @@ The local environment generates a distinct credential for each database identity
 
 | Role | Allowed foundation use | Explicitly denied or disabled |
 |---|---|---|
-| `atlas_migration` | apply reviewed migrations/seeds and own foundation, Identity, and Audit schema objects | superuser, role creation, database creation, replication, bypass RLS |
-| `atlas_api` | table-specific Identity reads/writes and insert-only Audit writes | policy/seed/scope-registry writes, Audit read/update/delete, DDL, grants, migration-role escalation |
-| `atlas_worker` | Phase 00 permission-probe DML only | Identity/Audit access, product writes, DDL, migration-role escalation |
-| `atlas_reporting_read` | Phase 00 foundation reads only | Identity/Audit access, writes, DDL, temporary tables |
+| `atlas_migration` | apply reviewed migrations/seeds and own foundation, Identity, Audit, and Operations schema objects | superuser, role creation, database creation, replication, bypass RLS |
+| `atlas_api` | table-specific Identity/Operations reads and bounded writes plus insert-only Audit writes | policy/seed/scope-registry writes, arbitrary approval updates, Audit read/update/delete, DDL, grants, migration-role escalation |
+| `atlas_worker` | Phase 00 permission-probe DML only | Identity/Audit/Operations access, product writes, DDL, migration-role escalation |
+| `atlas_reporting_read` | Phase 00 foundation reads only | Identity/Audit/Operations access, writes, DDL, temporary tables |
 | `atlas_break_glass` | may assume migration role only during an explicit bounded activation | login is expired by default and re-expired after the drill |
 | `atlas_backup` | physical base backup and WAL streaming | ordinary application and migration ownership |
 
@@ -26,17 +29,20 @@ The original S04 PostgreSQL identity remains a local bootstrap identity so exist
 
 Each `db/migrations/*.sql` file has closed metadata covering lock risk, representative data,
 query-plan review, space risk, forward fix, rollback, lock timeout, and statement timeout.
-`db/migrations/MANIFEST.sha256` defines the six-file-pair released inventory. `dbctl verify`
+`db/migrations/MANIFEST.sha256` defines the fifteen-file-pair released inventory. `dbctl verify`
 rejects changes, deletions, unmanifested files, reordering, malformed metadata, embedded
 transaction control, privileged SQL, unratified schemas, and financial terms.
 
 The runner applies one migration per transaction with `lock_timeout=500ms` and
 `statement_timeout=5s`, and records its exact checksum. The separate seed runner validates its
-closed manifest and applies one JSON document in a transaction. That document is fixed at
-`2026-07-26T00:00:00Z`, is SHA-256-bound to the canonical 23-permission/13-role policy, maps the
-three local Keycloak subjects to synthetic Atlas principals, and includes two tenants, two
-memberships, one workforce role, one revoked session recovery canary, and one Audit fact.
-Application startup applies neither migrations nor seeds.
+closed manifest and applies each JSON document in its own transaction. Released identity seed v1
+is fixed at `2026-07-26T00:00:00Z`, remains byte-for-byte immutable, maps the three local Keycloak
+subjects to synthetic Atlas principals, and includes two tenants, two memberships, one workforce
+role, one revoked session recovery canary, and one Audit fact. Additive policy seed v2 preserves
+the prior policy boundary; additive policy seed v3 verifies that exact predecessor before advancing
+the 23 permission and 13 role catalogue rows to the ADR 0016 digest; additive policy seed v4 verifies
+v3 before advancing the canonical S08 credential rate/fallback policy checksum. Application startup
+applies neither migrations nor seeds.
 
 ## Commands
 
@@ -47,6 +53,9 @@ pwsh -NoProfile -File ./scripts/verify-s05.ps1
 go run ./cmd/dbctl verify --migration-dir db/migrations
 pwsh -NoProfile -File ./scripts/test-s05-migration-canary.ps1
 pwsh -NoProfile -File ./scripts/verify-p01-s03.ps1
+pwsh -NoProfile -File ./scripts/verify-p01-s05.ps1
+pwsh -NoProfile -File ./scripts/verify-p01-s07.ps1
+pwsh -NoProfile -File ./scripts/verify-p01-s08.ps1
 ```
 
 Local database lifecycle:
@@ -59,18 +68,21 @@ pwsh -NoProfile -File ./scripts/s05.ps1 -Action BackupRestore
 pwsh -NoProfile -File ./scripts/s05.ps1 -Action Down
 ```
 
-`Verify` applies migrations and seeds idempotently, exercises real PostgreSQL roles, migrates
-empty and Phase-00-version throwaway databases, rejects duplicate subjects and cross-population
+`Verify` applies migrations and the ordered seed chain idempotently, exercises real PostgreSQL
+roles, migrates empty and previous-version throwaway databases, rejects released-seed checksum
+rewrites, duplicate subjects, and cross-population
 memberships, proves a tenant-leading repository query against real PostgreSQL, forces a bounded
 product-table lock failure, and confirms real NATS JetStream. `BackupRestore` creates and verifies
-a physical base backup, archives WAL, mutates the revoked-session canary after the target, restores
-into the separate internal-only recovery service, and proves the restored migration/seed
-checksums, product rows, grants, Audit fact, and revoked authority.
+a physical base backup, archives WAL, mutates the revoked-session and revoked-credential canaries after the target, restores
+into the separate internal-only recovery service, and proves the restored migration/seed-chain
+checksums, current policy binding, product rows, grants, Audit fact, and revoked authority.
 
 The full command is:
 
 ```powershell
 pwsh -NoProfile -File ./scripts/verify-s05.ps1 -Live
+pwsh -NoProfile -File ./scripts/verify-p01-s07.ps1 -Live
+pwsh -NoProfile -File ./scripts/verify-p01-s08.ps1 -Live
 ```
 
 Pass `-ContainerRuntime docker` to the PowerShell commands when Docker Compose is the selected provider.
@@ -78,7 +90,7 @@ Pass `-ContainerRuntime docker` to the PowerShell commands when Docker Compose i
 ## Failure posture
 
 The API readiness probe uses its application credential and a 750 ms deadline to require
-migration version 6 with the exact released checksum. Connectivity, authentication, missing
+migration version 15 with the exact released checksum. Connectivity, authentication, missing
 schema, timeout, and checksum mismatch all produce the same topology-free not-ready result;
 liveness and version remain independent.
 
@@ -89,11 +101,19 @@ Migration failures never trigger an automatic destructive down migration. Follow
 - The local backup and WAL volumes are not encrypted at rest. P01-S04 revalidates the current
   synthetic product state only; a reference deployment or backup encryption/key-custody change
   still requires stronger recovery evidence and independent review at the ADR 0012 triggers.
-- The S04 core HTTP/OIDC/application-session boundary invokes Identity and Audit persistence, but
-  contracted step-up idempotency, live higher-assurance completion, admin security revocation,
-  authorization evaluation, approval, credential, and frontend product behavior remain absent.
-- No outbox, inbox, idempotency, object, key, or synthetic financial flow exists to replay or reconcile after restore.
-- Bounded verifier signals cover migration, seed, lock, role, restore, identity operations, and
-  provider requests. Audit persistence is exercised synchronously by revocation; deployed alert
-  routing and authorization-decision telemetry remain future owner-slice work.
+- The S04 HTTP/OIDC/application-session boundary invokes Identity and Audit persistence and now
+  includes contracted step-up idempotency, live higher-assurance completion, audit-atomic
+  administrator security revocation, recipient-bound invitation acceptance, direct
+  viewer/operator member role changes, direct viewer/operator removal, and the sole typed
+  administrator-role approval action plus the bounded `identity:read` AtlasKey credential lifecycle.
+  Operations owns immutable canonical payload bindings and
+  workflow state; Identity executes the approved target command in the caller-owned transaction;
+  Audit remains atomic with both. Administrator removal remains fail-closed pending exact
+  fresh-step-up and last-administrator policy. Credential-management and other frontend product
+  behavior remain absent.
+- No outbox, inbox, object, financial key, or synthetic financial flow exists to replay or reconcile after restore; credential lifecycle idempotency is deliberately local to Identity.
+- Bounded verifier signals cover migration, seed, lock, role, restore, identity, approval, and
+  credential operations, provider requests, approval age/status/conflict/integrity, credential
+  authentication/anomaly/rate/fallback outcomes, and decision Audit.
+  Deployed alert routing remains future environment evidence.
 - The current Windows host required direct in-VM `podman-compose` because the host Podman Compose transport is unhealthy. The repository commands are still the canonical procedure and require clean-host revalidation.

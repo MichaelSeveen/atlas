@@ -1,0 +1,13 @@
+{
+  "version": 14,
+  "name": "phase_01_approval_workflow",
+  "released": true,
+  "lock_timeout_ms": 500,
+  "statement_timeout_ms": 5000,
+  "lock_risk": "Apply only during a maintenance gate. New Operations tables do not scan product rows; the membership-role history constraint rewrite takes an ACCESS EXCLUSIVE metadata lock and must abort under the bounded migration lock timeout.",
+  "representative_data": "Exercise empty/current/previous migration lanes plus real PostgreSQL maker/checker, simultaneous decision, payload tamper, target-version, permission, assurance, Audit-outage, and response-replay tests.",
+  "query_plan_review": "Approval reads are tenant-predicated and use tenant/created or tenant/idempotency indexes; authorization runs before cursor parsing and target execution locks the exact tenant membership and approval version.",
+  "space_risk": "New rows are bounded approval metadata and canonical typed payload bytes. The existing role-history table receives one nullable approval identifier and constraint metadata; no backfill or table rewrite is intended.",
+  "forward_fix": "Disable approval creation/decision/execution routes and add an ordered migration for any state, grant, constraint, or typed-target correction. Preserve every immutable request, decision, execution, cancellation, target history, and Audit fact.",
+  "rollback": "Before release, remove only with all S07 state uncommitted. After release, never drop or rewrite approval or target history; disable routes and forward-fix. Never edit an approved payload/status directly or restore target authority outside the typed command."
+}

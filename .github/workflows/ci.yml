@@ -1,15 +1,16 @@
-name: atlas-pr
+name: atlas-ci
 
 on:
-  pull_request:
-    branches: [main]
+  push:
+    branches:
+      - '**'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: atlas-pr-${{ github.event.pull_request.number || github.ref }}
+  group: atlas-ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -22,14 +23,32 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Enforce solo-maintainer sensitive-change declaration
-        if: github.event_name == 'pull_request'
+      - name: Resolve pushed revision range
+        id: push-context
         shell: pwsh
         env:
-          ATLAS_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          ATLAS_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          ATLAS_PR_BODY: ${{ github.event.pull_request.body }}
-        run: ./scripts/test-solo-maintainer-governance.ps1 -BaseRef $env:ATLAS_BASE_SHA -HeadRef $env:ATLAS_HEAD_SHA -PullRequestBody $env:ATLAS_PR_BODY
+          ATLAS_EVENT_BEFORE: ${{ github.event.before }}
+          ATLAS_HEAD_SHA: ${{ github.sha }}
+        run: |
+          $base = $env:ATLAS_EVENT_BEFORE
+          if ([string]::IsNullOrWhiteSpace($base) -or $base -match '^0{40}$') {
+            $base = (& git merge-base origin/main $env:ATLAS_HEAD_SHA).Trim()
+          }
+          if ([string]::IsNullOrWhiteSpace($base)) {
+            throw 'Unable to resolve the pushed revision base.'
+          }
+          "base_sha=$base" >> $env:GITHUB_OUTPUT
+      - name: Enforce solo-maintainer sensitive-change declaration
+        shell: pwsh
+        env:
+          ATLAS_BASE_SHA: ${{ steps.push-context.outputs.base_sha }}
+          ATLAS_HEAD_SHA: ${{ github.sha }}
+        run: |
+          $env:ATLAS_CHANGE_DECLARATION = (& git log --format=%B "$env:ATLAS_BASE_SHA..$env:ATLAS_HEAD_SHA") -join "`n"
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Unable to read pushed commit declarations.'
+          }
+          ./scripts/test-solo-maintainer-governance.ps1 -BaseRef $env:ATLAS_BASE_SHA -HeadRef $env:ATLAS_HEAD_SHA -ChangeDeclaration $env:ATLAS_CHANGE_DECLARATION
       - name: Set up Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
@@ -44,7 +63,7 @@ jobs:
         run: ./scripts/verify-s07.ps1 -History
       - name: Compare canonical contracts to main
         shell: pwsh
-        run: ./scripts/test-s07-contract-compatibility.ps1 -BaseRef origin/main
+        run: ./scripts/test-s07-contract-compatibility.ps1 -BaseRef ${{ steps.push-context.outputs.base_sha }}
 
   real-integration-and-migrations:
     name: postgres-nats-migration-lanes

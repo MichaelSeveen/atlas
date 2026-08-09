@@ -9,6 +9,7 @@ set -eu
 : "${ATLAS_POSTGRES_MIGRATION_USER:?required}"
 
 test_database='atlas_p01_s04_session_test'
+expected_migration_count='15'
 
 admin_sql() {
   PGPASSWORD="$ATLAS_POSTGRES_PASSWORD" psql \
@@ -40,8 +41,8 @@ case "$ATLAS_P01_S04_SESSION_TEST_ACTION" in
       -v ON_ERROR_STOP=1 \
       -Atqc "
         SELECT CASE
-          WHEN (SELECT count(*) FROM atlas_foundation.schema_migrations) = 6
-           AND (SELECT count(*) FROM atlas_identity.principals) = 3
+          WHEN (SELECT count(*) FROM atlas_foundation.schema_migrations) = $expected_migration_count
+           AND (SELECT count(*) FROM atlas_identity.principals) = 6
           THEN true
           ELSE false
         END

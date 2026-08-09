@@ -40,11 +40,34 @@ Source: [product charter §5–6](../atlas-prd/00-master/00_PRODUCT_CHARTER.md),
 ### Delivery order and obligations
 
 Current delivery is Phase 01 after bounded Phase 00 closure. S01 planning, S02
-contract/decision closure, and S03 Identity/Audit persistence plus recovery revalidation are
-complete in the pre-commit worktree. S04 synthetic OIDC BFF/session lifecycle is underway: its
-core customer/merchant session boundary and workforce baseline denial exist, while step-up
-idempotency/live higher assurance, admin revocation, and remaining differential/browser evidence
-are open. Hard order is `00 → {01,03}`,
+contract/decision closure, S03 Identity/Audit persistence plus recovery revalidation, and S04
+synthetic OIDC BFF/session lifecycle are complete at their bounded evidence depth. S04 closes its
+customer/merchant session boundary, workforce baseline denial, durable step-up idempotency, live
+higher-assurance rotation, bounded account-enumeration differential, real-browser
+logout/navigation protection, additive policy-seed evolution, and audit-atomic administrator
+revocation. P01-S05 merchant organization/tenancy behavior is complete at its bounded evidence
+depth, including organization listing, zero-grace active-tenant rotation, hash-only-verifier
+invitation issuance, tenant-authorized member listing, ADR 0016 recipient-bound acceptance,
+direct viewer/operator role changes and removal, real PostgreSQL mutation races, and stored
+Unicode projection collision rejection. P01-S06 deny-default authorization is complete
+at its bounded evidence depth, including exact policy parity, tenant concealment/timing,
+purpose-bound masking, decision Audit rollback, and two-pool PostgreSQL invalidation without cache
+truth. P01-S07 typed maker-checker approval is complete for the sole non-financial
+`identity.organization.membership.change_admin` action, including principal separation, canonical
+payload integrity, dynamic eligibility, execution-time reauthorization, terminal-state denial,
+replay, real PostgreSQL concurrency, and Audit rollback. Administrator membership removal remains
+fail-closed pending exact fresh-step-up and last-administrator policy. P01-S08 merchant API
+credentials is complete at its bounded evidence depth, including one-time 256-bit secret
+disclosure, verifier-only PostgreSQL authority, exact machine bindings, ten-minute overlap,
+explicit revocation, savepoint-safe concurrent lifecycle idempotency, and ephemeral
+credential/tenant/network abuse controls with stricter bounded fallback. P01-S09 frontend flows,
+six-persona synthetic acceptance, adversarial browser proof, operational exercises, and aggregate
+phase closure are complete at bounded local/reference evidence depth. Administrator removal and
+break-glass remain fail-closed. Static, live/recovery/browser, history/security, and focused
+supply-chain lanes have discrete passing evidence. The copy-ready [Phase 02 kickoff
+prompt](PHASE-02-KICKOFF-PROMPT.md) starts planning-only `P02-S01`; all 26 Phase 02 requirements
+remain Planned. Hard
+order is `00 → {01,03}`,
 `01 → 02`, `{01,02,04} → 05`,
 `03 → 04`, `05 → 06 → 07`, `{01,07} → 08`, `{07,08} → 09`, `{05,09} → 10 → 11 → 12 → 13`.
 See the [roadmap](../atlas-prd/00-master/04_ROADMAP_AND_DEPENDENCIES.md).
@@ -79,8 +102,8 @@ Every completed requirement needs stable IDs, tests/review, evidence, an owner, 
 | Phase | Source | Load when |
 |---|---|---|
 | 00 — Engineering foundation | [PHASE-00](../atlas-prd/02-phases/PHASE-00_ENGINEERING_FOUNDATION.md) | Complete for the bounded synthetic feature-free topology; revalidate ADR 0013 triggers |
-| 01 — Identity/access/tenancy | [PHASE-01](../atlas-prd/02-phases/PHASE-01_IDENTITY_ACCESS_TENANCY.md) | Current: S01/S02/S03 complete; S04 synthetic OIDC/session core implemented with idempotent/live higher-assurance completion and other stated gaps still open |
-| 02 — Customer/KYC/privacy | [PHASE-02](../atlas-prd/02-phases/PHASE-02_CUSTOMER_KYC_PRIVACY.md) | Customer lifecycle, synthetic KYC, consent, restrictions, retention |
+| 01 — Identity/access/tenancy | [PHASE-01](../atlas-prd/02-phases/PHASE-01_IDENTITY_ACCESS_TENANCY.md) | Complete at bounded synthetic local/reference evidence depth; preserve fail-closed administrator-removal/break-glass/future-action limitations |
+| 02 — Customer/KYC/privacy | [PHASE-02](../atlas-prd/02-phases/PHASE-02_CUSTOMER_KYC_PRIVACY.md) | Next planning scope: customer lifecycle, synthetic KYC, consent, restrictions, retention; no implementation before contract/decision closure |
 | 03 — Ledger core | [PHASE-03](../atlas-prd/02-phases/PHASE-03_LEDGER_CORE.md) | Chart of accounts, journal/posting, reversal, projection, period/FX foundation |
 | 04 — Wallets/holds | [PHASE-04](../atlas-prd/02-phases/PHASE-04_WALLETS_BALANCES_HOLDS.md) | Wallet lifecycle, balances, reservation/capture/release, freezes |
 | 05 — Risk/limits | [PHASE-05](../atlas-prd/02-phases/PHASE-05_RISK_POLICY_AND_LIMITS.md) | Versioned deterministic policies, limits, decisions, reviews |
@@ -98,6 +121,7 @@ Every completed requirement needs stable IDs, tests/review, evidence, an owner, 
 - [Implementation status](IMPLEMENTATION_STATUS.md)
 - [Phase 00 audit and execution plan](PHASE-00-PLAN.md)
 - [Phase 01 audit and execution plan](PHASE-01-PLAN.md)
+- [Phase 02 clean-start kickoff prompt](PHASE-02-KICKOFF-PROMPT.md)
 - [Synthetic local environment and S04 commands](LOCAL_ENVIRONMENT.md)
 - [Database foundation and S05 commands](DATABASE_FOUNDATION.md)
 - [S06 Phase 00 threat model](../security/PHASE-00-THREAT-MODEL.md)

@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "phase": "P01-S09",
+  "environment": "synthetic-local-reference",
+  "exercises": [
+    {
+      "id": "P01-S09-EX-001",
+      "scenario": "identity-provider-unavailable",
+      "runbook": "docs/runbooks/IDENTITY_PROVIDER_UNAVAILABLE.md",
+      "expected_policy": "new login and step-up fail closed; existing low-risk sessions still require PostgreSQL session and authorization validation",
+      "runtime_evidence": "scripts/verify-p01-s04.ps1 -Live",
+      "status": "exercised-synthetic"
+    },
+    {
+      "id": "P01-S09-EX-002",
+      "scenario": "authorization-stale-or-incident",
+      "runbook": "docs/runbooks/AUTHORIZATION_INCIDENT_AND_INVALIDATION.md",
+      "expected_policy": "disable only the affected route or action; revoke or rotate affected sessions; never restore authority from Redis",
+      "runtime_evidence": "scripts/verify-p01-s06.ps1 -Live",
+      "status": "exercised-synthetic"
+    },
+    {
+      "id": "P01-S09-EX-003",
+      "scenario": "audit-persistence-unavailable",
+      "runbook": "docs/runbooks/AUDIT_PERSISTENCE_UNAVAILABLE.md",
+      "expected_policy": "privileged mutation and audit fact roll back atomically; no log file Redis or direct database edit substitutes for Audit",
+      "runtime_evidence": "scripts/verify-p01-s08.ps1 -Live",
+      "status": "exercised-synthetic"
+    },
+    {
+      "id": "P01-S09-EX-004",
+      "scenario": "merchant-api-credential-compromise",
+      "runbook": "docs/runbooks/API_CREDENTIAL_COMPROMISE_AND_ROTATION.md",
+      "expected_policy": "rotate or revoke without recovering plaintext; explicit revocation is immediate and stale Redis cannot re-enable a credential",
+      "runtime_evidence": "scripts/verify-p01-s08.ps1 -Live",
+      "status": "exercised-synthetic"
+    }
+  ],
+  "limitations": [
+    "Exercises use synthetic identities credentials providers and same-host infrastructure.",
+    "Break-glass remains disabled and has no executable route; enablement requires separate policy implementation telemetry and evidence.",
+    "No production or real-identity readiness is claimed."
+  ]
+}

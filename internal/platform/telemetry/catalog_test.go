@@ -43,14 +43,22 @@ func loadCatalog(t *testing.T) (metricCatalog, string) {
 
 func TestMetricCatalogEnforcesCardinalityAndRuntimeCoverage(t *testing.T) {
 	catalog, root := loadCatalog(t)
-	if catalog.Version != 1 || catalog.CardinalityBudget < 1 || catalog.CardinalityBudget > 256 {
+	if catalog.Version != 1 || catalog.CardinalityBudget < 1 || catalog.CardinalityBudget > 384 {
 		t.Fatal("metric catalog policy is invalid")
 	}
 	required := map[string]string{
 		"http.server.request.count": "emitted", "http.server.request.duration": "emitted",
 		"atlas.identity.operation.count": "emitted", "atlas.identity.operation.duration": "emitted",
 		"atlas.identity.provider.request.count": "emitted", "atlas.identity.provider.request.duration": "emitted",
-		"atlas.database.readiness.count": "emitted", "atlas.database.readiness.duration": "emitted",
+		"atlas.operations.approval.operation.count": "emitted", "atlas.operations.approval.operation.duration": "emitted",
+		"atlas.operations.approval.status.count": "emitted", "atlas.operations.approval.age": "emitted",
+		"atlas.operations.approval.conflict.count": "emitted", "atlas.operations.approval.integrity_failure.count": "emitted",
+		"atlas.identity.api_credential.authentication.count": "emitted",
+		"atlas.identity.api_credential.anomaly.count":        "emitted",
+		"atlas.identity.api_credential.rate_rejection.count": "emitted",
+		"atlas.identity.api_credential.rate_fallback.count":  "emitted",
+		"atlas.identity.break_glass.attempt.count":           "definition-only",
+		"atlas.database.readiness.count":                     "emitted", "atlas.database.readiness.duration": "emitted",
 		"atlas.database.pool.connections": "emitted", "atlas.build.info": "emitted",
 		"atlas.queue.lag": "definition-only", "atlas.worker.retry.count": "definition-only",
 	}
@@ -68,7 +76,11 @@ func TestMetricCatalogEnforcesCardinalityAndRuntimeCoverage(t *testing.T) {
 					t.Fatalf("high-cardinality identity label %q is forbidden", label)
 				}
 			}
-			if len(values) == 0 || len(values) > 16 {
+			maximumValues := 16
+			if label == "http.route" || label == "atlas.identity.operation" {
+				maximumValues = 32
+			}
+			if len(values) == 0 || len(values) > maximumValues {
 				t.Fatalf("label %q has an invalid allowlist", label)
 			}
 			cardinality *= len(values)

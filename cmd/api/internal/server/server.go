@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/MichaelSeveen/atlas/internal/identity"
+	"github.com/MichaelSeveen/atlas/internal/operations"
 	"github.com/MichaelSeveen/atlas/internal/platform/clock"
 	"github.com/MichaelSeveen/atlas/internal/platform/correlation"
 	"github.com/MichaelSeveen/atlas/internal/platform/identifier"
@@ -62,6 +63,7 @@ type Options struct {
 	Propagator       propagation.TextMapPropagator
 	Logs             logging.Recorder
 	Identity         *identity.Service
+	Approvals        *operations.Service
 	WebOrigin        string
 	CORS             CORSConfig
 	MaxBodyBytes     int64
@@ -69,25 +71,36 @@ type Options struct {
 }
 
 type App struct {
-	build            BuildInfo
-	readiness        ReadinessChecker
-	clock            clock.Clock
-	newID            IDGenerator
-	entropy          io.Reader
-	entropyMu        sync.Mutex
-	tracer           traceapi.Tracer
-	propagator       propagation.TextMapPropagator
-	logs             logging.Recorder
-	identity         *identity.Service
-	webOrigin        string
-	requestCounter   metricapi.Int64Counter
-	requestDuration  metricapi.Float64Histogram
-	identityCounter  metricapi.Int64Counter
-	identityDuration metricapi.Float64Histogram
-	cors             corsPolicy
-	maxBodyBytes     int64
-	readinessTimeout time.Duration
-	emergencyContext correlation.Context
+	build              BuildInfo
+	readiness          ReadinessChecker
+	clock              clock.Clock
+	newID              IDGenerator
+	entropy            io.Reader
+	entropyMu          sync.Mutex
+	tracer             traceapi.Tracer
+	propagator         propagation.TextMapPropagator
+	logs               logging.Recorder
+	identity           *identity.Service
+	approvals          *operations.Service
+	webOrigin          string
+	requestCounter     metricapi.Int64Counter
+	requestDuration    metricapi.Float64Histogram
+	identityCounter    metricapi.Int64Counter
+	identityDuration   metricapi.Float64Histogram
+	approvalCounter    metricapi.Int64Counter
+	approvalDuration   metricapi.Float64Histogram
+	approvalStatus     metricapi.Int64Counter
+	approvalAge        metricapi.Float64Histogram
+	approvalConflict   metricapi.Int64Counter
+	approvalIntegrity  metricapi.Int64Counter
+	credentialAuth     metricapi.Int64Counter
+	credentialAnomaly  metricapi.Int64Counter
+	credentialRate     metricapi.Int64Counter
+	credentialFallback metricapi.Int64Counter
+	cors               corsPolicy
+	maxBodyBytes       int64
+	readinessTimeout   time.Duration
+	emergencyContext   correlation.Context
 }
 
 func New(options Options) (*App, error) {
@@ -105,7 +118,7 @@ func New(options Options) (*App, error) {
 	if options.Readiness == nil {
 		return nil, errors.New("readiness checker is required")
 	}
-	if options.Identity != nil {
+	if options.Identity != nil || options.Approvals != nil {
 		if err := validateWebOrigin(options.WebOrigin); err != nil {
 			return nil, err
 		}
@@ -158,6 +171,16 @@ func New(options Options) (*App, error) {
 	var requestDuration metricapi.Float64Histogram
 	var identityCounter metricapi.Int64Counter
 	var identityDuration metricapi.Float64Histogram
+	var approvalCounter metricapi.Int64Counter
+	var approvalDuration metricapi.Float64Histogram
+	var approvalStatus metricapi.Int64Counter
+	var approvalAge metricapi.Float64Histogram
+	var approvalConflict metricapi.Int64Counter
+	var approvalIntegrity metricapi.Int64Counter
+	var credentialAuth metricapi.Int64Counter
+	var credentialAnomaly metricapi.Int64Counter
+	var credentialRate metricapi.Int64Counter
+	var credentialFallback metricapi.Int64Counter
 	if options.Meter != nil {
 		requestCounter, err = options.Meter.Int64Counter("http.server.request.count",
 			metricapi.WithDescription("Completed foundation HTTP requests."), metricapi.WithUnit("{request}"))
@@ -179,26 +202,87 @@ func New(options Options) (*App, error) {
 		if err != nil {
 			return nil, errors.New("create identity operation duration")
 		}
+		approvalCounter, err = options.Meter.Int64Counter("atlas.operations.approval.operation.count",
+			metricapi.WithDescription("Completed bounded approval operations."), metricapi.WithUnit("{operation}"))
+		if err != nil {
+			return nil, errors.New("create approval operation counter")
+		}
+		approvalDuration, err = options.Meter.Float64Histogram("atlas.operations.approval.operation.duration",
+			metricapi.WithDescription("Bounded approval operation duration."), metricapi.WithUnit("s"))
+		if err != nil {
+			return nil, errors.New("create approval operation duration")
+		}
+		approvalStatus, err = options.Meter.Int64Counter("atlas.operations.approval.status.count",
+			metricapi.WithDescription("Observed bounded approval workflow statuses."), metricapi.WithUnit("{approval}"))
+		if err != nil {
+			return nil, errors.New("create approval status counter")
+		}
+		approvalAge, err = options.Meter.Float64Histogram("atlas.operations.approval.age",
+			metricapi.WithDescription("Age of a bounded approval at a mutation attempt."), metricapi.WithUnit("s"))
+		if err != nil {
+			return nil, errors.New("create approval age histogram")
+		}
+		approvalConflict, err = options.Meter.Int64Counter("atlas.operations.approval.conflict.count",
+			metricapi.WithDescription("Bounded approval concurrency and state conflicts."), metricapi.WithUnit("{conflict}"))
+		if err != nil {
+			return nil, errors.New("create approval conflict counter")
+		}
+		approvalIntegrity, err = options.Meter.Int64Counter("atlas.operations.approval.integrity_failure.count",
+			metricapi.WithDescription("Approval payload or maker-checker integrity failures."), metricapi.WithUnit("{failure}"))
+		if err != nil {
+			return nil, errors.New("create approval integrity counter")
+		}
+		credentialAuth, err = options.Meter.Int64Counter("atlas.identity.api_credential.authentication.count",
+			metricapi.WithDescription("Bounded API-credential authentication outcomes."), metricapi.WithUnit("{attempt}"))
+		if err != nil {
+			return nil, errors.New("create credential authentication counter")
+		}
+		credentialAnomaly, err = options.Meter.Int64Counter("atlas.identity.api_credential.anomaly.count",
+			metricapi.WithDescription("Detected API-credential network anomalies."), metricapi.WithUnit("{anomaly}"))
+		if err != nil {
+			return nil, errors.New("create credential anomaly counter")
+		}
+		credentialRate, err = options.Meter.Int64Counter("atlas.identity.api_credential.rate_rejection.count",
+			metricapi.WithDescription("Rejected API-credential requests by bounded limiter mode."), metricapi.WithUnit("{rejection}"))
+		if err != nil {
+			return nil, errors.New("create credential rate-rejection counter")
+		}
+		credentialFallback, err = options.Meter.Int64Counter("atlas.identity.api_credential.rate_fallback.count",
+			metricapi.WithDescription("API-credential requests evaluated by the conservative local fallback."), metricapi.WithUnit("{attempt}"))
+		if err != nil {
+			return nil, errors.New("create credential rate-fallback counter")
+		}
 	}
 
 	return &App{
-		build:            options.Build,
-		readiness:        options.Readiness,
-		clock:            options.Clock,
-		newID:            options.NewID,
-		entropy:          options.Entropy,
-		tracer:           options.Tracer,
-		propagator:       options.Propagator,
-		logs:             options.Logs,
-		identity:         options.Identity,
-		webOrigin:        options.WebOrigin,
-		requestCounter:   requestCounter,
-		requestDuration:  requestDuration,
-		identityCounter:  identityCounter,
-		identityDuration: identityDuration,
-		cors:             cors,
-		maxBodyBytes:     options.MaxBodyBytes,
-		readinessTimeout: options.ReadinessTimeout,
-		emergencyContext: emergencyContext,
+		build:              options.Build,
+		readiness:          options.Readiness,
+		clock:              options.Clock,
+		newID:              options.NewID,
+		entropy:            options.Entropy,
+		tracer:             options.Tracer,
+		propagator:         options.Propagator,
+		logs:               options.Logs,
+		identity:           options.Identity,
+		approvals:          options.Approvals,
+		webOrigin:          options.WebOrigin,
+		requestCounter:     requestCounter,
+		requestDuration:    requestDuration,
+		identityCounter:    identityCounter,
+		identityDuration:   identityDuration,
+		approvalCounter:    approvalCounter,
+		approvalDuration:   approvalDuration,
+		approvalStatus:     approvalStatus,
+		approvalAge:        approvalAge,
+		approvalConflict:   approvalConflict,
+		approvalIntegrity:  approvalIntegrity,
+		credentialAuth:     credentialAuth,
+		credentialAnomaly:  credentialAnomaly,
+		credentialRate:     credentialRate,
+		credentialFallback: credentialFallback,
+		cors:               cors,
+		maxBodyBytes:       options.MaxBodyBytes,
+		readinessTimeout:   options.ReadinessTimeout,
+		emergencyContext:   emergencyContext,
 	}, nil
 }

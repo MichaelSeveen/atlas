@@ -14,6 +14,8 @@ import (
 	"github.com/MichaelSeveen/atlas/cmd/api/internal/server"
 	"github.com/MichaelSeveen/atlas/internal/identity"
 	identityapplication "github.com/MichaelSeveen/atlas/internal/identity/application"
+	"github.com/MichaelSeveen/atlas/internal/operations"
+	operationsapplication "github.com/MichaelSeveen/atlas/internal/operations/application"
 	"github.com/MichaelSeveen/atlas/internal/platform/database"
 	"github.com/MichaelSeveen/atlas/internal/platform/environment"
 	"github.com/MichaelSeveen/atlas/internal/platform/logging"
@@ -75,6 +77,11 @@ func run() error {
 		return err
 	}
 	defer closeIdentity()
+	approvalService, closeApprovals, err := approvalOptions(baseContext, identityService)
+	if err != nil {
+		return err
+	}
+	defer closeApprovals()
 	logger, err := logging.NewJSONRecorder(os.Stdout)
 	if err != nil {
 		return err
@@ -92,6 +99,7 @@ func run() error {
 		Propagator: propagator,
 		Logs:       logger,
 		Identity:   identityService,
+		Approvals:  approvalService,
 		WebOrigin:  webOrigin(config),
 	})
 	if err != nil {
@@ -159,7 +167,22 @@ func identityOptions(
 		return nil, nil, err
 	}
 	defer wipeRuntimeKey(csrfKey)
-	return identityapplication.NewRuntime(ctx, *config, transactionKey, csrfKey, meter)
+	networkSignalKey, err := decodeRuntimeKey("ATLAS_IDENTITY_NETWORK_SIGNAL_KEY")
+	if err != nil {
+		return nil, nil, err
+	}
+	defer wipeRuntimeKey(networkSignalKey)
+	return identityapplication.NewRuntime(ctx, *config, transactionKey, csrfKey, networkSignalKey, meter)
+}
+
+func approvalOptions(
+	ctx context.Context,
+	identityService *identity.Service,
+) (*operations.Service, func(), error) {
+	if identityService == nil {
+		return nil, func() {}, nil
+	}
+	return operationsapplication.NewRuntime(ctx, identityService)
 }
 
 func decodeRuntimeKey(name string) ([]byte, error) {

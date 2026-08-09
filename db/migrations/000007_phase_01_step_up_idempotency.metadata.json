@@ -1,0 +1,13 @@
+{
+  "version": 7,
+  "name": "phase_01_step_up_idempotency",
+  "released": true,
+  "lock_timeout_ms": 500,
+  "statement_timeout_ms": 5000,
+  "lock_risk": "Creates one initially empty Identity replay table, two indexes, one scope-registry row, and bounded API-role privileges without rewriting existing identity data.",
+  "representative_data": "Runs against empty, version-two, version-six, and deterministic three-principal Phase 01 migration lanes with concurrent scoped-key claims.",
+  "query_plan_review": "The unique scoped-key index provides single-row claim and replay lookup; partial processing-expiry and retention indexes bound lease recovery and later cleanup.",
+  "space_risk": "Adds one bounded replay record per accepted step-up idempotency key, retaining only hashes, protocol response metadata, and references to short-lived OIDC state.",
+  "forward_fix": "Correct released replay lifecycle, constraint, or privilege behavior with a new ordered migration while preserving completed response facts and consumed OIDC state.",
+  "rollback": "Disable step-up initiation before a forward fix; do not erase completed replay records, revive consumed OIDC state, or relax tenant and workforce scope constraints."
+}

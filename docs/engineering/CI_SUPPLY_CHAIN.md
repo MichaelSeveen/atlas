@@ -8,18 +8,18 @@ S07 is a feature-free Phase 00 control slice. It adds no endpoint, event, schema
 
 | Lane | Trigger | Required behavior |
 |---|---|---|
-| PR static | pull request and manual | build, vet, tests, targeted race, Bun frozen install/lint/test/build, contract lint/conformance/examples, migration manifest, complete-history secrets, Gosec, dependency vulnerability checks |
-| PR CodeQL | pull request | independent Go and TypeScript taint/static analysis with retained SARIF |
-| PR integration | pull request | real PostgreSQL/NATS and empty/previous migration lanes through S05 |
-| PR supply chain | pull request | four SPDX SBOMs, critical-vulnerability gate, denied-license gate, source-revision image tags/digests, non-root/read-only runtime proof |
+| Push static | every branch push and manual | build, vet, tests, targeted race, Bun frozen install/lint/test/build, contract lint/conformance/examples, migration manifest, complete-history secrets, Gosec, dependency vulnerability checks |
+| Push CodeQL | every branch push and manual | independent Go and TypeScript taint/static analysis with retained SARIF |
+| Push integration | every branch push and manual | real PostgreSQL/NATS and empty/previous migration lanes through S05 |
+| Push supply chain | every branch push and manual | four SPDX SBOMs, critical-vulnerability gate, denied-license gate, source-revision image tags/digests, non-root/read-only runtime proof |
 | Nightly | schedule/manual | S07 supply-chain plus S06 live trace/metric/collector-outage proof |
 | Release | protected `main`/version tag manual or tag push | full live/history/supply/clean-clone S08 preflight on the fresh hosted runner before registry authentication; GHCR images tagged by the full source revision; digest-only signing/attestation; SPDX attestation; signature and GitHub provenance verification |
 
-The versioned workflows are not proof that GitHub enforces them. Under [ADR 0012](../atlas-prd/06-governance/adrs/0012-solo-maintainer-sensitive-change-governance.md), `main` must have a branch ruleset requiring pull requests, all PR jobs, conversation resolution, deletion/non-fast-forward protection, and no unrecorded bypass. While the closed synthetic solo policy is active, required human approvals remain zero because the only owner cannot independently approve their own work; sensitive PRs instead require the machine-checked declaration and fresh-context self-review. This is an accepted deviation, not independent-review evidence. Capture the ruleset identifier and successful PR run before marking hosted enforcement verified. A genuine code-owner approval becomes mandatory before any policy revalidation trigger.
+The versioned workflows are not proof that GitHub enforces them. Under [ADR 0012](../atlas-prd/06-governance/adrs/0012-solo-maintainer-sensitive-change-governance.md), `main` must have a branch ruleset requiring pull requests, all push-CI jobs on the pull-request head revision, conversation resolution, deletion/non-fast-forward protection, and no unrecorded bypass. While the closed synthetic solo policy is active, required human approvals remain zero because the only owner cannot independently approve their own work; sensitive pushed revision ranges instead require the machine-checked commit-message declaration and fresh-context self-review, mirrored in the pull-request body. This is an accepted deviation, not independent-review evidence. Capture the ruleset identifier and successful hosted run before marking enforcement verified. A genuine code-owner approval becomes mandatory before any policy revalidation trigger.
 
 ## Contract policy
 
-`contractctl lint` checks exact OpenAPI/AsyncAPI versions, YAML parsing, non-empty roots, internal-only references, and reference resolution. `contractctl compare` rejects removed OpenAPI paths/methods/responses/schema fields and removed AsyncAPI channels/operations/messages/schema fields. PR comparison reads the base revision directly from Git and never stores another editable contract. Additive changes still require compatibility and owner review. Product operations described by the canonical planning contract are not implemented by this slice.
+`contractctl lint` checks exact OpenAPI/AsyncAPI versions, YAML parsing, non-empty roots, internal-only references, and reference resolution. `contractctl compare` rejects removed OpenAPI paths/methods/responses/schema fields and removed AsyncAPI channels/operations/messages/schema fields. Push comparison reads the event's base revision directly from Git and never stores another editable contract. Additive changes still require compatibility and owner review. Product operations described by the canonical planning contract are not implemented by this slice.
 
 ## Artifact policy
 

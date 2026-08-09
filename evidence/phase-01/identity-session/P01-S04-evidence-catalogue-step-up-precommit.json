@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "evidence_id": "EVD-P01-S04-CATALOGUE-STEP-UP-PRECOMMIT",
+  "created_at": "2026-07-27T00:55:00Z",
+  "phase": "PHASE-01_IDENTITY_ACCESS_TENANCY",
+  "slice": "P01-S04",
+  "source_revision": "UNCOMMITTED_WORKTREE(base=79176d8d224ebdbd07f399537cc30ad129369401)",
+  "sanitization": "Only public tool versions, source identities, bounded test labels, synthetic population names, public route and error names, artifact digests, and configuration semantics are included. Credentials, database URLs, authorization codes, state or nonce or PKCE values, cookies, session or principal identifiers, tokens, provider payloads, SQL error detail, WAL or data pages, and real identity or provider data are excluded.",
+  "artifacts": [
+    {
+      "evidence_id": "EVD-P01-S04-STEP-UP-PRECOMMIT-REPORT",
+      "path": "evidence/phase-01/identity-session/S04-step-up-idempotency-and-assurance-precommit.md",
+      "sha256": "7e15de2d850cf405d22d742d536d2e75540c8a4faa08386a308d8fd6268c1223",
+      "result": "PASS",
+      "requirements": ["FND-011", "FND-064", "IAM-001..002", "IAM-006..007", "IAM-020..021", "IAM-025"],
+      "threats": ["THR-006..007", "THR-020", "THR-037", "THR-039", "THR-044", "THR-056", "THR-058"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/verify-p01-s04.ps1 -Live -ContainerRuntime podman",
+      "limitation": "Pre-commit same-host synthetic proof; hosted Linux and independent review are not claimed.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-STEP-UP-MIGRATION-MANIFEST",
+      "path": "db/migrations/MANIFEST.sha256",
+      "sha256": "3264c26eef0652ab1ebf3c994f9d3db2d45fd4cd30fc85cbdb6836d649ad2c0e",
+      "result": "PASS",
+      "requirements": ["FND-025", "FND-060..064", "IAM-002", "IAM-006"],
+      "threats": ["THR-006", "THR-020", "THR-044", "THR-060"],
+      "reproduce": "go run ./cmd/dbctl verify --migration-dir db/migrations",
+      "limitation": "Forward-only integrity and ordering proof; the live role and restore gate executes separately.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-STEP-UP-SERVICE",
+      "path": "internal/identity/session.go",
+      "sha256": "241b054523ee1ddbf2864e5f05c4fff019aba1dd830d8fbde2a62475837f9f6c",
+      "result": "PASS",
+      "requirements": ["IAM-001..002", "IAM-006..007"],
+      "threats": ["THR-006..007", "THR-020", "THR-037", "THR-039", "THR-056", "THR-058"],
+      "reproduce": "go test ./internal/identity -count=1",
+      "limitation": "Synthetic provider boundary; higher assurance is fresh password confirmation and is not an MFA claim.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-STEP-UP-POSTGRES-STORE",
+      "path": "internal/identity/persistence/session.go",
+      "sha256": "cb075b1c9fb93f2ba47b992d7628ab9dbe5fb8506885fbdf9096854fed82290c",
+      "result": "PASS",
+      "requirements": ["FND-064", "IAM-002", "IAM-006", "IAM-025"],
+      "threats": ["THR-006", "THR-018", "THR-037", "THR-044", "THR-058"],
+      "reproduce": "go test ./internal/identity/persistence -count=1; run scripts/p01-s04-session-repository.ps1",
+      "limitation": "Real PostgreSQL integration uses a disposable same-host database and synthetic principals.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-STEP-UP-HTTP",
+      "path": "cmd/api/internal/server/identity_handlers.go",
+      "sha256": "b2718ff8ac60031a230d2deb2ab065e84bf3ebe91d831911be9dbbd5f345aa5e",
+      "result": "PASS",
+      "requirements": ["IAM-001..002", "IAM-006..007"],
+      "threats": ["THR-006..007", "THR-037", "THR-039", "THR-056"],
+      "reproduce": "go test ./cmd/api/internal/server -count=1",
+      "limitation": "Server-side contract proof; full browser cache/storage/BFCache behavior remains open.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-STEP-UP-OIDC-CLIENT",
+      "path": "internal/identity/oidc/client.go",
+      "sha256": "c0df1f93e89532cc430c6fa77ea70dddcbdc3a27f41288f7e1e47934c0e7ccdf",
+      "result": "PASS",
+      "requirements": ["IAM-001", "IAM-006..007"],
+      "threats": ["THR-006..007", "THR-020", "THR-039", "THR-056"],
+      "reproduce": "go test ./internal/identity/oidc -count=1",
+      "limitation": "Synthetic OIDC provider proof; baseline and step-up ACR behavior is also checked by the live Keycloak journey.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-STEP-UP-KEYCLOAK-CONTROL",
+      "path": "scripts/configure-p01-s04-keycloak.ps1",
+      "sha256": "4954c2987bc0ed7432620386f37ca4428f9dedc76579cf4905e03f478f75f449",
+      "result": "PASS",
+      "requirements": ["IAM-001", "IAM-006..007"],
+      "threats": ["THR-005", "THR-020", "THR-039", "THR-056"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/configure-p01-s04-keycloak.ps1",
+      "limitation": "Deterministic local Keycloak 26.7 flow; LoA 2 is fresh password confirmation, not MFA or phishing resistance.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-STEP-UP-LIVE-JOURNEY",
+      "path": "scripts/test-p01-s04-oidc-http.ps1",
+      "sha256": "ea5caceda983dd232b121826572849366b57c091e54dfde60b1170027702af39",
+      "result": "PASS",
+      "requirements": ["IAM-001..002", "IAM-006..007", "IAM-025"],
+      "threats": ["THR-006..007", "THR-020", "THR-037", "THR-039", "THR-044", "THR-056", "THR-058"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/test-p01-s04-oidc-http.ps1 -Population customer",
+      "limitation": "Reproducible same-host synthetic journey for all three populations; level 2 is fresh password confirmation and not MFA.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-STEP-UP-PHASE00-REVALIDATION",
+      "path": "docs/engineering/phase-00-gate-policy.json",
+      "sha256": "9e62d08577961f07e53a0ee8494c8bd25be257b835c5efc09b658fa08f44e606",
+      "result": "PASS",
+      "requirements": ["FND-011", "FND-064"],
+      "threats": ["THR-020", "THR-060"],
+      "reproduce": "go test ./internal/architecture -run TestPhase00GateClosurePolicy -count=1",
+      "limitation": "Revalidates migration/recovery inventory without rebinding historical Phase 00 evidence.",
+      "revalidate_by": "2026-10-27"
+    }
+  ]
+}

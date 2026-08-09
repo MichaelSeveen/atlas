@@ -15,7 +15,29 @@ var identityRoutes = []string{
 	"/v1/sessions",
 	"/v1/sessions/{session_id}",
 	"/v1/sessions/revoke-all",
+	"/v1/security/sessions/{session_id}/revocations",
 	"/v1/step-up/challenges",
+	"/v1/me/active-organization",
+	"/v1/organizations",
+	"/v1/organizations/{organization_id}/members",
+	"/v1/organizations/{organization_id}/members/{member_id}",
+	"/v1/organizations/{organization_id}/invitations",
+	"/v1/organization-invitations/{invitation_id}/authentication",
+	"/v1/organization-invitations/{invitation_id}/acceptance",
+}
+
+var approvalRoutes = []string{
+	"/v1/approvals",
+	"/v1/approvals/{approval_id}",
+	"/v1/approvals/{approval_id}/decisions",
+	"/v1/approvals/{approval_id}/executions",
+	"/v1/approvals/{approval_id}/cancellations",
+}
+
+var credentialRoutes = []string{
+	"/v1/api-credentials",
+	"/v1/api-credentials/{credential_id}",
+	"/v1/api-credentials/{credential_id}/rotate",
 }
 
 type statusResponse struct {
@@ -47,8 +69,19 @@ func (a *App) route(response http.ResponseWriter, request *http.Request) {
 		}
 	}
 	if !operational {
-		if identityRoute(request.URL.Path) == "" {
+		identityTemplate := identityRoute(request.URL.Path)
+		approvalTemplate := approvalRoute(request.URL.Path)
+		credentialTemplate := credentialRoute(request.URL.Path)
+		if identityTemplate == "" && approvalTemplate == "" && credentialTemplate == "" {
 			a.writeProblem(response, request, http.StatusNotFound, "route-not-found", "Not found", "ROUTE_NOT_FOUND", false)
+			return
+		}
+		if approvalTemplate != "" {
+			a.routeApproval(response, request)
+			return
+		}
+		if credentialTemplate != "" {
+			a.routeCredential(response, request)
 			return
 		}
 		a.routeIdentity(response, request)
@@ -103,14 +136,126 @@ func identityRoute(path string) string {
 			return "/v1/sessions/{session_id}"
 		}
 	}
+	const securityPrefix = "/v1/security/sessions/"
+	const revocationsSuffix = "/revocations"
+	if strings.HasPrefix(path, securityPrefix) && strings.HasSuffix(path, revocationsSuffix) {
+		identifier := strings.TrimSuffix(strings.TrimPrefix(path, securityPrefix), revocationsSuffix)
+		if identifier != "" && !strings.Contains(identifier, "/") {
+			return "/v1/security/sessions/{session_id}/revocations"
+		}
+	}
+	const organizationPrefix = "/v1/organizations/"
+	const membersSuffix = "/members"
+	if strings.HasPrefix(path, organizationPrefix) && strings.HasSuffix(path, membersSuffix) {
+		identifier := strings.TrimSuffix(strings.TrimPrefix(path, organizationPrefix), membersSuffix)
+		if identifier != "" && !strings.Contains(identifier, "/") {
+			return "/v1/organizations/{organization_id}/members"
+		}
+	}
+	const invitationSuffix = "/invitations"
+	if strings.HasPrefix(path, organizationPrefix) && strings.HasSuffix(path, invitationSuffix) {
+		identifier := strings.TrimSuffix(strings.TrimPrefix(path, organizationPrefix), invitationSuffix)
+		if identifier != "" && !strings.Contains(identifier, "/") {
+			return "/v1/organizations/{organization_id}/invitations"
+		}
+	}
+	const memberSegment = "/members/"
+	if strings.HasPrefix(path, organizationPrefix) {
+		remainder := strings.TrimPrefix(path, organizationPrefix)
+		parts := strings.Split(remainder, memberSegment)
+		if len(parts) == 2 && parts[0] != "" && parts[1] != "" &&
+			!strings.Contains(parts[0], "/") && !strings.Contains(parts[1], "/") {
+			return "/v1/organizations/{organization_id}/members/{member_id}"
+		}
+	}
+	const organizationInvitationPrefix = "/v1/organization-invitations/"
+	for _, suffix := range []string{"/authentication", "/acceptance"} {
+		if strings.HasPrefix(path, organizationInvitationPrefix) && strings.HasSuffix(path, suffix) {
+			identifier := strings.TrimSuffix(strings.TrimPrefix(path, organizationInvitationPrefix), suffix)
+			if identifier != "" && !strings.Contains(identifier, "/") {
+				return "/v1/organization-invitations/{invitation_id}" + suffix
+			}
+		}
+	}
+	return ""
+}
+
+func approvalRoute(path string) string {
+	if path == "/v1/approvals" {
+		return path
+	}
+	const prefix = "/v1/approvals/"
+	if !strings.HasPrefix(path, prefix) {
+		return ""
+	}
+	remainder := strings.TrimPrefix(path, prefix)
+	if remainder == "" {
+		return ""
+	}
+	parts := strings.Split(remainder, "/")
+	if len(parts) == 1 && parts[0] != "" {
+		return "/v1/approvals/{approval_id}"
+	}
+	if len(parts) == 2 && parts[0] != "" {
+		switch parts[1] {
+		case "decisions", "executions", "cancellations":
+			return "/v1/approvals/{approval_id}/" + parts[1]
+		}
+	}
+	return ""
+}
+
+func credentialRoute(path string) string {
+	if path == "/v1/api-credentials" {
+		return path
+	}
+	const prefix = "/v1/api-credentials/"
+	if !strings.HasPrefix(path, prefix) {
+		return ""
+	}
+	remainder := strings.TrimPrefix(path, prefix)
+	parts := strings.Split(remainder, "/")
+	if len(parts) == 1 && parts[0] != "" {
+		return "/v1/api-credentials/{credential_id}"
+	}
+	if len(parts) == 2 && parts[0] != "" && parts[1] == "rotate" {
+		return "/v1/api-credentials/{credential_id}/rotate"
+	}
 	return ""
 }
 
 func allowedMethods(path string) []string {
-	switch identityRoute(path) {
-	case "/v1/me", "/v1/auth/login", "/v1/auth/callback", "/v1/sessions":
+	switch credentialRoute(path) {
+	case "/v1/api-credentials":
+		return []string{http.MethodGet, http.MethodPost}
+	case "/v1/api-credentials/{credential_id}":
+		return []string{http.MethodDelete}
+	case "/v1/api-credentials/{credential_id}/rotate":
+		return []string{http.MethodPost}
+	}
+	switch approvalRoute(path) {
+	case "/v1/approvals":
+		return []string{http.MethodGet, http.MethodPost}
+	case "/v1/approvals/{approval_id}":
 		return []string{http.MethodGet}
-	case "/v1/logout", "/v1/sessions/revoke-all", "/v1/step-up/challenges":
+	case "/v1/approvals/{approval_id}/decisions",
+		"/v1/approvals/{approval_id}/executions",
+		"/v1/approvals/{approval_id}/cancellations":
+		return []string{http.MethodPost}
+	}
+	switch identityRoute(path) {
+	case "/v1/me", "/v1/auth/login", "/v1/auth/callback", "/v1/sessions",
+		"/v1/organizations", "/v1/organizations/{organization_id}/members":
+		return []string{http.MethodGet}
+	case "/v1/me/active-organization":
+		return []string{http.MethodPut}
+	case "/v1/organizations/{organization_id}/members/{member_id}":
+		return []string{http.MethodPatch, http.MethodDelete}
+	case "/v1/logout", "/v1/sessions/revoke-all",
+		"/v1/security/sessions/{session_id}/revocations", "/v1/step-up/challenges",
+		"/v1/organizations/{organization_id}/invitations",
+		"/v1/organization-invitations/{invitation_id}/authentication",
+		"/v1/organization-invitations/{invitation_id}/acceptance":
 		return []string{http.MethodPost}
 	case "/v1/sessions/{session_id}":
 		return []string{http.MethodDelete}

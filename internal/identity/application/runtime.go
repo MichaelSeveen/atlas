@@ -5,11 +5,13 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
+	"os"
 
 	auditapplication "github.com/MichaelSeveen/atlas/internal/audit/application"
 	"github.com/MichaelSeveen/atlas/internal/identity"
 	oidcclient "github.com/MichaelSeveen/atlas/internal/identity/oidc"
 	identitypersistence "github.com/MichaelSeveen/atlas/internal/identity/persistence"
+	identityratelimit "github.com/MichaelSeveen/atlas/internal/identity/ratelimit"
 	"github.com/MichaelSeveen/atlas/internal/platform/database"
 	"github.com/MichaelSeveen/atlas/internal/platform/environment"
 	metricapi "go.opentelemetry.io/otel/metric"
@@ -22,6 +24,7 @@ func NewRuntime(
 	config environment.Config,
 	transactionKey []byte,
 	csrfKey []byte,
+	networkSignalKey []byte,
 	meter metricapi.Meter,
 ) (*identity.Service, func(), error) {
 	databaseConfig, err := database.ConfigFromEnvironment()
@@ -33,7 +36,18 @@ func NewRuntime(
 		return nil, nil, errors.New("invalid identity database configuration")
 	}
 	closePool := func() { pool.Close() }
-	store, err := identitypersistence.NewSessionStore(pool, auditapplication.NewRecorder())
+	auditRecorder := auditapplication.NewRecorder()
+	store, err := identitypersistence.NewSessionStore(pool, auditRecorder)
+	if err != nil {
+		closePool()
+		return nil, nil, errors.New("invalid identity persistence configuration")
+	}
+	organizationStore, err := identitypersistence.NewOrganizationStore(pool, auditRecorder)
+	if err != nil {
+		closePool()
+		return nil, nil, errors.New("invalid identity persistence configuration")
+	}
+	credentialStore, err := identitypersistence.NewCredentialStore(pool, auditRecorder)
 	if err != nil {
 		closePool()
 		return nil, nil, errors.New("invalid identity persistence configuration")
@@ -74,13 +88,32 @@ func NewRuntime(
 		closePool()
 		return nil, nil, errors.New("invalid identity CSRF key")
 	}
+	redisAddress := ""
+	for _, service := range config.Services {
+		if service.Name == "redis" {
+			redisAddress = service.Address
+			break
+		}
+	}
+	credentialLimiter, err := identityratelimit.New(redisAddress, os.Getenv("ATLAS_REDIS_PASSWORD"))
+	if err != nil {
+		closePool()
+		return nil, nil, errors.New("invalid credential rate limiter configuration")
+	}
+	closeRuntime := func() {
+		_ = credentialLimiter.Close()
+		closePool()
+	}
 	service, err := identity.NewService(identity.ServiceOptions{
-		Store: store, Provider: provider, Cryptor: cryptor, CSRF: csrf,
+		Store: store, Organizations: organizationStore, Credentials: credentialStore,
+		CredentialLimiter: credentialLimiter, CredentialEnvironment: string(config.Environment),
+		CredentialNetworkSignalKey: networkSignalKey,
+		Provider:                   provider, Cryptor: cryptor, CSRF: csrf,
 		Entropy: rand.Reader, SessionPolicies: policies,
 	})
 	if err != nil {
-		closePool()
+		closeRuntime()
 		return nil, nil, errors.New("invalid identity service configuration")
 	}
-	return service, closePool, nil
+	return service, closeRuntime, nil
 }

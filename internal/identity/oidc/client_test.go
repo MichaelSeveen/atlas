@@ -47,6 +47,8 @@ func TestAuthorizationCodeFlowValidatesDiscoveryPKCENonceAndTokenClaims(t *testi
 		query.Get("state") != state || query.Get("nonce") != nonce ||
 		query.Get("code_challenge_method") != "S256" ||
 		query.Get("code_challenge") != oauth2.S256ChallengeFromVerifier(verifier) ||
+		query.Get("acr_values") != "1" ||
+		query.Get("scope") != "openid email" ||
 		query.Get("redirect_uri") != upstream.server.URL+"/v1/auth/callback" {
 		t.Fatalf("unsafe authorization URL: %s", authorizationURL)
 	}
@@ -54,7 +56,7 @@ func TestAuthorizationCodeFlowValidatesDiscoveryPKCENonceAndTokenClaims(t *testi
 	upstream.setClaims(tokenClaims{
 		issuer: upstream.issuer, audience: "atlas-bff-test", subject: "subject-1",
 		nonce: nonce, acr: "1", issuedAt: now, expiresAt: now.Add(5 * time.Minute),
-		authenticatedAt: now,
+		authenticatedAt: now, email: "recipient@example.test", emailVerified: true,
 	})
 	claims, err := client.Exchange(
 		context.Background(), identity.PopulationCustomer, "synthetic-code-0001", verifier, upstream.issuer,
@@ -64,11 +66,36 @@ func TestAuthorizationCodeFlowValidatesDiscoveryPKCENonceAndTokenClaims(t *testi
 	}
 	if claims.Issuer != upstream.issuer || claims.Subject != "subject-1" ||
 		claims.Nonce != nonce || claims.Assurance != identity.AssuranceBaseline ||
-		claims.AuthenticatedAt != now {
+		claims.AuthenticatedAt != now || claims.Email != "recipient@example.test" ||
+		!claims.EmailVerified {
 		t.Fatalf("unexpected verified claims: %+v", claims)
 	}
 	if upstream.lastVerifier() != verifier {
 		t.Fatal("token endpoint did not receive the original PKCE verifier")
+	}
+}
+
+func TestStepUpAuthorizationRequestsFreshHigherAssurance(t *testing.T) {
+	now := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
+	upstream := newOIDCTestServer(t, now)
+	client := newTestClient(t, upstream, now)
+	authorizationURL, err := client.AuthorizationURL(
+		context.Background(), identity.PopulationCustomer,
+		tokenCharacter('s'), tokenCharacter('n'), tokenCharacter('v'),
+		identity.TransactionStepUp,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := url.Parse(authorizationURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	query := parsed.Query()
+	if query.Get("acr_values") != "2 3" ||
+		query.Get("prompt") != "login" ||
+		query.Get("max_age") != "0" {
+		t.Fatalf("unsafe step-up authorization URL: %s", authorizationURL)
 	}
 }
 
@@ -284,6 +311,8 @@ type tokenClaims struct {
 	expiresAt       time.Time
 	notBefore       time.Time
 	authenticatedAt time.Time
+	email           string
+	emailVerified   bool
 }
 
 type oidcTestServer struct {
@@ -349,6 +378,7 @@ func (server *oidcTestServer) serveHTTP(response http.ResponseWriter, request *h
 			"nonce": claims.nonce, "acr": claims.acr,
 			"iat": claims.issuedAt.Unix(), "exp": claims.expiresAt.Unix(),
 			"auth_time": claims.authenticatedAt.Unix(),
+			"email":     claims.email, "email_verified": claims.emailVerified,
 		}
 		if !claims.notBefore.IsZero() {
 			raw["nbf"] = claims.notBefore.Unix()

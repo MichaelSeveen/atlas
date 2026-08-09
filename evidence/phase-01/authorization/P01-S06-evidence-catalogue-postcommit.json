@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "evidence_id": "EVD-P01-S06-CATALOGUE-POSTCOMMIT",
+  "created_at": "2026-08-09T00:00:00Z",
+  "phase": "PHASE-01_IDENTITY_ACCESS_TENANCY",
+  "slice": "P01-S06",
+  "source_revision": "d3b8612ff4df2bd67bc16faa322c8ca397318f6e",
+  "sanitization": "Only public source identities, closed synthetic policy and operation names, bounded PASS aggregates, artifact digests, requirement/threat/test identifiers, and control semantics are included. Credentials, database URLs, cookies, CSRF/idempotency/invitation/OIDC material, opaque product identifiers, raw or canonical email, raw SQL errors, WAL/data pages, network addresses, and real identity data are excluded.",
+  "artifacts": [
+    {
+      "evidence_id": "EVD-P01-S06-AUTHORIZATION-CLOSURE",
+      "path": "evidence/phase-01/authorization/S06-authorization-closure-precommit.md",
+      "sha256": "941d63845b3a5d5b8024dcc8623db10ca5a4e8e6709615bd47d60dd7dfc2368b",
+      "result": "PASS",
+      "requirements": ["IAM-011..013", "IAM-020..026"],
+      "threats": ["THR-005", "THR-007", "THR-028", "THR-038", "THR-041", "THR-044", "THR-057", "THR-058"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/verify-p01-s06.ps1 -Live -ContainerRuntime podman",
+      "limitation": "Same-host synthetic regression evidence at the committed S06 boundary; not a constant-time or production-performance proof.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S06-VERIFIER",
+      "path": "scripts/verify-p01-s06.ps1",
+      "sha256": "9e6484f0643fb0b026819c322abbc115719d863fbb6fd7036c600803b9883ec1",
+      "result": "PASS",
+      "requirements": ["IAM-013", "IAM-020..026"],
+      "threats": ["THR-005", "THR-038", "THR-044", "THR-057", "THR-058"],
+      "reproduce": "git show d3b8612ff4df2bd67bc16faa322c8ca397318f6e:scripts/verify-p01-s06.ps1",
+      "limitation": "Historical committed verifier; later cumulative gates may add controls without rewriting this artifact.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S06-EVALUATOR",
+      "path": "internal/identity/authorization.go",
+      "sha256": "e735f037226c459b347f1d356e23d5bf74ae74cb23c894b8b715bf37089a3cd8",
+      "result": "PASS",
+      "requirements": ["IAM-020..024", "IAM-026"],
+      "threats": ["THR-005", "THR-028", "THR-038", "THR-044", "THR-057"],
+      "reproduce": "git show d3b8612ff4df2bd67bc16faa322c8ca397318f6e:internal/identity/authorization.go",
+      "limitation": "Exact evaluator at S06 closure; later approved action additions remain separately evidenced.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S06-OPENAPI",
+      "path": "docs/atlas-prd/03-contracts/openapi.yaml",
+      "sha256": "8b6f6b97fa1c035a6bc343229bfd822e6304e37b65ba306f7a28053f6321e749",
+      "result": "PASS",
+      "requirements": ["IAM-013", "IAM-023..025"],
+      "threats": ["THR-005", "THR-028", "THR-057"],
+      "reproduce": "git show d3b8612ff4df2bd67bc16faa322c8ca397318f6e:docs/atlas-prd/03-contracts/openapi.yaml",
+      "limitation": "Contract at S06 closure; later additive approval response headers are separately evidenced by S07.",
+      "revalidate_by": "2026-11-09"
+    }
+  ]
+}

@@ -4,8 +4,21 @@ const port = Number(Bun.env.ATLAS_WEB_PORT ?? "3000");
 const environment = Bun.env.ATLAS_ENVIRONMENT ?? "local";
 const banner = Bun.env.ATLAS_ENVIRONMENT_BANNER ?? "LOCAL — SYNTHETIC DATA ONLY";
 const mockMode = Bun.env.ATLAS_MOCK_MODE === "true";
+const apiOrigin = Bun.env.ATLAS_API_ORIGIN ?? "http://127.0.0.1:18080";
 
-if (!Number.isInteger(port) || port < 1024 || port > 65535 || !banner.toUpperCase().includes("SYNTHETIC")) {
+let parsedAPIOrigin: URL;
+try {
+  parsedAPIOrigin = new URL(apiOrigin);
+} catch {
+  throw new Error("invalid web runtime configuration");
+}
+
+if (
+  !Number.isInteger(port) || port < 1024 || port > 65535 ||
+  !banner.toUpperCase().includes("SYNTHETIC") ||
+  !["http:", "https:"].includes(parsedAPIOrigin.protocol) ||
+  parsedAPIOrigin.origin !== apiOrigin || parsedAPIOrigin.username !== "" || parsedAPIOrigin.password !== ""
+) {
   throw new Error("invalid web runtime configuration");
 }
 
@@ -15,7 +28,7 @@ const bundle = Bun.file(new URL("../dist/main.js", import.meta.url));
 
 const commonHeaders = {
   "Cache-Control": "no-store",
-  "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+  "Content-Security-Policy": `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self' ${apiOrigin}; img-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'`,
   "Cross-Origin-Resource-Policy": "same-origin",
   "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
   "Referrer-Policy": "no-referrer",
@@ -28,7 +41,7 @@ const server = Bun.serve({
   port,
   maxRequestBodySize: 16 * 1024,
   routes: {
-    "/runtime-config.json": () => Response.json({environment, banner, syntheticData: true, mockMode}, {headers: commonHeaders}),
+    "/runtime-config.json": () => Response.json({environment, banner, syntheticData: true, mockMode, apiOrigin}, {headers: commonHeaders}),
     "/favicon.ico": new Response(null, {status: 204, headers: commonHeaders}),
     "/styles.css": new Response(stylesheet, {headers: {...commonHeaders, "Content-Type": "text/css; charset=utf-8"}}),
     "/main.js": new Response(bundle, {headers: {...commonHeaders, "Content-Type": "text/javascript; charset=utf-8"}}),

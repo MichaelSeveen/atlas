@@ -13,6 +13,9 @@ param(
     [switch]$CleanClone,
 
     [Parameter()]
+    [switch]$HistoricalEvidence,
+
+    [Parameter()]
     [ValidateSet('podman', 'docker')]
     [string]$ContainerRuntime = 'podman'
 )
@@ -44,7 +47,9 @@ try {
     if ($History) { $s07Arguments += '-History' }
     if ($SupplyChain) { $s07Arguments += @('-SupplyChain', '-ContainerRuntime', $ContainerRuntime) }
     Invoke-NativeChecked -Command 'pwsh' -Arguments $s07Arguments
-    Invoke-NativeChecked -Command 'pwsh' -Arguments @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'test-s08-evidence-integrity.ps1'))
+    $evidenceArguments = @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'test-s08-evidence-integrity.ps1'))
+    if ($HistoricalEvidence) { $evidenceArguments += '-Historical' }
+    Invoke-NativeChecked -Command 'pwsh' -Arguments $evidenceArguments
     Invoke-NativeChecked -Command 'go' -Arguments @('test', './internal/architecture', '-run', 'TestPhase00GateClosurePolicy', '-count=1')
     Write-Output 's08_phase_00_gate_policy=PASS'
 

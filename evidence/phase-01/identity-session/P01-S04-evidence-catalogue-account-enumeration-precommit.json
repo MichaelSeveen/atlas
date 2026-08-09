@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "evidence_id": "EVD-P01-S04-CATALOGUE-ACCOUNT-ENUMERATION-PRECOMMIT",
+  "created_at": "2026-07-27T14:30:00Z",
+  "phase": "PHASE-01_IDENTITY_ACCESS_TENANCY",
+  "slice": "P01-S04",
+  "source_revision": "UNCOMMITTED_WORKTREE(base=744d1e1f1ede231b00897a0ee10d3342ece15495)",
+  "sanitization": "Only public tool versions, source identities, bounded test labels, synthetic population names, public route and error names, aggregate durations, artifact digests, and configuration semantics are included. Credentials, database URLs, authorization codes, state or nonce or PKCE values, cookies, session or principal identifiers, tokens, provider payloads, raw HTML, SQL error detail, WAL or data pages, and real identity or provider data are excluded.",
+  "artifacts": [
+    {
+      "evidence_id": "EVD-P01-S04-ACCOUNT-ENUMERATION-REPORT",
+      "path": "evidence/phase-01/identity-session/S04-account-enumeration-precommit.md",
+      "sha256": "08367c7a5aa0b89209910b27bb05e379016e6bb29553649213febe67f2e4bc71",
+      "result": "PASS",
+      "requirements": ["IAM-005"],
+      "threats": ["THR-037", "THR-039"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/test-p01-s04-account-enumeration.ps1; pwsh -NoProfile -File ./scripts/p01-s04.ps1 -ContainerRuntime podman",
+      "limitation": "Pre-commit same-host synthetic timing regression; not constant-time or production performance/rate-control proof.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-ACCOUNT-ENUMERATION-MATRIX",
+      "path": "scripts/test-p01-s04-account-enumeration.ps1",
+      "sha256": "c743dac6d0328599b2461e876058d813db49ea19fd19da1e7d1919528a6411aa",
+      "result": "PASS",
+      "requirements": ["IAM-005"],
+      "threats": ["THR-037", "THR-039"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/test-p01-s04-account-enumeration.ps1",
+      "limitation": "Nine interleaved samples per arm in three local synthetic realms; thresholds detect regression rather than prove universal constant time.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-ACCOUNT-ENUMERATION-LIVE",
+      "path": "scripts/p01-s04.ps1",
+      "sha256": "539080d38bef5ab596d86c7834c6618edf71805fb25b5cc36e099b1c57740a85",
+      "result": "PASS",
+      "requirements": ["FND-064", "IAM-001..007", "IAM-025"],
+      "threats": ["THR-006..007", "THR-018", "THR-020", "THR-037", "THR-039", "THR-044", "THR-056", "THR-058"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/p01-s04.ps1 -ContainerRuntime podman",
+      "limitation": "Same-host real PostgreSQL and synthetic Keycloak composition; no real IdP or independent review.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-ACCOUNT-ENUMERATION-VERIFIER",
+      "path": "scripts/verify-p01-s04.ps1",
+      "sha256": "9f9c748027c5850ab6928a870384578bb1b45fd7cb3a2feab3665905c2ae4a38",
+      "result": "PASS",
+      "requirements": ["FND-011", "FND-064", "IAM-001..007", "IAM-025"],
+      "threats": ["THR-006..007", "THR-018", "THR-020", "THR-037", "THR-039", "THR-044", "THR-056", "THR-058", "THR-060"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/verify-p01-s04.ps1 -Live -ContainerRuntime podman",
+      "limitation": "Hosted Linux and independent-review results are not claimed by this pre-commit catalogue.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-ACCOUNT-ENUMERATION-TRACEABILITY",
+      "path": "docs/atlas-prd/06-governance/REQUIREMENTS_TRACEABILITY.csv",
+      "sha256": "4f03858eee74d8b2a59ea89df204263c185fa197b064f36b1b49f5122264fb2a",
+      "result": "PASS",
+      "requirements": ["IAM-005"],
+      "threats": ["THR-037", "THR-039", "THR-060"],
+      "reproduce": "go test ./internal/architecture ./tests/contract -count=1",
+      "limitation": "IAM-005 remains Planned until real-provider recovery/rate evidence and later phase acceptance are complete.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-ACCOUNT-ENUMERATION-EVIDENCE-INDEX",
+      "path": "docs/atlas-prd/06-governance/EVIDENCE_INDEX.md",
+      "sha256": "866e00700a1516aed6bb99563c9a8610d1e2c374248ada501b45cd28fdf57644",
+      "result": "PASS",
+      "requirements": ["IAM-005"],
+      "threats": ["THR-039", "THR-060"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/test-p01-evidence-integrity.ps1",
+      "limitation": "Pre-commit catalogue link; post-commit evidence must be additive.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-ACCOUNT-ENUMERATION-PRD-MANIFEST",
+      "path": "docs/atlas-prd/MANIFEST.sha256",
+      "sha256": "f46ddc03c34c5bef872b556cd25a167d2a53eb5b3c96e36882c723194019d399",
+      "result": "PASS",
+      "requirements": ["IAM-005"],
+      "threats": ["THR-060"],
+      "reproduce": "go test ./internal/architecture -count=1",
+      "limitation": "Canonical PRD integrity only; it is not runtime proof.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-ACCOUNT-ENUMERATION-PLAN",
+      "path": "docs/engineering/PHASE-01-PLAN.md",
+      "sha256": "bb7e6ef9f306f5e388bd57bfcab5f8fdf429fad75006477088ba9f2f1fac5d00",
+      "result": "PASS",
+      "requirements": ["IAM-004..005"],
+      "threats": ["THR-006", "THR-037", "THR-039", "THR-058", "THR-060"],
+      "reproduce": "manual source-hierarchy review plus pwsh -NoProfile -File ./scripts/verify-p01-s04.ps1",
+      "limitation": "Records P01-D15 as a blocker; no administrator revocation capability is claimed.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-ACCOUNT-ENUMERATION-STATUS",
+      "path": "docs/engineering/IMPLEMENTATION_STATUS.md",
+      "sha256": "5063a662cf3724dd0332d828ddd9190759a363316d304d050f11c669b9b40322",
+      "result": "PASS",
+      "requirements": ["IAM-004..005"],
+      "threats": ["THR-037", "THR-039", "THR-060"],
+      "reproduce": "manual claims review plus pwsh -NoProfile -File ./scripts/verify-p01-s04.ps1",
+      "limitation": "All 30 Phase 01 IAM rows remain Planned.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-ACCOUNT-ENUMERATION-POLICY",
+      "path": "docs/engineering/phase-01-evidence-policy.json",
+      "sha256": "cdec8b318cdab79f1a5cd607cf3aa5efaad5df6fbff343685fbe39440c9f31bf",
+      "result": "PASS",
+      "requirements": ["FND-011"],
+      "threats": ["THR-018", "THR-060"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/test-p01-evidence-integrity.ps1",
+      "limitation": "Selects the additive current pre-commit catalogue; historical catalogues remain unchanged.",
+      "revalidate_by": "2026-10-27"
+    }
+  ]
+}

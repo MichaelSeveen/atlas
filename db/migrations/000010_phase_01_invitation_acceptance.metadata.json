@@ -1,0 +1,13 @@
+{
+  "version": 10,
+  "name": "phase_01_invitation_acceptance",
+  "released": true,
+  "lock_timeout_ms": 500,
+  "statement_timeout_ms": 5000,
+  "lock_risk": "Adds nullable binding and replay columns, replaces closed check constraints, and validates existing Identity rows without rewriting token, session, membership, or invitation data.",
+  "representative_data": "Runs against empty, previous-version, current, and deterministic Phase 01 identity lanes; live tests exercise new-principal and existing-principal invitation acceptance through the atlas_api role.",
+  "query_plan_review": "Invitation authentication and acceptance use the invitation primary key under row lock; external-subject uniqueness and membership tenant-principal uniqueness serialize callback and acceptance races without a new broad index.",
+  "space_risk": "Adds nullable SHA-256 digests and accepted-state identifiers only; raw invitation tokens, full email addresses, and upstream OIDC tokens remain non-recoverable.",
+  "forward_fix": "Disable invitation authentication and acceptance routes, preserve accepted membership and Audit facts, and add a new ordered migration for any constraint, replay, or session-binding correction.",
+  "rollback": "Disable the two invitation-acceptance routes before a forward fix; never revert an accepted invitation, delete its membership or Audit fact, restore a revoked bootstrap session, or recover secret material."
+}

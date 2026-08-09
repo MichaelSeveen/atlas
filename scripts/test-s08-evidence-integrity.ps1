@@ -1,5 +1,8 @@
 [CmdletBinding()]
-param()
+param(
+    [Parameter()]
+    [switch]$Historical
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -26,6 +29,17 @@ function Get-AcceptedSourceIdentities {
         [string]$Root,
         [string]$DeclaredSource
     )
+    if ($Historical) {
+        $head = (& git -C $Root rev-parse HEAD 2>$null | Out-String).Trim()
+        if ($LASTEXITCODE -ne 0 -or $head -notmatch '^[0-9a-f]{40}$' -or $DeclaredSource -notmatch '^[0-9a-f]{40}$') {
+            throw 'Historical evidence verification requires committed source identities.'
+        }
+        & git -C $Root merge-base --is-ancestor $DeclaredSource $head
+        if ($LASTEXITCODE -ne 0) {
+            throw "Evidence catalogue source revision is stale: $DeclaredSource is not an ancestor of $head"
+        }
+        return @($DeclaredSource)
+    }
     $currentSource = Get-SourceIdentity -Root $Root
     if ($DeclaredSource -eq $currentSource) { return @($currentSource) }
     if ($currentSource -notmatch '^[0-9a-f]{40}$' -or $DeclaredSource -notmatch '^[0-9a-f]{40}$') {
@@ -153,6 +167,7 @@ finally {
 }
 
 Write-Output "s08_evidence_catalogue_sha256=$actualCatalogueDigest"
+Write-Output "s08_evidence_mode=$(if ($Historical) { 'HISTORICAL_READ_ONLY' } else { 'STRICT_CURRENT_SOURCE' })"
 Write-Output 's08_evidence_tamper_canary=PASS'
 Write-Output 's08_evidence_stale-source_canary=PASS'
 Write-Output 's08_evidence_integrity=PASS'

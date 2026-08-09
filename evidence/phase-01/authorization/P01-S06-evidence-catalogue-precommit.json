@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "evidence_id": "EVD-P01-S06-CATALOGUE-PRECOMMIT",
+  "created_at": "2026-08-09T00:00:00Z",
+  "phase": "PHASE-01_IDENTITY_ACCESS_TENANCY",
+  "slice": "P01-S06",
+  "source_revision": "UNCOMMITTED_WORKTREE(base=a2248839905f86b67faae5076f8115e6e924e39f)",
+  "sanitization": "Only public source identities, closed synthetic policy and operation names, bounded PASS/timing aggregates, migration identity, artifact digests, requirement/threat/test identifiers, and control semantics are included. Credentials, database URLs, cookies, CSRF/idempotency/invitation/OIDC material, opaque product identifiers, raw or canonical email, raw SQL errors, WAL/data pages, network addresses, and real identity data are excluded.",
+  "artifacts": [
+    {
+      "evidence_id": "EVD-P01-S06-AUTHORIZATION-CLOSURE",
+      "path": "evidence/phase-01/authorization/S06-authorization-closure-precommit.md",
+      "sha256": "941d63845b3a5d5b8024dcc8623db10ca5a4e8e6709615bd47d60dd7dfc2368b",
+      "result": "PASS",
+      "requirements": ["IAM-011..013", "IAM-020..026"],
+      "threats": ["THR-005", "THR-007", "THR-028", "THR-038", "THR-041", "THR-044", "THR-057", "THR-058"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/verify-p01-s06.ps1 -Live -ContainerRuntime podman",
+      "limitation": "Same-host synthetic regression evidence; one current member-list action and no search/suggestion/autocomplete, deployed alert backend, real IdP, approval, credential, or financial behavior.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S06-VERIFIER",
+      "path": "scripts/verify-p01-s06.ps1",
+      "sha256": "9e6484f0643fb0b026819c322abbc115719d863fbb6fd7036c600803b9883ec1",
+      "result": "PASS",
+      "requirements": ["IAM-013", "IAM-020..026"],
+      "threats": ["THR-005", "THR-038", "THR-044", "THR-057", "THR-058"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/verify-p01-s06.ps1 -Live -ContainerRuntime podman",
+      "limitation": "Cumulative local verifier; hosted and independent closure remain S09 work.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S06-EVALUATOR",
+      "path": "internal/identity/authorization.go",
+      "sha256": "e735f037226c459b347f1d356e23d5bf74ae74cb23c894b8b715bf37089a3cd8",
+      "result": "PASS",
+      "requirements": ["IAM-020..024", "IAM-026"],
+      "threats": ["THR-005", "THR-028", "THR-038", "THR-044", "THR-057"],
+      "reproduce": "go test ./internal/identity -run Authorization -count=1",
+      "limitation": "The runtime action catalogue is intentionally limited to the sole current member-list action.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S06-MUTATION-MATRIX",
+      "path": "internal/identity/authorization_test.go",
+      "sha256": "f90c33fd1251b35495e69bba8052ef3d6d794e9fcb9e22315b8853c206f175e5",
+      "result": "PASS",
+      "requirements": ["IAM-020..024", "IAM-026"],
+      "threats": ["THR-005", "THR-038", "THR-044", "THR-057"],
+      "reproduce": "go test ./internal/identity -run Authorization -count=1",
+      "limitation": "Source-level deterministic mutation matrix; PostgreSQL behavior is bound separately.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S06-POSTGRESQL-BOUNDARY",
+      "path": "internal/identity/persistence/organization.go",
+      "sha256": "413bbd0cdd60365f01cf1e5385446dfc59f9e7cf69fa8587b4fc63cb97dcfc40",
+      "result": "PASS",
+      "requirements": ["IAM-011..013", "IAM-022..026"],
+      "threats": ["THR-005", "THR-007", "THR-028", "THR-038", "THR-044", "THR-057", "THR-058"],
+      "reproduce": "go test ./internal/identity/persistence -count=1",
+      "limitation": "Identity-owned member-list boundary only; no generic cross-domain authorization bypass is introduced.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S06-CONCEALMENT-TIMING",
+      "path": "internal/identity/persistence/organization_integration_test.go",
+      "sha256": "25847d161c0b6225fa7b76fb160ab6f10e707360678f64cc008d83f10e2b741f",
+      "result": "PASS",
+      "requirements": ["IAM-013", "IAM-023..025"],
+      "threats": ["THR-005", "THR-028", "THR-038", "THR-057", "THR-058"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/verify-p01-s06.ps1 -Live -ContainerRuntime podman",
+      "limitation": "Same-host interleaved timing regression bounds, not a constant-time or production-performance proof.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S06-MULTI-REPLICA-INVALIDATION",
+      "path": "internal/identity/persistence/authorization_integration_test.go",
+      "sha256": "b35e036ff27f2567ee416d9e82b3d873884577a494d1e83a00ec607ec96a7b52",
+      "result": "PASS",
+      "requirements": ["IAM-022", "IAM-024", "IAM-026"],
+      "threats": ["THR-005", "THR-038", "THR-044"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/verify-p01-s06.ps1 -Live -ContainerRuntime podman",
+      "limitation": "Two local API pools over one PostgreSQL authority; no distributed cache or production topology is claimed.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S06-LOCK-RETRY",
+      "path": "internal/identity/persistence/membership_database_error_test.go",
+      "sha256": "58fe8d757ca63663374a822f33fde321e0a6a5862cb785be22de115a6be95e96",
+      "result": "PASS",
+      "requirements": ["IAM-015", "IAM-026"],
+      "threats": ["THR-038", "THR-044"],
+      "reproduce": "go test ./internal/identity/persistence -run MembershipMutationDatabaseErrors -count=1",
+      "limitation": "Classifier proof plus cumulative live race; retry exhaustion remains fail-closed.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S06-MASKED-HINT-MIGRATION",
+      "path": "db/migrations/000013_phase_01_membership_email_hint.sql",
+      "sha256": "84e84ecd572b50ab15f8e080f3431c04246f433c97ebecdfb9fde1719d351179",
+      "result": "PASS",
+      "requirements": ["IAM-010", "IAM-024"],
+      "threats": ["THR-028", "THR-057"],
+      "reproduce": "go run ./cmd/dbctl verify --migration-dir db/migrations",
+      "limitation": "Stores only an optional already-masked invitation hint; it is not a canonical/raw email or lookup key.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S06-OPENAPI",
+      "path": "docs/atlas-prd/03-contracts/openapi.yaml",
+      "sha256": "8b6f6b97fa1c035a6bc343229bfd822e6304e37b65ba306f7a28053f6321e749",
+      "result": "PASS",
+      "requirements": ["IAM-013", "IAM-023..025"],
+      "threats": ["THR-005", "THR-028", "THR-057"],
+      "reproduce": "go run ./cmd/contractctl lint docs/atlas-prd/03-contracts/openapi.yaml docs/atlas-prd/03-contracts/asyncapi.yaml",
+      "limitation": "Additive optional purpose header on the existing member-list operation; AsyncAPI remains unchanged.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S06-OBSERVABILITY",
+      "path": "deploy/observability/catalog.json",
+      "sha256": "fa4d16380e8c1b689ebe8ff500ae5956d96effef479b9c244cc6597328bf59ac",
+      "result": "PASS",
+      "requirements": ["IAM-013", "IAM-025"],
+      "threats": ["THR-005", "THR-007", "THR-028", "THR-057"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/test-s06-alert-catalog-canary.ps1",
+      "limitation": "Emitted local metrics and repository alert metadata only; no deployed alert routing is claimed.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S06-RUNBOOK",
+      "path": "docs/runbooks/AUTHORIZATION_INCIDENT_AND_INVALIDATION.md",
+      "sha256": "dc1c2e78a9f205de82470abb5143792e0ba1be883d3407e97d82b26fc3b694fc",
+      "result": "PASS",
+      "requirements": ["IAM-013", "IAM-020..026"],
+      "threats": ["THR-005", "THR-007", "THR-028", "THR-038", "THR-044", "THR-057", "THR-058"],
+      "reproduce": "review P01-S06-ALR-001 linkage and execute the canonical S06 verifier",
+      "limitation": "Synthetic reference response procedure, not a production incident-response claim.",
+      "revalidate_by": "2026-11-09"
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "evidence_id": "EVD-P01-S04-CATALOGUE-CLOSURE-PRECOMMIT",
+  "created_at": "2026-07-27T18:00:00Z",
+  "phase": "PHASE-01_IDENTITY_ACCESS_TENANCY",
+  "slice": "P01-S04",
+  "source_revision": "UNCOMMITTED_WORKTREE(base=744d1e1f1ede231b00897a0ee10d3342ece15495)",
+  "sanitization": "Only public tool versions, source identities, bounded test labels, synthetic population and route names, safe browser counts and navigation classifications, artifact digests, and control semantics are included. Credentials, database URLs, authorization codes, state or nonce or PKCE values, cookies, CSRF or idempotency values, session or principal or decision identifiers, provider payloads, SQL error detail, WAL or data pages, and real identity or provider data are excluded.",
+  "artifacts": [
+    {
+      "evidence_id": "EVD-P01-S04-CLOSURE-BROWSER",
+      "path": "evidence/phase-01/identity-session/S04-browser-navigation-precommit.md",
+      "sha256": "9f4245343b0a9e16c5fe94020ffa9f7239235d1bb155a550e90b64eed79af01c",
+      "result": "PASS",
+      "requirements": ["IAM-002", "IAM-004"],
+      "threats": ["THR-006", "THR-037"],
+      "reproduce": "bun test; bun run build; real Chromium reload/back/forward/direct-route matrix against the rebuilt web image",
+      "limitation": "Synthetic shell boundary detached from product APIs; server cookie/revocation behavior is evidenced separately.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-CLOSURE-ADMIN-REVOCATION",
+      "path": "evidence/phase-01/identity-session/S04-admin-session-revocation-precommit.md",
+      "sha256": "e14e5d1bd6b80c86903b59e346b2586a4c603eaf53a7d7482ae032e6ef4b6e05",
+      "result": "PASS",
+      "requirements": ["FND-011", "FND-064", "IAM-004", "IAM-006", "IAM-025"],
+      "threats": ["THR-006", "THR-007", "THR-018", "THR-037", "THR-058"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/p01-s04-session-repository.ps1 -ContainerRuntime podman",
+      "limitation": "Disposable same-host PostgreSQL and synthetic workforce authority; no real provider or production incident-response claim.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-CLOSURE-MIGRATION-MANIFEST",
+      "path": "db/migrations/MANIFEST.sha256",
+      "sha256": "6a3ad438d88ddcf3dbb844873dfe3f85682f1adc8533f801a0b72356714fba35",
+      "result": "PASS",
+      "requirements": ["FND-025", "FND-060..064", "IAM-004", "IAM-006"],
+      "threats": ["THR-006", "THR-018", "THR-020", "THR-044", "THR-058", "THR-060"],
+      "reproduce": "go run ./cmd/dbctl verify --migration-dir db/migrations",
+      "limitation": "Forward-only integrity and ordering proof; live roles and restore execute in the complete verifier.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-CLOSURE-BROWSER-STATE",
+      "path": "apps/web/src/session.ts",
+      "sha256": "c5433c33e80998a645dbcaec0f8af233206ffec9a34d4015de3125981cb688a2",
+      "result": "PASS",
+      "requirements": ["IAM-002", "IAM-004"],
+      "threats": ["THR-006", "THR-037"],
+      "reproduce": "bun test; go test ./internal/architecture -run TestFrontendUsesFunctionComponentsOnly -count=1",
+      "limitation": "Non-sensitive synthetic shell guard only; no browser credential or product API client exists.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-CLOSURE-REPORT",
+      "path": "evidence/phase-01/identity-session/S04-closure-precommit.md",
+      "sha256": "eee87501ac9095818ef57bc305815ad04685ad9069f62f834c532e25a56eb946",
+      "result": "PASS",
+      "requirements": ["FND-011", "FND-025", "FND-060..064", "IAM-001..007", "IAM-020..021", "IAM-025"],
+      "threats": ["THR-006..007", "THR-018", "THR-020", "THR-037", "THR-039", "THR-044", "THR-056", "THR-058", "THR-060"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/verify-p01-s04.ps1 -Live -ContainerRuntime podman",
+      "limitation": "Same-host synthetic closure; no real IdP, production incident-response, independent-review, or financial-behavior claim.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-CLOSURE-SEED-CHAIN",
+      "path": "db/seeds/MANIFEST.sha256",
+      "sha256": "7f6834714d9c712dba86dd259cf50ede16a43d8ae1d5c1b6f6658c98a6672ffd",
+      "result": "PASS",
+      "requirements": ["FND-011", "FND-064", "IAM-004", "IAM-006"],
+      "threats": ["THR-018", "THR-020", "THR-060"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/s05.ps1 -Action Verify -ContainerRuntime podman",
+      "limitation": "Checksum-bound synthetic seed evolution; production reference-data promotion is outside this slice.",
+      "revalidate_by": "2026-10-27"
+    },
+    {
+      "evidence_id": "EVD-P01-S04-CLOSURE-WEB-LIFECYCLE",
+      "path": "scripts/s04.ps1",
+      "sha256": "832874ee21a5a1bef880e3aea0ef8641df3016e5b6dcdc12ecad90a48574169a",
+      "result": "PASS",
+      "requirements": ["FND-022", "FND-042"],
+      "threats": ["THR-044", "THR-060"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/s04.ps1 -Action Down -ContainerRuntime podman",
+      "limitation": "Local container lifecycle proof; provider orchestration time is excluded from the web process shutdown SLO.",
+      "revalidate_by": "2026-10-27"
+    }
+  ]
+}

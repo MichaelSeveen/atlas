@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "seed_id": "atlas-phase01-identity-policy-v4",
+  "predecessor_seed_id": "atlas-phase01-identity-policy-v3",
+  "virtual_time": "2026-08-09T00:00:00Z",
+  "previous_policy_sha256": "2acd97d4467eed25c0991331e5283b303df3fd52d0f4c9d5f6851353db64c2d1",
+  "policy_sha256": "9b7c91b9bc78abdcfa15c9f33ba9ee40476d12da8d6c8c991e3255eaf79b3bd2"
+}

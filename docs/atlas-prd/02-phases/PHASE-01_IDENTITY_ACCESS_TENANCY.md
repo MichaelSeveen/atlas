@@ -89,8 +89,10 @@ Phase 00.
 ## API surface
 
 ADR 0014 closes the previously implicit browser-login, tenant-switch, invitation-acceptance,
-approval-creation/execution, and cancellation transitions. The authoritative operation details,
-security alternatives, request shapes, and error responses are in `03-contracts/openapi.yaml`.
+approval-creation/execution, and cancellation transitions. ADR 0016 additively closes the
+verified pre-membership, invitation-bound authentication and acceptance-only session boundary.
+The authoritative operation details, security alternatives, request shapes, and error responses
+are in `03-contracts/openapi.yaml`.
 
 Customer/session:
 
@@ -103,12 +105,17 @@ Customer/session:
 - `POST /v1/sessions/revoke-all`
 - `POST /v1/step-up/challenges`
 
+Workforce security:
+
+- `POST /v1/security/sessions/{session_id}/revocations`
+
 Merchant organizations:
 
 - `GET /v1/organizations`
 - `PUT /v1/me/active-organization`
 - `GET /v1/organizations/{organization_id}/members`
 - `POST /v1/organizations/{organization_id}/invitations`
+- `POST /v1/organization-invitations/{invitation_id}/authentication`
 - `POST /v1/organization-invitations/{invitation_id}/acceptance`
 - `PATCH /v1/organizations/{organization_id}/members/{member_id}`
 - `DELETE /v1/organizations/{organization_id}/members/{member_id}`

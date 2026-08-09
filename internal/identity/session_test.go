@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -59,6 +60,68 @@ func TestOIDCLoginIsSingleUseNonceBoundAndCreatesANewOpaqueSession(t *testing.T)
 	}
 }
 
+func TestInvitationAuthenticationBindsVerifiedRecipientAndCreatesNoAuthority(t *testing.T) {
+	now := time.Date(2026, 8, 8, 12, 0, 0, 0, time.UTC)
+	store := newFakeSessionStore(t, now)
+	provider := &fakeProvider{claims: ProviderClaims{
+		Issuer:    "https://identity.test.invalid/realms/merchant",
+		Subject:   "00000000-0000-4000-8000-000000000901",
+		Assurance: AssuranceBaseline, AuthenticatedAt: now,
+		Email: "Recipient@Example.test", EmailVerified: true,
+	}}
+	service := newTestService(t, store, provider, now)
+	invitationID := mustTestID(t, "inv", 901)
+	acceptanceToken := strings.Repeat("T", 43)
+	begin, err := service.BeginInvitationAuthentication(
+		context.Background(), invitationID, acceptanceToken, "",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if begin.Population != PopulationMerchant || provider.kind != TransactionInvitationAcceptance ||
+		store.transaction.InvitationID != invitationID ||
+		store.transaction.InvitationTokenDigest != sha256.Sum256([]byte(acceptanceToken)) ||
+		strings.Contains(begin.AuthorizationURL, acceptanceToken) {
+		t.Fatalf("unsafe invitation transaction: begin=%+v transaction=%+v", begin, store.transaction)
+	}
+	provider.claims.Nonce = provider.nonce
+	completed, err := service.CompleteLogin(context.Background(), CompleteLoginRequest{
+		State: provider.state, Code: "synthetic-invitation-code-0001",
+		CorrelationID: mustTestID(t, "cor", 902),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := store.created
+	if command.Kind != TransactionInvitationAcceptance ||
+		command.InvitationID != invitationID ||
+		command.InvitationTokenDigest != sha256.Sum256([]byte(acceptanceToken)) ||
+		command.VerifiedEmailDigest == ([32]byte{}) ||
+		command.ProvisionalPrincipalID.Prefix() != "usr" ||
+		command.ProvisionalExternalSubjectID.Prefix() != "ext" ||
+		command.AbsoluteExpiresAt.Sub(command.AuthorizationAt) != invitationAcceptanceSessionLifetime ||
+		command.IdleExpiresAt != command.AbsoluteExpiresAt ||
+		!completed.Session.InvitationAcceptanceOnly || !completed.Session.TenantID.IsZero() ||
+		len(completed.Session.Permissions) != 0 {
+		t.Fatalf("unsafe invitation bootstrap: result=%+v command=%+v", completed, command)
+	}
+
+	second, err := service.BeginInvitationAuthentication(
+		context.Background(), invitationID, acceptanceToken, "",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider.claims.Nonce = provider.nonce
+	provider.claims.EmailVerified = false
+	if _, err := service.CompleteLogin(context.Background(), CompleteLoginRequest{
+		State: provider.state, Code: "synthetic-invitation-code-0002",
+		CorrelationID: mustTestID(t, "cor", 903),
+	}); !errors.Is(err, ErrOIDCTransactionInvalid) {
+		t.Fatalf("unverified invitation recipient error=%v begin=%+v", err, second)
+	}
+}
+
 func TestMostAgentsSkip08SessionFixationAndStepUpRotation(t *testing.T) {
 	now := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
 	store := newFakeSessionStore(t, now)
@@ -101,7 +164,8 @@ func TestMostAgentsSkip08SessionFixationAndStepUpRotation(t *testing.T) {
 	provider.claims.Assurance = AssuranceSteppedUp
 	step, err := service.BeginStepUp(context.Background(), BeginStepUpRequest{
 		CookieValue: login.CookieValue, CSRFToken: csrf,
-		Action: "identity.approval.decide",
+		Action: "identity.approval.decide", IdempotencyKey: "step-up-rotation-0001",
+		CorrelationID: mustTestID(t, "cor", 31),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -173,11 +237,79 @@ func TestProviderOutagePreservesExistingLowRiskSessionAndDeniesNewAuthentication
 		t.Fatalf("new login did not fail closed during provider outage: %v", err)
 	}
 	if _, err := service.BeginStepUp(context.Background(), BeginStepUpRequest{
-		CookieValue: cookie,
-		CSRFToken:   csrf,
-		Action:      "identity.approval.decide",
+		CookieValue:    cookie,
+		CSRFToken:      csrf,
+		Action:         "identity.approval.decide",
+		IdempotencyKey: "provider-outage-0001",
+		CorrelationID:  mustTestID(t, "cor", 61),
 	}); !errors.Is(err, ErrIdentityUnavailable) {
 		t.Fatalf("new step-up did not fail closed during provider outage: %v", err)
+	}
+}
+
+func TestStepUpIdempotencyReplaysExactlyAndRejectsChangedAction(t *testing.T) {
+	now := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
+	store := newFakeSessionStore(t, now)
+	cookie := "IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII"
+	store.sessions[sha256.Sum256([]byte(cookie))] = store.session
+	provider := &fakeProvider{}
+	service := newTestService(t, store, provider, now)
+	_, csrf, err := service.Current(context.Background(), cookie)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := BeginStepUpRequest{
+		CookieValue: cookie, CSRFToken: csrf, Action: "identity.approval.decide",
+		IdempotencyKey: "stable-step-up-key-0001",
+		CorrelationID:  mustTestID(t, "cor", 62),
+	}
+	first, err := service.BeginStepUp(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider.err = ErrProviderUnavailable
+	replay, err := service.BeginStepUp(context.Background(), request)
+	if err != nil {
+		t.Fatalf("stored replay depended on provider availability: %v", err)
+	}
+	if replay != first || provider.authorizationCalls != 1 {
+		t.Fatalf("replay=%+v first=%+v authorization_calls=%d", replay, first, provider.authorizationCalls)
+	}
+	request.Action = "identity.approval.execute"
+	if _, err := service.BeginStepUp(context.Background(), request); !errors.Is(err, ErrIdempotencyConflict) {
+		t.Fatalf("changed request error = %v, want idempotency conflict", err)
+	}
+}
+
+func TestStepUpRejectsStaleHigherAssuranceAuthentication(t *testing.T) {
+	now := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
+	store := newFakeSessionStore(t, now)
+	cookie := "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+	store.sessions[sha256.Sum256([]byte(cookie))] = store.session
+	provider := &fakeProvider{claims: ProviderClaims{
+		Issuer:    "https://identity.test.invalid/realms/customer",
+		Subject:   "00000000-0000-4000-8000-000000000101",
+		Assurance: AssuranceSteppedUp, AuthenticatedAt: now.Add(-stepUpFreshness),
+	}}
+	service := newTestService(t, store, provider, now)
+	_, csrf, err := service.Current(context.Background(), cookie)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.BeginStepUp(context.Background(), BeginStepUpRequest{
+		CookieValue: cookie, CSRFToken: csrf, Action: "identity.approval.decide",
+		IdempotencyKey: "stale-authentication-0001", CorrelationID: mustTestID(t, "cor", 63),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider.claims.Nonce = provider.nonce
+	_, err = service.CompleteLogin(context.Background(), CompleteLoginRequest{
+		State: provider.state, Code: "synthetic-code-0005",
+		CorrelationID: mustTestID(t, "cor", 64),
+	})
+	if !errors.Is(err, ErrOIDCTransactionInvalid) {
+		t.Fatalf("stale step-up authentication error = %v", err)
 	}
 }
 
@@ -202,6 +334,60 @@ func TestWorkforceAndStepUpAssuranceAreMandatory(t *testing.T) {
 	})
 	if !errors.Is(err, ErrOIDCTransactionInvalid) {
 		t.Fatalf("baseline workforce login error = %v", err)
+	}
+}
+
+func TestAdministratorRevocationBuildsClosedPurposeBoundCommand(t *testing.T) {
+	now := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
+	store := newFakeSessionStore(t, now)
+	store.session = Session{
+		SessionID: mustTestID(t, "ses", 70), PrincipalID: mustTestID(t, "usr", 71),
+		PrincipalType: "workforce", DisplayName: "Synthetic Platform Administrator",
+		Population: PopulationWorkforce, Assurance: AssurancePhishingResistant,
+		AuthorizationVersion: 1, RotationVersion: 2,
+		CreatedAt: now, LastSeenAt: now, IdleExpiresAt: now.Add(10 * time.Minute),
+		AbsoluteExpiresAt: now.Add(time.Hour), StepUpAction: "identity.session.admin_revoke",
+		StepUpVerifiedAt: now,
+		Permissions:      []string{"identity.sessions.revoke_admin"},
+	}
+	cookie := strings.Repeat("S", 43)
+	store.sessions[sha256.Sum256([]byte(cookie))] = store.session
+	service := newTestService(t, store, &fakeProvider{}, now)
+	_, csrf, err := service.Current(context.Background(), cookie)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := mustTestID(t, "ses", 73)
+	result, err := service.RevokeForSecurity(context.Background(), AdminRevokeSessionRequest{
+		CookieValue: cookie, CSRFToken: csrf, TargetSessionID: target,
+		Purpose: "security_review", Reason: "suspected_account_takeover",
+		IdempotencyKey: "admin-revocation-key-0001",
+		CorrelationID:  mustTestID(t, "cor", 74),
+	})
+	if err != nil || result.DecisionID != store.adminResult.DecisionID {
+		t.Fatalf("administrator revocation result=%+v err=%v", result, err)
+	}
+	command := store.adminCommand
+	if command.Actor.SessionID != store.session.SessionID ||
+		command.TargetSessionID != target ||
+		command.Purpose != "security_review" ||
+		command.Reason != "suspected_account_takeover" ||
+		command.IdempotencyDigest == ([32]byte{}) ||
+		command.RequestDigest == ([32]byte{}) ||
+		command.AuditEvent.Action != "identity.session.admin_revoke" ||
+		command.AuditEvent.DecisionID != result.DecisionID {
+		t.Fatalf("unsafe administrator revocation command: %+v", command)
+	}
+
+	before := store.revocations
+	_, err = service.RevokeForSecurity(context.Background(), AdminRevokeSessionRequest{
+		CookieValue: cookie, CSRFToken: csrf, TargetSessionID: target,
+		Purpose: "self_service", Reason: "free form reason",
+		IdempotencyKey: "admin-revocation-key-0002",
+		CorrelationID:  mustTestID(t, "cor", 75),
+	})
+	if !errors.Is(err, ErrInputInvalid) || store.revocations != before {
+		t.Fatalf("open purpose/reason reached store: err=%v revocations=%d", err, store.revocations)
 	}
 }
 
@@ -239,12 +425,13 @@ func TestVersionedTransactionEncryptionAndCSRFTamperResistance(t *testing.T) {
 }
 
 type fakeProvider struct {
-	state  string
-	nonce  string
-	pkce   string
-	kind   TransactionKind
-	claims ProviderClaims
-	err    error
+	state              string
+	nonce              string
+	pkce               string
+	kind               TransactionKind
+	claims             ProviderClaims
+	err                error
+	authorizationCalls int
 }
 
 func (provider *fakeProvider) AuthorizationURL(
@@ -255,6 +442,7 @@ func (provider *fakeProvider) AuthorizationURL(
 	pkce string,
 	kind TransactionKind,
 ) (string, error) {
+	provider.authorizationCalls++
 	if provider.err != nil {
 		return "", provider.err
 	}
@@ -300,11 +488,25 @@ type fakeSessionStore struct {
 	session         Session
 	sessions        map[[32]byte]Session
 	revocations     int
+	adminCommand    AdminRevocationCommand
+	adminResult     AdminRevocationResult
+	adminErr        error
+	stepUps         map[[32]byte]fakeStepUpClaim
+}
+
+type fakeStepUpClaim struct {
+	requestID     identifier.ID
+	requestDigest [32]byte
+	lifecycle     string
+	transaction   OIDCTransaction
+	url           string
+	retainedUntil time.Time
 }
 
 func newFakeSessionStore(t *testing.T, now time.Time) *fakeSessionStore {
 	return &fakeSessionStore{
 		t: t, now: now, sessions: make(map[[32]byte]Session),
+		stepUps: make(map[[32]byte]fakeStepUpClaim),
 		session: Session{
 			SessionID: mustTestID(t, "ses", 50), PrincipalID: mustTestID(t, "usr", 51),
 			PrincipalType: "customer", DisplayName: "Synthetic Customer",
@@ -335,6 +537,62 @@ func (store *fakeSessionStore) TakeOIDCTransaction(
 	return store.transaction, nil
 }
 
+func (store *fakeSessionStore) ClaimStepUp(
+	_ context.Context,
+	command StepUpClaimCommand,
+) (StepUpClaimResult, error) {
+	claim, found := store.stepUps[command.IdempotencyScope]
+	if found && command.Now.Before(claim.retainedUntil) {
+		if claim.requestDigest != command.RequestDigest {
+			return StepUpClaimResult{}, ErrIdempotencyConflict
+		}
+		if claim.lifecycle == "completed" {
+			return StepUpClaimResult{
+				ChallengeRequestID: claim.requestID, Replay: true,
+				TransactionID:    claim.transaction.TransactionID,
+				AuthorizationURL: claim.url, ExpiresAt: claim.transaction.ExpiresAt,
+			}, nil
+		}
+	}
+	claim = fakeStepUpClaim{
+		requestID: command.ChallengeRequestID, requestDigest: command.RequestDigest,
+		lifecycle: "processing", retainedUntil: command.RetainedUntil,
+	}
+	store.stepUps[command.IdempotencyScope] = claim
+	return StepUpClaimResult{ChallengeRequestID: claim.requestID, Owner: true}, nil
+}
+
+func (store *fakeSessionStore) CompleteStepUp(
+	_ context.Context,
+	command CompleteStepUpCommand,
+) error {
+	claim, found := store.stepUps[command.IdempotencyScope]
+	if !found || claim.requestID != command.ChallengeRequestID || claim.lifecycle != "processing" {
+		return ErrIdentityUnavailable
+	}
+	claim.lifecycle = "completed"
+	claim.transaction = command.Transaction
+	claim.url = command.AuthorizationURL
+	store.stepUps[command.IdempotencyScope] = claim
+	store.transaction = command.Transaction
+	store.transactionUsed = false
+	return nil
+}
+
+func (store *fakeSessionStore) FailStepUp(
+	_ context.Context,
+	requestID identifier.ID,
+	scope [32]byte,
+	_ time.Time,
+) error {
+	claim, found := store.stepUps[scope]
+	if found && claim.requestID == requestID && claim.lifecycle == "processing" {
+		claim.lifecycle = "failed-retryable"
+		store.stepUps[scope] = claim
+	}
+	return nil
+}
+
 func (store *fakeSessionStore) CreateSession(_ context.Context, command CreateSessionCommand) (Session, error) {
 	store.created = command
 	session := store.session
@@ -345,9 +603,21 @@ func (store *fakeSessionStore) CreateSession(_ context.Context, command CreateSe
 	session.LastSeenAt = command.AuthorizationAt
 	session.IdleExpiresAt = command.IdleExpiresAt
 	session.AbsoluteExpiresAt = command.AbsoluteExpiresAt
+	session.StepUpAction = command.StepUpAction
+	session.StepUpVerifiedAt = command.StepUpVerifiedAt
 	session.ClientLabel = command.ClientLabel
 	if command.Kind == TransactionStepUp {
 		session.RotationVersion++
+	}
+	if command.Kind == TransactionInvitationAcceptance {
+		session.PrincipalID = command.ProvisionalPrincipalID
+		session.PrincipalType = "merchant"
+		session.Population = PopulationMerchant
+		session.TenantID = identifier.ID{}
+		session.Permissions = []string{}
+		session.InvitationID = command.InvitationID
+		session.VerifiedEmailDigest = command.VerifiedEmailDigest
+		session.InvitationAcceptanceOnly = true
 	}
 	store.sessions[command.VerifierDigest] = session
 	return session, nil
@@ -383,6 +653,18 @@ func (store *fakeSessionStore) RevokeOne(context.Context, RevocationCommand) (Re
 func (store *fakeSessionStore) RevokeAll(context.Context, RevocationCommand) (RevocationResult, error) {
 	store.revocations++
 	return RevocationResult{}, nil
+}
+
+func (store *fakeSessionStore) RevokeForSecurity(
+	_ context.Context,
+	command AdminRevocationCommand,
+) (AdminRevocationResult, error) {
+	store.revocations++
+	store.adminCommand = command
+	if store.adminResult.DecisionID.IsZero() {
+		store.adminResult.DecisionID = command.AuditEvent.DecisionID
+	}
+	return store.adminResult, store.adminErr
 }
 
 func newTestService(

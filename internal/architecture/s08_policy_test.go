@@ -115,9 +115,9 @@ func TestS08AcceptanceWiresFailureChecksAndHonestAbsences(t *testing.T) {
 			t.Errorf("S08 verifier omits %q", required)
 		}
 	}
-	workflow := readText(t, filepath.Join(root, ".github", "workflows", "pr.yml"))
+	workflow := readText(t, filepath.Join(root, ".github", "workflows", "ci.yml"))
 	if !strings.Contains(workflow, "test-s08-constrained-pool.ps1 -RequireRace") {
-		t.Fatal("hosted PR integration lane does not require the constrained-pool race test")
+		t.Fatal("hosted push integration lane does not require the constrained-pool race test")
 	}
 }
 

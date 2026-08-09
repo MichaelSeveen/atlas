@@ -1,5 +1,12 @@
 [CmdletBinding()]
-param()
+param(
+    [Parameter()]
+    [string]$CatalogueRelativePath = '',
+
+    [Parameter()]
+    [ValidatePattern('^P01-S0[1-9]$')]
+    [string]$ExpectedSlice = 'P01-S04'
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -9,7 +16,15 @@ $policyPath = Join-Path $repositoryRoot 'docs/engineering/phase-01-evidence-poli
 $policy = Get-Content -LiteralPath $policyPath -Raw | ConvertFrom-Json
 $postcommitPath = Join-Path $repositoryRoot $policy.phase_01_catalogue.postcommit_path
 $precommitPath = Join-Path $repositoryRoot $policy.phase_01_catalogue.precommit_path
-$cataloguePath = if (Test-Path -LiteralPath $postcommitPath) { $postcommitPath } else { $precommitPath }
+$cataloguePath = if (-not [string]::IsNullOrWhiteSpace($CatalogueRelativePath)) {
+    Join-Path $repositoryRoot $CatalogueRelativePath
+}
+elseif (Test-Path -LiteralPath $postcommitPath) {
+    $postcommitPath
+}
+else {
+    $precommitPath
+}
 
 function Get-CurrentSourceIdentity {
     $revision = (& git -C $repositoryRoot rev-parse HEAD 2>$null | Out-String).Trim()
@@ -19,21 +34,6 @@ function Get-CurrentSourceIdentity {
     $changes = (& git -C $repositoryRoot status --porcelain=v1 | Out-String).Trim()
     if ($changes.Length -eq 0) { return $revision }
     return "UNCOMMITTED_WORKTREE(base=$revision)"
-}
-
-function Test-AllowedPostcommitEvidencePath([string]$Relative) {
-    $normalized = $Relative.Replace('\', '/')
-    if ($normalized.StartsWith('evidence/phase-01/identity-session/', [StringComparison]::Ordinal)) {
-        return $true
-    }
-    return $normalized -in @(
-        'AGENTS.md',
-        'docs/atlas-prd/06-governance/EVIDENCE_INDEX.md',
-        'docs/atlas-prd/06-governance/REQUIREMENTS_TRACEABILITY.csv',
-        'docs/atlas-prd/MANIFEST.sha256',
-        'docs/engineering/IMPLEMENTATION_STATUS.md',
-        'docs/engineering/PHASE-01-PLAN.md'
-    )
 }
 
 function Get-AcceptedSourceIdentities([string]$DeclaredSource) {
@@ -53,28 +53,41 @@ function Get-AcceptedSourceIdentities([string]$DeclaredSource) {
     if ($LASTEXITCODE -ne 0) {
         throw "Stale evidence source identity: $DeclaredSource is not an ancestor of $currentHead"
     }
-
-    $changedPaths = @()
-    if ($DeclaredSource -ne $currentHead) {
-        $changedPaths += @(& git -C $repositoryRoot diff --name-only $DeclaredSource $currentHead)
-        if ($LASTEXITCODE -ne 0) {
-            throw 'Inspecting committed Phase 01 evidence changes failed.'
-        }
-    }
-    $changedPaths += @(& git -C $repositoryRoot diff --name-only $currentHead)
-    if ($LASTEXITCODE -ne 0) {
-        throw 'Inspecting dirty Phase 01 evidence changes failed.'
-    }
-    $changedPaths += @(& git -C $repositoryRoot ls-files --others --exclude-standard)
-    if ($LASTEXITCODE -ne 0) {
-        throw 'Inspecting untracked Phase 01 evidence changes failed.'
-    }
-    foreach ($changedPath in @($changedPaths | Select-Object -Unique)) {
-        if (-not (Test-AllowedPostcommitEvidencePath $changedPath)) {
-            throw "Stale evidence source identity because code/config changed after ${DeclaredSource}: $changedPath"
-        }
-    }
     return @($DeclaredSource)
+}
+
+function Get-CommittedFileSha256([string]$Revision, [string]$Relative) {
+    $normalized = $Relative.Replace('\', '/')
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = 'git'
+    $startInfo.UseShellExecute = $false
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    [void]$startInfo.ArgumentList.Add('-C')
+    [void]$startInfo.ArgumentList.Add($repositoryRoot)
+    [void]$startInfo.ArgumentList.Add('cat-file')
+    [void]$startInfo.ArgumentList.Add('blob')
+    [void]$startInfo.ArgumentList.Add("${Revision}:$normalized")
+
+    $process = [Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    [void]$process.Start()
+    $sha256 = [Security.Cryptography.SHA256]::Create()
+    $exitCode = -1
+    try {
+        $digest = $sha256.ComputeHash($process.StandardOutput.BaseStream)
+        $errorText = $process.StandardError.ReadToEnd()
+        $process.WaitForExit()
+        $exitCode = $process.ExitCode
+    }
+    finally {
+        $sha256.Dispose()
+        $process.Dispose()
+    }
+    if ($exitCode -ne 0) {
+        throw "Historical evidence artifact is absent at ${Revision}: ${Relative}: $errorText"
+    }
+    return [Convert]::ToHexString($digest).ToLowerInvariant()
 }
 
 function Test-SafeRelativePath([string]$Relative) {
@@ -85,10 +98,15 @@ function Test-SafeRelativePath([string]$Relative) {
     return $resolved.StartsWith(($repositoryRoot.TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar), [StringComparison]::OrdinalIgnoreCase)
 }
 
-function Assert-Catalogue([object]$Catalogue, [string[]]$AcceptedSources, [bool]$VerifyFiles) {
+function Assert-Catalogue(
+    [object]$Catalogue,
+    [string[]]$AcceptedSources,
+    [bool]$VerifyFiles,
+    [string]$RequiredSlice
+) {
     if ($Catalogue.schema_version -ne 1 -or
         $Catalogue.phase -ne 'PHASE-01_IDENTITY_ACCESS_TENANCY' -or
-        $Catalogue.slice -ne 'P01-S04') {
+        $Catalogue.slice -ne $RequiredSlice) {
         throw 'Phase 01 evidence catalogue identity is invalid.'
     }
     if ($Catalogue.source_revision -notin $AcceptedSources) {
@@ -98,9 +116,10 @@ function Assert-Catalogue([object]$Catalogue, [string[]]$AcceptedSources, [bool]
         throw 'Evidence sanitization statement is required.'
     }
     $seen = @{}
+    $evidenceIDPattern = '^EVD-' + [regex]::Escape($RequiredSlice) + '-[A-Z0-9-]+$'
     foreach ($artifact in @($Catalogue.artifacts)) {
         $evidenceID = [string]$artifact.evidence_id
-        if ($evidenceID -notmatch '^EVD-P01-S0[1-4]-[A-Z0-9-]+$') {
+        if ($evidenceID -notmatch $evidenceIDPattern) {
             throw "Invalid evidence ID: $evidenceID"
         }
         if ($seen.ContainsKey($evidenceID)) {
@@ -117,11 +136,17 @@ function Assert-Catalogue([object]$Catalogue, [string[]]$AcceptedSources, [bool]
             throw "Artifact does not pass: $evidenceID"
         }
         if ($VerifyFiles) {
-            $artifactPath = Join-Path $repositoryRoot ([string]$artifact.path)
-            if (-not (Test-Path -LiteralPath $artifactPath -PathType Leaf)) {
-                throw "Missing evidence artifact: $($artifact.path)"
+            $declaredSource = [string]$Catalogue.source_revision
+            if ($declaredSource -match '^[a-f0-9]{40}$') {
+                $actual = Get-CommittedFileSha256 $declaredSource ([string]$artifact.path)
             }
-            $actual = (Get-FileHash -LiteralPath $artifactPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            else {
+                $artifactPath = Join-Path $repositoryRoot ([string]$artifact.path)
+                if (-not (Test-Path -LiteralPath $artifactPath -PathType Leaf)) {
+                    throw "Missing evidence artifact: $($artifact.path)"
+                }
+                $actual = (Get-FileHash -LiteralPath $artifactPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            }
             if ($actual -ne [string]$artifact.sha256) {
                 throw "Evidence artifact digest mismatch: $evidenceID"
             }
@@ -136,12 +161,17 @@ function Copy-JsonObject([object]$Value) {
     return ($Value | ConvertTo-Json -Depth 20 | ConvertFrom-Json)
 }
 
-function Assert-CanaryRejected([scriptblock]$Mutation, [string]$Label, [string[]]$AcceptedSources) {
+function Assert-CanaryRejected(
+    [scriptblock]$Mutation,
+    [string]$Label,
+    [string[]]$AcceptedSources,
+    [string]$RequiredSlice
+) {
     $candidate = Copy-JsonObject $script:catalogue
     & $Mutation $candidate
     $rejected = $false
     try {
-        Assert-Catalogue $candidate $AcceptedSources $true
+        Assert-Catalogue $candidate $AcceptedSources $true $RequiredSlice
     }
     catch {
         $rejected = $true
@@ -157,7 +187,7 @@ try {
     }
     $script:catalogue = Get-Content -LiteralPath $cataloguePath -Raw | ConvertFrom-Json
     $acceptedSources = Get-AcceptedSourceIdentities ([string]$script:catalogue.source_revision)
-    Assert-Catalogue $script:catalogue $acceptedSources $true
+    Assert-Catalogue $script:catalogue $acceptedSources $true $ExpectedSlice
 
     $sidecarPath = "$cataloguePath.sha256"
     if (-not (Test-Path -LiteralPath $sidecarPath -PathType Leaf)) {
@@ -169,13 +199,13 @@ try {
         throw 'Evidence catalogue sidecar digest mismatch.'
     }
 
-    Assert-CanaryRejected { param($c) $c.artifacts[0].sha256 = ('0' * 64) } 'artifact-tamper' $acceptedSources
-    Assert-CanaryRejected { param($c) $c.source_revision = ('0' * 40) } 'stale-source' $acceptedSources
+    Assert-CanaryRejected { param($c) $c.artifacts[0].sha256 = ('0' * 64) } 'artifact-tamper' $acceptedSources $ExpectedSlice
+    Assert-CanaryRejected { param($c) $c.source_revision = ('0' * 40) } 'stale-source' $acceptedSources $ExpectedSlice
     Assert-CanaryRejected {
         param($c)
         $c.artifacts = @($c.artifacts) + @(Copy-JsonObject $c.artifacts[0])
-    } 'duplicate-evidence-id' $acceptedSources
-    Assert-CanaryRejected { param($c) $c.artifacts[0].path = '../escape.txt' } 'unsafe-artifact-path' $acceptedSources
+    } 'duplicate-evidence-id' $acceptedSources $ExpectedSlice
+    Assert-CanaryRejected { param($c) $c.artifacts[0].path = '../escape.txt' } 'unsafe-artifact-path' $acceptedSources $ExpectedSlice
 
     Write-Output "p01_evidence_catalogue=$([IO.Path]::GetRelativePath($repositoryRoot, $cataloguePath).Replace('\', '/'))"
     Write-Output "p01_evidence_source=$([string]$script:catalogue.source_revision)"

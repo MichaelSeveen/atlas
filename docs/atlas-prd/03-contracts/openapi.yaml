@@ -127,6 +127,7 @@ paths:
       operationId: getCurrentPrincipal
       tags: [Identity]
       summary: Get the authenticated principal and active tenant context
+      description: An invitation-acceptance session returns a null active tenant and no permissions until acceptance commits.
       security:
         - bffSession: []
         - merchantApiKey: []
@@ -142,6 +143,8 @@ paths:
               schema: {$ref: '#/components/schemas/Principal'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
         '403': {$ref: '#/components/responses/Forbidden'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
 
   /v1/auth/login:
     get:
@@ -261,6 +264,53 @@ paths:
         '403': {$ref: '#/components/responses/Forbidden'}
         '409': {$ref: '#/components/responses/Conflict'}
 
+  /v1/security/sessions/{session_id}/revocations:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      operationId: revokeSessionForSecurity
+      tags: [Identity]
+      summary: Revoke one application session under workforce security authority
+      description: |
+        Requires the `identity.sessions.revoke_admin` permission, the exact
+        `security_review` purpose, and a fresh phishing-resistant step-up bound to
+        `identity.session.admin_revoke`. The authorization decision, revocation,
+        idempotency result, and Audit fact commit atomically in PostgreSQL. Target
+        absence is concealed until the workforce authorization check succeeds.
+      parameters:
+        - $ref: '#/components/parameters/XAtlasCSRFToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminSessionRevocationRequest'}
+      responses:
+        '204':
+          description: Session revoked or already revoked
+          headers:
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
+        '401': {$ref: '#/components/responses/AuthenticationRequired'}
+        '403':
+          description: Permission is denied or a fresh action-bound step-up is required
+          headers:
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '404':
+          description: Session is absent or concealed after workforce authorization succeeds
+          headers:
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
+
   /v1/step-up/challenges:
     post:
       operationId: createStepUpChallenge
@@ -305,6 +355,8 @@ paths:
         '200':
           description: Updated principal and tenant context
           headers:
+            Set-Cookie: {$ref: '#/components/headers/SessionSetCookie'}
+            X-Atlas-CSRF-Token: {$ref: '#/components/headers/XAtlasCSRFToken'}
             X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
             Cache-Control: {$ref: '#/components/headers/CacheControl'}
           content:
@@ -336,6 +388,7 @@ paths:
                     maxItems: 100
                     items: {$ref: '#/components/schemas/Organization'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
+        '403': {$ref: '#/components/responses/Forbidden'}
 
   /v1/organizations/{organization_id}/members:
     parameters:
@@ -347,6 +400,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/PageSize'
         - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/XAtlasPurpose'
       responses:
         '200':
           description: Authorized organization-member page
@@ -362,8 +416,10 @@ paths:
                 properties:
                   data:
                     type: array
+                    maxItems: 100
                     items: {$ref: '#/components/schemas/OrganizationMember'}
                   page: {$ref: '#/components/schemas/PageInfo'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
@@ -401,6 +457,30 @@ paths:
         '422': {$ref: '#/components/responses/ValidationFailed'}
         '429': {$ref: '#/components/responses/RateLimited'}
 
+  /v1/organization-invitations/{invitation_id}/authentication:
+    parameters:
+      - $ref: '#/components/parameters/InvitationId'
+    post:
+      operationId: beginOrganizationInvitationAuthentication
+      tags: [Organizations]
+      summary: Begin recipient-bound merchant authentication for an invitation
+      description: Accepts the token only in the body, stores only its digest in a single-use OIDC transaction, and does not reveal whether the invitation exists before the verified callback.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AcceptOrganizationInvitationRequest'}
+      responses:
+        '303':
+          description: Redirect to the allow-listed synthetic merchant identity provider
+          headers:
+            Location: {$ref: '#/components/headers/Location'}
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
+
   /v1/organization-invitations/{invitation_id}/acceptance:
     parameters:
       - $ref: '#/components/parameters/InvitationId'
@@ -408,6 +488,7 @@ paths:
       operationId: acceptOrganizationInvitation
       tags: [Organizations]
       summary: Accept a single-use organization invitation
+      description: Requires the recipient-bound acceptance-only BFF session created by the authentication flow; membership, invitation consumption, session rotation, and Audit commit atomically.
       parameters:
         - $ref: '#/components/parameters/XAtlasCSRFToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -419,6 +500,12 @@ paths:
       responses:
         '200':
           description: Invitation accepted and membership returned
+          headers:
+            Set-Cookie: {$ref: '#/components/headers/SessionSetCookie'}
+            X-Atlas-CSRF-Token: {$ref: '#/components/headers/XAtlasCSRFToken'}
+            X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
           content:
             application/json:
               schema: {$ref: '#/components/schemas/OrganizationMember'}
@@ -436,6 +523,7 @@ paths:
       operationId: updateOrganizationMember
       tags: [Organizations]
       summary: Change an organization member role subject to approval policy
+      description: Direct changes are limited to merchant_viewer and merchant_operator. Any transition into or out of merchant_admin is the typed maker-checker action owned by Operations and returns 202 only after an approval is durably created; merchant_security_admin is never delegable through this operation. If-Match is the exact strong membership ETag returned by Atlas.
       parameters:
         - $ref: '#/components/parameters/XAtlasCSRFToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -451,6 +539,8 @@ paths:
           headers:
             ETag: {$ref: '#/components/headers/ETag'}
             X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
           content:
             application/json:
               schema: {$ref: '#/components/schemas/OrganizationMember'}
@@ -461,27 +551,37 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Approval'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
-        '403': {$ref: '#/components/responses/StepUpRequired'}
+        '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
         '409': {$ref: '#/components/responses/Conflict'}
         '412': {$ref: '#/components/responses/PreconditionFailed'}
         '422': {$ref: '#/components/responses/ValidationFailed'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
     delete:
       operationId: revokeOrganizationMember
       tags: [Organizations]
       summary: Revoke organization membership subject to last-admin policy
+      description: Direct revocation is currently limited to merchant_viewer and merchant_operator memberships. Administrator targets remain fail-closed until their fresh-step-up and last-administrator execution policy is implemented.
       parameters:
         - $ref: '#/components/parameters/XAtlasCSRFToken'
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/IfMatch'
       responses:
-        '204': {description: Membership revoked}
+        '204':
+          description: Membership revoked or an identical committed revocation replayed
+          headers:
+            X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
-        '403': {$ref: '#/components/responses/StepUpRequired'}
+        '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
         '409': {$ref: '#/components/responses/Conflict'}
         '412': {$ref: '#/components/responses/PreconditionFailed'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
 
   /v1/api-credentials:
     get:
@@ -504,8 +604,10 @@ paths:
                     type: array
                     maxItems: 100
                     items: {$ref: '#/components/schemas/APICredential'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
         '403': {$ref: '#/components/responses/Forbidden'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
     post:
       operationId: createAPICredential
       tags: [API credentials]
@@ -529,11 +631,13 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/APICredentialCreated'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
         '403': {$ref: '#/components/responses/StepUpRequired'}
         '409': {$ref: '#/components/responses/Conflict'}
         '422': {$ref: '#/components/responses/ValidationFailed'}
         '429': {$ref: '#/components/responses/RateLimited'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
 
   /v1/api-credentials/{credential_id}/rotate:
     parameters:
@@ -555,11 +659,13 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/APICredentialCreated'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
         '403': {$ref: '#/components/responses/StepUpRequired'}
         '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
         '409': {$ref: '#/components/responses/Conflict'}
         '429': {$ref: '#/components/responses/RateLimited'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
 
   /v1/api-credentials/{credential_id}:
     parameters:
@@ -572,11 +678,18 @@ paths:
         - $ref: '#/components/parameters/XAtlasCSRFToken'
         - $ref: '#/components/parameters/IdempotencyKey'
       responses:
-        '204': {description: API credential revoked or already absent}
+        '204':
+          description: API credential revoked or an identical committed revocation replayed
+          headers:
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
         '403': {$ref: '#/components/responses/StepUpRequired'}
         '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
         '409': {$ref: '#/components/responses/Conflict'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
 
   /v1/approvals:
     get:
@@ -600,8 +713,10 @@ paths:
                     type: array
                     items: {$ref: '#/components/schemas/Approval'}
                   page: {$ref: '#/components/schemas/PageInfo'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
         '403': {$ref: '#/components/responses/Forbidden'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
     post:
       operationId: createApproval
       tags: [Approvals]
@@ -618,15 +733,19 @@ paths:
         '201':
           description: Approval request created
           headers:
+            ETag: {$ref: '#/components/headers/ETag'}
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
             Location: {$ref: '#/components/headers/Location'}
             X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Approval'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
         '403': {$ref: '#/components/responses/StepUpRequired'}
         '409': {$ref: '#/components/responses/Conflict'}
         '422': {$ref: '#/components/responses/ValidationFailed'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
 
   /v1/approvals/{approval_id}:
     parameters:
@@ -638,12 +757,16 @@ paths:
       responses:
         '200':
           description: Approval detail
+          headers:
+            ETag: {$ref: '#/components/headers/ETag'}
+            X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Approval'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
 
   /v1/approvals/{approval_id}/decisions:
     parameters:
@@ -666,15 +789,19 @@ paths:
           description: Approval decision recorded
           headers:
             ETag: {$ref: '#/components/headers/ETag'}
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            Location: {$ref: '#/components/headers/Location'}
             X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Approval'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
         '403': {$ref: '#/components/responses/StepUpRequired'}
         '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
         '409': {$ref: '#/components/responses/Conflict'}
         '412': {$ref: '#/components/responses/PreconditionFailed'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
 
   /v1/approvals/{approval_id}/executions:
     parameters:
@@ -692,10 +819,13 @@ paths:
           description: Approved action executed
           headers:
             ETag: {$ref: '#/components/headers/ETag'}
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            Location: {$ref: '#/components/headers/Location'}
             X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Approval'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
         '403': {$ref: '#/components/responses/StepUpRequired'}
         '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
@@ -724,14 +854,19 @@ paths:
           description: Approval cancelled
           headers:
             ETag: {$ref: '#/components/headers/ETag'}
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            Location: {$ref: '#/components/headers/Location'}
+            X-Authorization-Decision-Id: {$ref: '#/components/headers/XAuthorizationDecisionId'}
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Approval'}
+        '400': {$ref: '#/components/responses/RequestMalformed'}
         '401': {$ref: '#/components/responses/AuthenticationRequired'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFoundOrConcealed'}
         '409': {$ref: '#/components/responses/Conflict'}
         '412': {$ref: '#/components/responses/PreconditionFailed'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
 
   /v1/wallets:
     get:
@@ -1792,6 +1927,15 @@ components:
         minLength: 43
         maxLength: 128
         pattern: '^[A-Za-z0-9_-]+$'
+    XAtlasPurpose:
+      name: X-Atlas-Purpose
+      in: header
+      required: false
+      description: |
+        Closed server-side authorization purpose. Omission selects `self_service`; a purpose never
+        grants permission by itself and sensitive fields remain masked unless the role permission
+        and the field rule's exact purpose both allow disclosure.
+      schema: {$ref: '#/components/schemas/Purpose'}
     AuthPopulation:
       name: population
       in: query
@@ -2221,6 +2365,20 @@ components:
       required: [include_current]
       properties:
         include_current: {type: boolean}
+    AdminSessionRevocationRequest:
+      type: object
+      additionalProperties: false
+      required: [purpose, reason]
+      properties:
+        purpose:
+          type: string
+          const: security_review
+        reason:
+          type: string
+          enum:
+            - compromised_session
+            - suspected_account_takeover
+            - workforce_security_response
     StepUpChallengeRequest:
       type: object
       additionalProperties: false

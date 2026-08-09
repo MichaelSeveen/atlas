@@ -73,7 +73,7 @@ func (a *App) corsMiddleware(next http.Handler) http.Handler {
 		}
 		response.Header().Set(
 			"Access-Control-Expose-Headers",
-			"X-Atlas-CSRF-Token, X-Request-Id, X-Correlation-Id, traceparent",
+			"ETag, Idempotency-Replayed, Location, X-Atlas-CSRF-Token, X-Authorization-Decision-Id, X-Request-Id, X-Correlation-Id, traceparent",
 		)
 		if request.Method != http.MethodOptions {
 			next.ServeHTTP(response, request)
@@ -116,6 +116,7 @@ func allowedCORSHeaders(value string) ([]string, bool) {
 	allowlist := map[string]string{
 		"content-type":       "Content-Type",
 		"idempotency-key":    "Idempotency-Key",
+		"if-match":           "If-Match",
 		"traceparent":        "traceparent",
 		"x-atlas-csrf-token": "X-Atlas-CSRF-Token",
 		"x-correlation-id":   "X-Correlation-Id",

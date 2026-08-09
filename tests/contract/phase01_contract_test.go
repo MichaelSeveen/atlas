@@ -16,28 +16,30 @@ func TestPhase01OpenAPISurface(t *testing.T) {
 	document := readOpenAPIDocument(t)
 	paths := objectAt(t, document, "paths")
 	expected := map[string]map[string]string{
-		"/v1/auth/login":             {"get": "beginBrowserLogin"},
-		"/v1/auth/callback":          {"get": "completeBrowserLogin"},
-		"/v1/logout":                 {"post": "logoutCurrentSession"},
-		"/v1/me":                     {"get": "getCurrentPrincipal"},
-		"/v1/sessions":               {"get": "listPrincipalSessions"},
-		"/v1/sessions/{session_id}":  {"delete": "revokePrincipalSession"},
-		"/v1/sessions/revoke-all":    {"post": "revokeAllPrincipalSessions"},
-		"/v1/step-up/challenges":     {"post": "createStepUpChallenge"},
-		"/v1/me/active-organization": {"put": "setActiveOrganization"},
-		"/v1/organizations":          {"get": "listPrincipalOrganizations"},
-		"/v1/organizations/{organization_id}/members":             {"get": "listOrganizationMembers"},
-		"/v1/organizations/{organization_id}/invitations":         {"post": "createOrganizationInvitation"},
-		"/v1/organization-invitations/{invitation_id}/acceptance": {"post": "acceptOrganizationInvitation"},
-		"/v1/organizations/{organization_id}/members/{member_id}": {"patch": "updateOrganizationMember", "delete": "revokeOrganizationMember"},
-		"/v1/api-credentials":                                     {"get": "listAPICredentials", "post": "createAPICredential"},
-		"/v1/api-credentials/{credential_id}/rotate":              {"post": "rotateAPICredential"},
-		"/v1/api-credentials/{credential_id}":                     {"delete": "revokeAPICredential"},
-		"/v1/approvals":                                           {"get": "listApprovals", "post": "createApproval"},
-		"/v1/approvals/{approval_id}":                             {"get": "getApproval"},
-		"/v1/approvals/{approval_id}/decisions":                   {"post": "decideApproval"},
-		"/v1/approvals/{approval_id}/executions":                  {"post": "executeApproval"},
-		"/v1/approvals/{approval_id}/cancellations":               {"post": "cancelApproval"},
+		"/v1/auth/login":            {"get": "beginBrowserLogin"},
+		"/v1/auth/callback":         {"get": "completeBrowserLogin"},
+		"/v1/logout":                {"post": "logoutCurrentSession"},
+		"/v1/me":                    {"get": "getCurrentPrincipal"},
+		"/v1/sessions":              {"get": "listPrincipalSessions"},
+		"/v1/sessions/{session_id}": {"delete": "revokePrincipalSession"},
+		"/v1/sessions/revoke-all":   {"post": "revokeAllPrincipalSessions"},
+		"/v1/security/sessions/{session_id}/revocations":              {"post": "revokeSessionForSecurity"},
+		"/v1/step-up/challenges":                                      {"post": "createStepUpChallenge"},
+		"/v1/me/active-organization":                                  {"put": "setActiveOrganization"},
+		"/v1/organizations":                                           {"get": "listPrincipalOrganizations"},
+		"/v1/organizations/{organization_id}/members":                 {"get": "listOrganizationMembers"},
+		"/v1/organizations/{organization_id}/invitations":             {"post": "createOrganizationInvitation"},
+		"/v1/organization-invitations/{invitation_id}/authentication": {"post": "beginOrganizationInvitationAuthentication"},
+		"/v1/organization-invitations/{invitation_id}/acceptance":     {"post": "acceptOrganizationInvitation"},
+		"/v1/organizations/{organization_id}/members/{member_id}":     {"patch": "updateOrganizationMember", "delete": "revokeOrganizationMember"},
+		"/v1/api-credentials":                                         {"get": "listAPICredentials", "post": "createAPICredential"},
+		"/v1/api-credentials/{credential_id}/rotate":                  {"post": "rotateAPICredential"},
+		"/v1/api-credentials/{credential_id}":                         {"delete": "revokeAPICredential"},
+		"/v1/approvals":                                               {"get": "listApprovals", "post": "createApproval"},
+		"/v1/approvals/{approval_id}":                                 {"get": "getApproval"},
+		"/v1/approvals/{approval_id}/decisions":                       {"post": "decideApproval"},
+		"/v1/approvals/{approval_id}/executions":                      {"post": "executeApproval"},
+		"/v1/approvals/{approval_id}/cancellations":                   {"post": "cancelApproval"},
 	}
 
 	for path, methods := range expected {
@@ -93,6 +95,7 @@ func TestPhase01CookieMutationsRequireCSRF(t *testing.T) {
 		{"post", "/v1/logout"},
 		{"delete", "/v1/sessions/{session_id}"},
 		{"post", "/v1/sessions/revoke-all"},
+		{"post", "/v1/security/sessions/{session_id}/revocations"},
 		{"post", "/v1/step-up/challenges"},
 		{"put", "/v1/me/active-organization"},
 		{"post", "/v1/organizations/{organization_id}/invitations"},
@@ -128,6 +131,174 @@ func TestPhase01CookieMutationsRequireCSRF(t *testing.T) {
 	}
 }
 
+func TestApprovalResponsesDeclareConcurrencyReplayAndDecisionHeaders(t *testing.T) {
+	document := readOpenAPIDocument(t)
+	paths := objectAt(t, document, "paths")
+	tests := []struct {
+		method  string
+		path    string
+		status  string
+		headers []string
+	}{
+		{"post", "/v1/approvals", "201", []string{"ETag", "Idempotency-Replayed", "Location", "X-Authorization-Decision-Id"}},
+		{"get", "/v1/approvals/{approval_id}", "200", []string{"ETag", "X-Authorization-Decision-Id"}},
+		{"post", "/v1/approvals/{approval_id}/decisions", "200", []string{"ETag", "Idempotency-Replayed", "Location", "X-Authorization-Decision-Id"}},
+		{"post", "/v1/approvals/{approval_id}/executions", "200", []string{"ETag", "Idempotency-Replayed", "Location", "X-Authorization-Decision-Id"}},
+		{"post", "/v1/approvals/{approval_id}/cancellations", "200", []string{"ETag", "Idempotency-Replayed", "Location", "X-Authorization-Decision-Id"}},
+	}
+	for _, test := range tests {
+		operation := objectAt(t, objectAt(t, paths, test.path), test.method)
+		response := objectAt(t, objectAt(t, operation, "responses"), test.status)
+		headers := objectAt(t, response, "headers")
+		for _, header := range test.headers {
+			if _, ok := headers[header].(map[string]any); !ok {
+				t.Errorf("%s %s response %s omits %s", strings.ToUpper(test.method), test.path, test.status, header)
+			}
+		}
+	}
+}
+
+func TestOrganizationMemberListCarriesClosedPurposeHeader(t *testing.T) {
+	document := readOpenAPIDocument(t)
+	operation := objectAt(t, objectAt(t,
+		objectAt(t, document, "paths"),
+		"/v1/organizations/{organization_id}/members"), "get")
+	parameters, ok := operation["parameters"].([]any)
+	if !ok {
+		t.Fatal("organization member list has no parameters")
+	}
+	found := false
+	for _, raw := range parameters {
+		parameter, ok := raw.(map[string]any)
+		if ok && parameter["$ref"] == "#/components/parameters/XAtlasPurpose" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("organization member list omits the closed purpose header")
+	}
+	components := objectAt(t, document, "components")
+	purposeHeader := objectAt(t, objectAt(t, components, "parameters"), "XAtlasPurpose")
+	if purposeHeader["name"] != "X-Atlas-Purpose" || purposeHeader["in"] != "header" ||
+		purposeHeader["required"] != false {
+		t.Fatalf("purpose header contract=%v", purposeHeader)
+	}
+	schema := objectAt(t, purposeHeader, "schema")
+	if schema["$ref"] != "#/components/schemas/Purpose" {
+		t.Fatalf("purpose header schema=%v", schema)
+	}
+}
+
+func TestPhase01MemberRoleChangeContractFailsClosedAroundApproval(t *testing.T) {
+	document := readOpenAPIDocument(t)
+	operation := objectAt(t, objectAt(t,
+		objectAt(t, document, "paths"),
+		"/v1/organizations/{organization_id}/members/{member_id}"), "patch")
+
+	description := stringAt(t, operation, "description")
+	for _, boundary := range []string{
+		"Direct changes are limited to merchant_viewer and merchant_operator",
+		"transition into or out of merchant_admin",
+		"typed maker-checker action",
+		"merchant_security_admin is never delegable",
+		"exact strong membership ETag",
+	} {
+		if !strings.Contains(description, boundary) {
+			t.Errorf("member role-change description does not close boundary %q", boundary)
+		}
+	}
+
+	parameters := arrayAt(t, operation, "parameters")
+	parameterRefs := map[string]bool{}
+	for _, raw := range parameters {
+		parameter, ok := raw.(map[string]any)
+		if !ok {
+			t.Fatalf("member role-change parameter has type %T", raw)
+		}
+		parameterRefs[stringAt(t, parameter, "$ref")] = true
+	}
+	for _, required := range []string{
+		"#/components/parameters/XAtlasCSRFToken",
+		"#/components/parameters/IdempotencyKey",
+		"#/components/parameters/IfMatch",
+	} {
+		if !parameterRefs[required] {
+			t.Errorf("member role change does not require %s", required)
+		}
+	}
+
+	responses := objectAt(t, operation, "responses")
+	okHeaders := objectAt(t, objectAt(t, responses, "200"), "headers")
+	for _, required := range []string{"ETag", "X-Authorization-Decision-Id", "Idempotency-Replayed", "Cache-Control"} {
+		if _, ok := okHeaders[required].(map[string]any); !ok {
+			t.Errorf("member role-change 200 response has no %s header", required)
+		}
+	}
+	approval := objectAt(t, responses, "202")
+	if !strings.Contains(stringAt(t, approval, "description"), "Approval is required") {
+		t.Error("member administrator-role transition is not contractually approval-gated")
+	}
+	if _, ok := objectAt(t, approval, "headers")["Location"].(map[string]any); !ok {
+		t.Error("member administrator-role approval response has no Location header")
+	}
+	for status, responseRef := range map[string]string{
+		"400": "#/components/responses/RequestMalformed",
+		"403": "#/components/responses/Forbidden",
+		"503": "#/components/responses/ServiceUnavailable",
+	} {
+		if got := stringAt(t, objectAt(t, responses, status), "$ref"); got != responseRef {
+			t.Errorf("member role-change %s response = %q, want %q", status, got, responseRef)
+		}
+	}
+}
+
+func TestPhase01MemberRevocationContractClosesDirectBoundary(t *testing.T) {
+	document := readOpenAPIDocument(t)
+	operation := objectAt(t, objectAt(t,
+		objectAt(t, document, "paths"),
+		"/v1/organizations/{organization_id}/members/{member_id}"), "delete")
+	description := stringAt(t, operation, "description")
+	for _, boundary := range []string{
+		"limited to merchant_viewer and merchant_operator",
+		"Administrator targets remain fail-closed",
+		"fresh-step-up and last-administrator execution policy",
+	} {
+		if !strings.Contains(description, boundary) {
+			t.Errorf("member-revocation description does not close boundary %q", boundary)
+		}
+	}
+	parameters := arrayAt(t, operation, "parameters")
+	parameterRefs := map[string]bool{}
+	for _, raw := range parameters {
+		parameter, ok := raw.(map[string]any)
+		if !ok {
+			t.Fatalf("member-revocation parameter has type %T", raw)
+		}
+		parameterRefs[stringAt(t, parameter, "$ref")] = true
+	}
+	for _, required := range []string{
+		"#/components/parameters/XAtlasCSRFToken",
+		"#/components/parameters/IdempotencyKey",
+		"#/components/parameters/IfMatch",
+	} {
+		if !parameterRefs[required] {
+			t.Errorf("member revocation does not require %s", required)
+		}
+	}
+	responses := objectAt(t, operation, "responses")
+	okHeaders := objectAt(t, objectAt(t, responses, "204"), "headers")
+	for _, required := range []string{"X-Authorization-Decision-Id", "Idempotency-Replayed", "Cache-Control"} {
+		if _, ok := okHeaders[required].(map[string]any); !ok {
+			t.Errorf("member-revocation 204 response has no %s header", required)
+		}
+	}
+	for _, required := range []string{"400", "401", "403", "404", "409", "412", "503"} {
+		if _, ok := responses[required].(map[string]any); !ok {
+			t.Errorf("member-revocation contract has no %s response", required)
+		}
+	}
+}
+
 func TestPhase01MachineCredentialIsLeastPrivilege(t *testing.T) {
 	document := readOpenAPIDocument(t)
 	schemes := objectAt(t, objectAt(t, document, "components"), "securitySchemes")
@@ -151,6 +322,7 @@ func TestPhase01SchemasAreClosedAndOneTimeSecretsAreNotReplayable(t *testing.T) 
 	for _, schema := range []string{
 		"Session",
 		"RevokeAllSessionsRequest",
+		"AdminSessionRevocationRequest",
 		"StepUpChallengeRequest",
 		"StepUpChallenge",
 		"SetActiveOrganizationRequest",
@@ -199,6 +371,10 @@ func TestPhase01IdentityAccessPolicyIsClosedAndConsistent(t *testing.T) {
 			t.Errorf("%s = %q, want %q", key, got, want)
 		}
 	}
+	additiveDecisions := stringSetAt(t, policy, "additive_decisions")
+	if !additiveDecisions["ADR-0015"] || !additiveDecisions["ADR-0016"] || len(additiveDecisions) != 2 {
+		t.Errorf("additive identity decisions = %v", sortedKeys(additiveDecisions))
+	}
 
 	sessions := objectAt(t, policy, "sessions")
 	cookie := objectAt(t, sessions, "cookie")
@@ -216,6 +392,41 @@ func TestPhase01IdentityAccessPolicyIsClosedAndConsistent(t *testing.T) {
 	}
 	if got := intAt(t, sessions, "oidc_clock_skew_seconds"); got != 60 {
 		t.Errorf("OIDC clock skew = %d seconds, want 60", got)
+	}
+	var invitationSession map[string]any
+	for _, raw := range arrayAt(t, sessions, "policies") {
+		candidate, ok := raw.(map[string]any)
+		if ok && candidate["population"] == "merchant-invitation-acceptance" {
+			invitationSession = candidate
+		}
+	}
+	if invitationSession == nil {
+		t.Fatal("merchant invitation-acceptance session policy is absent")
+	}
+	if intAt(t, invitationSession, "idle_minutes") != 15 ||
+		intAt(t, invitationSession, "absolute_minutes") != 15 {
+		t.Errorf("invitation bootstrap lifetime = %#v", invitationSession)
+	}
+	assertString(t, invitationSession, "tenant_authority", "none")
+	if permissions := stringSetAt(t, invitationSession, "permissions"); len(permissions) != 0 {
+		t.Errorf("invitation bootstrap permissions = %v", sortedKeys(permissions))
+	}
+
+	tenancy := objectAt(t, policy, "tenancy")
+	invitationAuthentication := objectAt(t, tenancy, "invitation_authentication")
+	assertString(t, invitationAuthentication, "decision", "ADR-0016")
+	assertString(t, invitationAuthentication, "provider_population", "merchant")
+	assertString(t, invitationAuthentication, "bootstrap_tenant_authority", "none")
+	assertString(t, invitationAuthentication, "acceptance_atomicity", "membership-invitation-session-rotation-audit-one-transaction")
+	if intAt(t, invitationAuthentication, "bootstrap_lifetime_minutes") != 15 {
+		t.Errorf("invitation bootstrap policy = %#v", invitationAuthentication)
+	}
+	authenticationOperation := objectAt(t, objectAt(t,
+		objectAt(t, readOpenAPIDocument(t), "paths"),
+		"/v1/organization-invitations/{invitation_id}/authentication"), "post")
+	security, ok := authenticationOperation["security"].([]any)
+	if !ok || len(security) != 0 {
+		t.Errorf("invitation authentication security = %#v, want unauthenticated initiation", authenticationOperation["security"])
 	}
 
 	permissions := stringSetAt(t, policy, "permissions")
@@ -270,6 +481,17 @@ func TestPhase01IdentityAccessPolicyIsClosedAndConsistent(t *testing.T) {
 	purposeSchema := objectAt(t, schemas, "Purpose")
 	if got, want := sortedKeys(stringSetAt(t, purposeSchema, "enum")), sortedKeys(stringSetAt(t, policy, "purposes")); strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Errorf("OpenAPI purposes = %v, policy purposes = %v", got, want)
+	}
+	adminRevocation := objectAt(t, policy, "admin_session_revocation")
+	assertString(t, adminRevocation, "decision", "ADR-0015")
+	assertString(t, adminRevocation, "actor_population", "workforce")
+	assertString(t, adminRevocation, "permission", "identity.sessions.revoke_admin")
+	assertString(t, adminRevocation, "purpose", "security_review")
+	assertString(t, adminRevocation, "required_assurance", "phishing_resistant")
+	assertString(t, adminRevocation, "required_step_up_action", "identity.session.admin_revoke")
+	assertString(t, adminRevocation, "audit_atomicity", "same-postgresql-transaction")
+	if got := intAt(t, adminRevocation, "freshness_minutes"); got != 5 {
+		t.Errorf("administrator revocation freshness = %d minutes, want 5", got)
 	}
 
 	approvals := objectAt(t, policy, "approvals")

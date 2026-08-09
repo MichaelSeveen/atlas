@@ -3,16 +3,20 @@ package architecture
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/MichaelSeveen/atlas/internal/platform/migration"
 )
 
-var phase01ProductTablePattern = regexp.MustCompile(`(?i)CREATE TABLE (atlas_(?:identity|audit))\.([a-z][a-z0-9_]*)`)
+var phase01ProductTablePattern = regexp.MustCompile(`(?i)CREATE TABLE (atlas_(?:identity|operations|audit))\.([a-z][a-z0-9_]*)`)
 
 func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 	root := repositoryRoot(t)
@@ -20,7 +24,19 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 	auditSQL := readPhase01PolicyFile(t, root, "db/migrations/000004_phase_01_audit_persistence.sql")
 	sessionSQL := readPhase01PolicyFile(t, root, "db/migrations/000005_phase_01_oidc_sessions.sql")
 	sessionGrantSQL := readPhase01PolicyFile(t, root, "db/migrations/000006_phase_01_session_authority_lock_grant.sql")
-	allSQL := identitySQL + "\n" + auditSQL + "\n" + sessionSQL + "\n" + sessionGrantSQL
+	stepUpSQL := readPhase01PolicyFile(t, root, "db/migrations/000007_phase_01_step_up_idempotency.sql")
+	adminRevocationSQL := readPhase01PolicyFile(t, root, "db/migrations/000008_phase_01_admin_session_revocation.sql")
+	invitationSQL := readPhase01PolicyFile(t, root, "db/migrations/000009_phase_01_organization_invitations.sql")
+	invitationAcceptanceSQL := readPhase01PolicyFile(t, root, "db/migrations/000010_phase_01_invitation_acceptance.sql")
+	membershipRoleChangeSQL := readPhase01PolicyFile(t, root, "db/migrations/000011_phase_01_membership_role_changes.sql")
+	membershipRevocationSQL := readPhase01PolicyFile(t, root, "db/migrations/000012_phase_01_membership_revocations.sql")
+	membershipEmailHintSQL := readPhase01PolicyFile(t, root, "db/migrations/000013_phase_01_membership_email_hint.sql")
+	approvalSQL := readPhase01PolicyFile(t, root, "db/migrations/000014_phase_01_approval_workflow.sql")
+	credentialSQL := readPhase01PolicyFile(t, root, "db/migrations/000015_phase_01_api_credentials.sql")
+	allSQL := identitySQL + "\n" + auditSQL + "\n" + sessionSQL + "\n" +
+		sessionGrantSQL + "\n" + stepUpSQL + "\n" + adminRevocationSQL + "\n" + invitationSQL + "\n" +
+		invitationAcceptanceSQL + "\n" + membershipRoleChangeSQL + "\n" + membershipRevocationSQL + "\n" +
+		membershipEmailHintSQL + "\n" + approvalSQL + "\n" + credentialSQL
 
 	tables := make([]string, 0)
 	for _, match := range phase01ProductTablePattern.FindAllStringSubmatch(allSQL, -1) {
@@ -29,9 +45,15 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 	sort.Strings(tables)
 	wantTables := []string{
 		"atlas_audit.audit_events",
+		"atlas_identity.admin_session_revocation_requests",
+		"atlas_identity.api_credential_mutation_requests",
+		"atlas_identity.api_credentials",
 		"atlas_identity.external_subjects",
+		"atlas_identity.membership_revocations",
+		"atlas_identity.membership_role_changes",
 		"atlas_identity.memberships",
 		"atlas_identity.oidc_transactions",
+		"atlas_identity.organization_invitations",
 		"atlas_identity.organizations",
 		"atlas_identity.permission_catalogue",
 		"atlas_identity.principal_roles",
@@ -41,6 +63,12 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 		"atlas_identity.role_permissions",
 		"atlas_identity.session_revocation_requests",
 		"atlas_identity.sessions",
+		"atlas_identity.step_up_challenge_requests",
+		"atlas_operations.approval_cancellations",
+		"atlas_operations.approval_decisions",
+		"atlas_operations.approval_executions",
+		"atlas_operations.approval_requests",
+		"atlas_operations.approvals",
 	}
 	if !reflect.DeepEqual(tables, wantTables) {
 		t.Fatalf("closed product-table inventory = %#v", tables)
@@ -59,12 +87,39 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 		"('atlas_identity', 'sessions', 'mixed', 'tenant_id'",
 		"'atlas_identity',\n        'oidc_transactions',\n        'global'",
 		"'atlas_identity',\n        'session_revocation_requests',\n        'global'",
+		"'atlas_identity',\n    'admin_session_revocation_requests',\n    'global'",
 		"('atlas_audit', 'audit_events', 'mixed', 'tenant_id'",
 		"GRANT INSERT ON atlas_audit.audit_events TO atlas_api;",
 		"GRANT USAGE ON SCHEMA atlas_identity TO atlas_api;",
 		"GRANT USAGE ON SCHEMA atlas_audit TO atlas_api;",
+		"GRANT USAGE ON SCHEMA atlas_operations TO atlas_api;",
 		"GRANT SELECT, INSERT, UPDATE ON atlas_identity.oidc_transactions TO atlas_api;",
 		"GRANT UPDATE (authorization_version) ON atlas_identity.principals TO atlas_api;",
+		"GRANT SELECT, INSERT ON atlas_identity.admin_session_revocation_requests TO atlas_api;",
+		"GRANT SELECT, INSERT, UPDATE ON atlas_identity.organization_invitations TO atlas_api;",
+		"GRANT SELECT, INSERT ON atlas_identity.membership_role_changes TO atlas_api;",
+		"GRANT SELECT, INSERT ON atlas_identity.membership_revocations TO atlas_api;",
+		"UNIQUE (tenant_id, actor_principal_id, idempotency_key_sha256)",
+		"result_membership_version = expected_membership_version + 1",
+		"target_role_id IN ('merchant_viewer', 'merchant_operator')",
+		"invitation_token_sha256 bytea",
+		"verified_email_sha256 bytea",
+		"acceptance_idempotency_key_sha256 bytea",
+		"global_scope = 'invitation-acceptance'",
+		"('atlas_operations', 'approvals', 'tenant', 'tenant_id', NULL)",
+		"eligible_checker_policy",
+		"payload_canonicalization",
+		"payload_hash_algorithm",
+		"GRANT UPDATE (\n    status, decision_reason, decider_principal_id, decider_session_id,",
+		"membership_role_changes_approval_fk",
+		"('atlas_identity', 'api_credentials', 'tenant', 'tenant_id', NULL)",
+		"('atlas_identity', 'api_credential_mutation_requests', 'tenant', 'tenant_id', NULL)",
+		"secret_verifier_sha256 bytea NOT NULL CHECK (octet_length(secret_verifier_sha256) = 32)",
+		"scopes = ARRAY['identity:read']::text[]",
+		"environment IN ('local', 'test', 'staging', 'production-reference')",
+		"audience text NOT NULL CHECK (audience = 'atlas-api')",
+		"DEFERRABLE INITIALLY DEFERRED",
+		"GRANT UPDATE (\n    status, version, overlap_ends_at, last_used_at, last_used_network_signal_sha256,",
 	} {
 		if !strings.Contains(allSQL, required) {
 			t.Errorf("persistence policy is missing %q", required)
@@ -76,12 +131,76 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 		"GRANT DELETE ON atlas_audit.audit_events",
 		"GRANT USAGE ON SCHEMA atlas_identity TO atlas_worker",
 		"GRANT USAGE ON SCHEMA atlas_audit TO atlas_reporting_read",
-		"atlas_operations.",
+		"GRANT UPDATE ON atlas_operations.approvals",
+		"GRANT DELETE ON atlas_operations.",
+		"credential_secret",
+		"plaintext_secret",
+		"raw_network",
 		"atlas_wallet.",
 		"atlas_ledger.",
 	} {
 		if strings.Contains(allSQL, forbidden) {
 			t.Errorf("persistence policy contains forbidden capability %q", forbidden)
+		}
+	}
+}
+
+func TestApprovalPersistenceIsTypedTenantScopedAndCrossContextSafe(t *testing.T) {
+	root := repositoryRoot(t)
+	operationsSources := ""
+	for _, relative := range []string{
+		"internal/operations/persistence/create_read.go",
+		"internal/operations/persistence/decision.go",
+		"internal/operations/persistence/execution.go",
+	} {
+		operationsSources += "\n" + readPhase01PolicyFile(t, root, relative)
+	}
+	for _, forbidden := range []string{"atlas_identity.", "atlas_audit."} {
+		if strings.Contains(operationsSources, forbidden) {
+			t.Errorf("Operations persistence bypasses a context boundary with %q", forbidden)
+		}
+	}
+	for _, required := range []string{
+		"WHERE tenant_id = $1",
+		"loadApprovalForTenant",
+		"payload_sha256",
+		"payload_canonical",
+		"IdempotencyDigest",
+		"ExpectedVersion",
+		"ValidateMembershipRoleChangeTarget",
+		"ExecuteApprovedMembershipRoleChange",
+	} {
+		if !strings.Contains(operationsSources, required) {
+			t.Errorf("Operations approval persistence is missing %q", required)
+		}
+	}
+	identityTarget := readPhase01PolicyFile(t, root, "internal/identity/persistence/approval.go")
+	if strings.Contains(identityTarget, "atlas_operations.") {
+		t.Error("Identity target adapter writes Operations-owned tables directly")
+	}
+}
+
+func TestMembershipEmailHintMigrationIsMaskedAndOptional(t *testing.T) {
+	root := repositoryRoot(t)
+	source := readPhase01PolicyFile(t, root, "db/migrations/000013_phase_01_membership_email_hint.sql")
+	for _, required := range []string{
+		"ADD COLUMN email_hint text;",
+		"email_hint IS NULL OR length(email_hint) BETWEEN 3 AND 254",
+		"Optional already-masked invitation recipient hint.",
+		"Never stores a canonical or raw email address.",
+	} {
+		if !strings.Contains(source, required) {
+			t.Errorf("membership email-hint migration is missing %q", required)
+		}
+	}
+	for _, forbidden := range []string{
+		"ADD COLUMN email_hint text NOT NULL",
+		"ADD COLUMN email_hint text DEFAULT",
+		"email_address",
+		"email_sha256",
+	} {
+		if strings.Contains(source, forbidden) {
+			t.Errorf("membership email-hint migration contains forbidden storage %q", forbidden)
 		}
 	}
 }
@@ -118,7 +237,18 @@ func TestPhase01SeedManifestIsClosedAndChecksumBound(t *testing.T) {
 		}
 	}
 	sort.Strings(actual)
-	expected := []string{"000001_phase_01_identity.json", "load-phase-01-identity.sql"}
+	expected := []string{
+		"000001_phase_01_identity.json",
+		"000002_phase_01_policy.json",
+		"000003_phase_01_policy.json",
+		"000004_phase_01_policy.json",
+		"000005_phase_01_acceptance_personas.json",
+		"load-phase-01-acceptance-personas.sql",
+		"load-phase-01-identity.sql",
+		"load-phase-01-policy-v3.sql",
+		"load-phase-01-policy-v4.sql",
+		"load-phase-01-policy.sql",
+	}
 	if !reflect.DeepEqual(actual, expected) || len(want) != len(expected) {
 		t.Fatalf("closed seed inventory = %#v", actual)
 	}
@@ -135,6 +265,110 @@ func TestPhase01TenantRepositorySignatureAndPredicateAreExplicit(t *testing.T) {
 		if !strings.Contains(source, required) {
 			t.Errorf("tenant repository policy is missing %q", required)
 		}
+	}
+	organizationSource := readPhase01PolicyFile(t, root, "internal/identity/persistence/organization.go")
+	for _, required := range []string{
+		"command identity.ListOrganizationMembersCommand",
+		"command.OrganizationID.String()",
+		"member.OrganizationID != command.OrganizationID",
+	} {
+		if !strings.Contains(organizationSource, required) {
+			t.Errorf("organization-member repository policy is missing %q", required)
+		}
+	}
+	const memberTenantPredicate = "WHERE tenant_id = $1\n  AND population = 'merchant'"
+	if count := strings.Count(organizationSource, memberTenantPredicate); count != 4 {
+		t.Errorf("masked/revealed organization-member page queries have %d explicit tenant predicates, want 4", count)
+	}
+	roleChangeSource := readPhase01PolicyFile(t, root, "internal/identity/persistence/membership_role.go")
+	for _, required := range []string{
+		"command.OrganizationID.String()",
+		"WHERE tenant_id = $1 AND membership_id = $2 AND population = 'merchant'",
+		"authorization_version = authorization_version + 1",
+		"status = 'revoked', revoked_at = $3",
+	} {
+		if !strings.Contains(roleChangeSource, required) {
+			t.Errorf("membership role-change repository is missing %q", required)
+		}
+	}
+	revocationSource := readPhase01PolicyFile(t, root, "internal/identity/persistence/membership_revocation.go")
+	for _, required := range []string{
+		"command.OrganizationID.String()",
+		"WHERE tenant_id = $1 AND membership_id = $2 AND population = 'merchant'",
+		"authorization_version = authorization_version + 1",
+		"status = 'revoked', revoked_at = $3",
+		"organization.members.remove",
+		"administrator_removal_unavailable",
+	} {
+		if !strings.Contains(revocationSource, required) {
+			t.Errorf("membership revocation repository is missing %q", required)
+		}
+	}
+}
+
+func TestDatabaseVerificationMigrationCountsTrackManifest(t *testing.T) {
+	root := repositoryRoot(t)
+	wantDeclaration := "expected_migration_count='" + strconv.Itoa(migration.CurrentVersion) + "'"
+	wantChecks := map[string][]string{
+		"db/tests/migration_lanes.sh": {
+			`[ "$empty_count" = "$expected_migration_count" ]`,
+			`[ "$upgraded_count" = "$expected_migration_count" ]`,
+			`[ "$rerun_count" = "$expected_migration_count" ]`,
+		},
+		"db/tests/phase01_identity.sh": {
+			`[ "$(query 'SELECT count(*) FROM atlas_foundation.schema_migrations')" = "$expected_migration_count" ]`,
+		},
+		"db/recovery/verify-restore.sh": {
+			`[ "$(query 'SELECT count(*) FROM atlas_foundation.schema_migrations')" = "$expected_migration_count" ]`,
+		},
+		"db/tests/phase01_session_repository.sh": {
+			"WHEN (SELECT count(*) FROM atlas_foundation.schema_migrations) = $expected_migration_count",
+		},
+	}
+	for relative, checks := range wantChecks {
+		source := readPhase01PolicyFile(t, root, relative)
+		if !strings.Contains(source, wantDeclaration) {
+			t.Errorf("%s migration-count declaration does not match version %d", relative, migration.CurrentVersion)
+		}
+		for _, check := range checks {
+			if !strings.Contains(source, check) {
+				t.Errorf("%s does not use the manifest-bound migration count in %q", relative, check)
+			}
+		}
+	}
+}
+
+func TestDatabaseVerificationTracksLatestPolicySeed(t *testing.T) {
+	root := repositoryRoot(t)
+	seedTool := readPhase01PolicyFile(t, root, "db/tools/apply-phase-01-seeds.sh")
+	wantSeedCount := strings.Count(seedTool, "\napply_seed '")
+	if wantSeedCount == 0 {
+		t.Fatal("Phase 01 seed tool does not apply any canonical seeds")
+	}
+	latestSeed := readPhase01PolicyFile(t, root, "db/seeds/000004_phase_01_policy.json")
+	var policy struct {
+		PolicySHA256 string `json:"policy_sha256"`
+	}
+	if err := json.Unmarshal([]byte(latestSeed), &policy); err != nil {
+		t.Fatal(err)
+	}
+	if !regexp.MustCompile(`^[0-9a-f]{64}$`).MatchString(policy.PolicySHA256) {
+		t.Fatal("latest Phase 01 policy seed checksum is invalid")
+	}
+	wantPolicyDeclaration := "expected_policy_checksum='" + policy.PolicySHA256 + "'"
+	for _, relative := range []string{
+		"db/tests/phase01_identity.sh",
+		"db/recovery/verify-restore.sh",
+	} {
+		source := readPhase01PolicyFile(t, root, relative)
+		if !strings.Contains(source, wantPolicyDeclaration) {
+			t.Errorf("%s policy checksum does not match the latest Phase 01 policy seed", relative)
+		}
+	}
+	identityCheck := readPhase01PolicyFile(t, root, "db/tests/phase01_identity.sh")
+	wantSeedDeclaration := "expected_seed_count='" + strconv.Itoa(wantSeedCount) + "'"
+	if !strings.Contains(identityCheck, wantSeedDeclaration) {
+		t.Errorf("Phase 01 identity verification seed count does not match %d canonical seeds", wantSeedCount)
 	}
 }
 

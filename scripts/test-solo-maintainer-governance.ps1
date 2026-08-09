@@ -3,7 +3,8 @@ param(
     [string]$BaseRef,
     [string]$HeadRef = 'HEAD',
     [AllowEmptyString()]
-    [string]$PullRequestBody = '',
+    [Alias('PullRequestBody')]
+    [string]$ChangeDeclaration = '',
     [string[]]$ChangedPath = @(),
     [string]$PolicyPath = '.github/solo-maintainer-policy.json'
 )
@@ -36,7 +37,7 @@ function Assert-Attestations {
     foreach ($attestation in $Required) {
         $pattern = '(?im)^\s*-\s*\[[xX]\]\s*' + [regex]::Escape($attestation) + '(?:\s|$)'
         if ($Body -notmatch $pattern) {
-            throw "Sensitive PR is missing checked solo-maintainer attestation: $attestation"
+            throw "Sensitive change is missing checked solo-maintainer attestation: $attestation"
         }
     }
 }
@@ -58,7 +59,7 @@ if ($patterns.Count -lt 10 -or $required.Count -lt 6) {
     throw 'Solo-maintainer sensitive-path or attestation coverage is incomplete.'
 }
 
-$seededSensitive = '.github/workflows/pr.yml'
+$seededSensitive = '.github/workflows/ci.yml'
 if (-not (Test-SensitivePath -Path $seededSensitive -Patterns $patterns)) {
     throw 'Sensitive-path seeded canary was not detected.'
 }
@@ -83,7 +84,7 @@ if ($ChangedPath.Count -eq 0 -and $BaseRef) {
 
 $sensitive = @($ChangedPath | Where-Object { Test-SensitivePath -Path $_ -Patterns $patterns })
 if ($sensitive.Count -gt 0) {
-    Assert-Attestations -Body $PullRequestBody -Required $required
+    Assert-Attestations -Body $ChangeDeclaration -Required $required
     Write-Output ('solo_governance_sensitive_paths=' + (($sensitive | Sort-Object -Unique) -join ','))
     Write-Output 'solo_governance_attestations=PASS'
 }

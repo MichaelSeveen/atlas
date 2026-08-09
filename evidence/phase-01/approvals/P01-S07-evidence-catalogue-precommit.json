@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "evidence_id": "EVD-P01-S07-CATALOGUE-PRECOMMIT",
+  "created_at": "2026-08-09T00:00:00Z",
+  "phase": "PHASE-01_IDENTITY_ACCESS_TENANCY",
+  "slice": "P01-S07",
+  "source_revision": "UNCOMMITTED_WORKTREE(base=d3b8612ff4df2bd67bc16faa322c8ca397318f6e)",
+  "sanitization": "Only public source identities, closed synthetic action and status names, bounded PASS aggregates, artifact digests, migration identity, requirement/threat/test identifiers, and control semantics are included. Credentials, database URLs, cookies, CSRF/idempotency/OIDC material, opaque tenant/principal/session/member/approval/decision/Audit identifiers, canonical payload instances, raw SQL errors, WAL/data pages, network addresses, and real identity data are excluded.",
+  "artifacts": [
+    {
+      "evidence_id": "EVD-P01-S07-APPROVAL-CLOSURE",
+      "path": "evidence/phase-01/approvals/S07-approval-closure-precommit.md",
+      "sha256": "e3af68643761808d39d02a023fd3965a7a86f080f819755671d0fcd646fd1917",
+      "result": "PASS",
+      "requirements": ["IAM-006", "IAM-025", "IAM-030..034"],
+      "threats": ["THR-007", "THR-008", "THR-018", "THR-024", "THR-040", "THR-041", "THR-058"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/verify-p01-s07.ps1 -Live -ContainerRuntime podman",
+      "limitation": "Same-host synthetic proof for one typed non-financial administrator-role action; not a production or independent-review claim.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S07-VERIFIER",
+      "path": "scripts/verify-p01-s07.ps1",
+      "sha256": "b90206a4e4e375f5b72d2c023f5ee1f79a3a40b475f8ddd10f51935043f90d2c",
+      "result": "PASS",
+      "requirements": ["IAM-006", "IAM-025", "IAM-030..034"],
+      "threats": ["THR-008", "THR-018", "THR-024", "THR-040", "THR-058"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/verify-p01-s07.ps1",
+      "limitation": "The live branch requires the prepared isolated synthetic stack and real local PostgreSQL.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S07-DOMAIN-MODEL",
+      "path": "internal/operations/approval.go",
+      "sha256": "d851d7d6cd4de4ebd91c5c8540e185c7452f3b8034df35a71707c54cb557fbdb",
+      "result": "PASS",
+      "requirements": ["IAM-030..034"],
+      "threats": ["THR-008", "THR-024", "THR-041"],
+      "reproduce": "go test ./internal/operations -count=1",
+      "limitation": "The action registry contains one current typed action and deliberately denies unregistered actions.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S07-POSTGRES-ADVERSARIAL",
+      "path": "internal/operations/persistence/approval_integration_test.go",
+      "sha256": "6e325c40e25c353018d12183ef9a9e472913b10102a30bbe5c433dc1919dc697",
+      "result": "PASS",
+      "requirements": ["IAM-006", "IAM-025", "IAM-030..034"],
+      "threats": ["THR-007", "THR-008", "THR-018", "THR-024", "THR-040", "THR-058"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/verify-p01-s07.ps1 -Live -ContainerRuntime podman",
+      "limitation": "Real local PostgreSQL with synthetic principals; production latency and distributed network failures are not claimed.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S07-MIGRATION",
+      "path": "db/migrations/000014_phase_01_approval_workflow.sql",
+      "sha256": "0f5fb3412a7eb787284424aea8f4b71ee1ff929e8dd35821a882700123a5f5b5",
+      "result": "PASS",
+      "requirements": ["IAM-010..012", "IAM-030..034"],
+      "threats": ["THR-018", "THR-040"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/s05.ps1 -Action Verify -ContainerRuntime podman",
+      "limitation": "Local synthetic roles and unencrypted developer backup/WAL custody only.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S07-OPENAPI",
+      "path": "docs/atlas-prd/03-contracts/openapi.yaml",
+      "sha256": "e1b1571d05c43707a11662def4cdd0aa310d01b1bf0c943f044270ef55e8eb21",
+      "result": "PASS",
+      "requirements": ["IAM-025", "IAM-030..034"],
+      "threats": ["THR-007", "THR-008", "THR-024", "THR-041"],
+      "reproduce": "go run ./cmd/contractctl lint docs/atlas-prd/03-contracts/openapi.yaml docs/atlas-prd/03-contracts/asyncapi.yaml",
+      "limitation": "No approval event, worker, generated client, or frontend product consumer is claimed.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S07-OBSERVABILITY",
+      "path": "deploy/observability/catalog.json",
+      "sha256": "d8157ca064bab8c3ac75c0dd19c3e2759a38b15b22e9375feaefda8d23f21b36",
+      "result": "PASS",
+      "requirements": ["IAM-025", "IAM-030..034"],
+      "threats": ["THR-007", "THR-008", "THR-018", "THR-024", "THR-058"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/test-s07-approval-alert-catalog-canary.ps1",
+      "limitation": "Repository-owned emitted signals and alert definitions; no deployed pager or SIEM is claimed.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S07-RUNBOOK",
+      "path": "docs/runbooks/APPROVAL_INTEGRITY_AND_RECOVERY.md",
+      "sha256": "ec8354ceb4ce790f43579401bfe28eb9737d4bf36b69863e07972ee3de4e1231",
+      "result": "PASS",
+      "requirements": ["IAM-030..034"],
+      "threats": ["THR-008", "THR-018", "THR-040", "THR-058"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/test-s07-approval-alert-catalog-canary.ps1",
+      "limitation": "Synthetic response procedure; it explicitly forbids direct database edits and does not claim an exercised production incident.",
+      "revalidate_by": "2026-11-09"
+    }
+  ]
+}

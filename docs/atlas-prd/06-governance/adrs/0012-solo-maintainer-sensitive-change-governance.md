@@ -36,15 +36,15 @@ This reduces friction but leaves sensitive changes without a versioned risk decl
 
 ### Scoped solo-maintainer mode with compensating controls
 
-This preserves pull requests, required hosted tests, sensitive-path detection, a closed review checklist, synthetic-only restrictions, revision-bound evidence, and explicit revalidation triggers. It does not claim equivalence to independent human review. This option is selected.
+This preserves pull requests into `main`, push-triggered required hosted tests, sensitive-path detection, a closed review checklist, synthetic-only restrictions, revision-bound evidence, and explicit revalidation triggers. It does not claim equivalence to independent human review. This option is selected.
 
 ## Decision
 
 While `.github/solo-maintainer-policy.json` is active, Atlas uses a scoped `solo-maintainer-synthetic-portfolio` mode:
 
-1. `main` changes use pull requests and the configured hosted status checks. Direct pushes, force pushes, branch deletion, and unrecorded bypass are prohibited by repository rules.
+1. `main` changes use pull requests and the configured hosted status checks. CI runs on every branch push so the pull request consumes checks already bound to its head revision. Direct pushes to `main`, force pushes, branch deletion, and unrecorded bypass are prohibited by repository rules.
 2. A repository-owned gate identifies changes to ledger, authorization, identity, secrets, migrations, contracts, CI, deployment, supply-chain, and phase-verification paths.
-3. A sensitive pull request must contain the six checked attestations defined by the closed policy and pull-request template. The final attestation records fresh-context self-review and expressly does not claim independent human approval.
+3. A pushed revision range containing a sensitive change must contain the six checked attestations defined by the closed policy in its commit messages. The pull-request template mirrors the same declaration for review. The final attestation records fresh-context self-review and expressly does not claim independent human approval.
 4. A 24-hour cooling-off period is recommended before merging changes that introduce or alter sensitive financial semantics. Phase 00 remains feature-free, so the current governance-only change does not introduce such semantics.
 5. Required automated evidence includes architecture/static policy, race where supported, real PostgreSQL/NATS integration, migration, contract, secret-history, CodeQL, dependency, SBOM, license, container-hardening, and revision-integrity gates.
 6. Real money, real customer or identity data, production credentials/providers, and production-ready or independently-reviewed claims remain forbidden.
@@ -80,8 +80,8 @@ Rollback removes the solo policy, verifier, and template only together with a su
 
 ## Verification and evidence
 
-- `go test ./internal/architecture -count=1` validates the closed policy, synthetic restrictions, sensitive paths, attestations, PR workflow wiring, and revalidation triggers.
+- `go test ./internal/architecture -count=1` validates the closed policy, synthetic restrictions, sensitive paths, attestations, push workflow wiring, and revalidation triggers.
 - `pwsh -NoProfile -File ./scripts/test-solo-maintainer-governance.ps1` runs sensitive-path and incomplete-attestation seeded canaries.
-- The PR workflow passes base/head identities and the PR body to the verifier without executing body content.
+- The push workflow passes the pushed base/head identities and commit-message declaration text to the verifier without executing message content.
 - GitHub ruleset evidence must record the rule identifier, exact required status contexts, pull-request requirement, deletion/non-fast-forward controls, and bypass actors.
 - Every evidence report states `independent review unavailable—not claimed` while solo mode is active.

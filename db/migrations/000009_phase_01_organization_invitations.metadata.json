@@ -1,0 +1,13 @@
+{
+  "version": 9,
+  "name": "phase_01_organization_invitations",
+  "released": true,
+  "lock_timeout_ms": 500,
+  "statement_timeout_ms": 5000,
+  "lock_risk": "Creates one initially empty Identity-owned invitation table and two bounded indexes without rewriting an existing product table.",
+  "representative_data": "Runs against empty, previous-version, and deterministic Phase 01 identity lanes; live integration inserts concurrent idempotent invitation-issuance fixtures through the atlas_api role.",
+  "query_plan_review": "The actor-and-idempotency unique key serializes response-loss retries, the verifier unique key supports a future constant-shape acceptance lookup, and tenant/status plus tenant/email indexes bound administrative and duplicate-recipient checks.",
+  "space_risk": "Stores one hash-only verifier, one recipient digest, masked hint, authorization decision, and bounded metadata row per invitation; no recoverable token or full email is retained.",
+  "forward_fix": "Disable invitation issuance and add a new ordered migration to correct grants, constraints, replay state, or future acceptance binding while preserving invitation and Audit history.",
+  "rollback": "Disable invitation issuance before a forward fix; do not delete issued invitation facts, restore terminal invitations, recover secret material, or weaken delegation and Audit atomicity."
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -19,8 +20,9 @@ const (
 INSERT INTO atlas_identity.oidc_transactions (
     transaction_id, transaction_kind, population, state_sha256, nonce_sha256,
     pkce_verifier_ciphertext, encryption_key_version, return_to, principal_id,
-    replaced_session_id, requested_action, status, created_at, expires_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'pending', $12, $13)`
+    replaced_session_id, requested_action, invitation_id, invitation_token_sha256,
+    status, created_at, expires_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'pending', $14, $15)`
 
 	takeOIDCTransactionSQL = `
 UPDATE atlas_identity.oidc_transactions
@@ -30,7 +32,8 @@ WHERE state_sha256 = $1
   AND expires_at > $2
 RETURNING transaction_id, transaction_kind, population, nonce_sha256,
           pkce_verifier_ciphertext, encryption_key_version, return_to,
-          principal_id, replaced_session_id, requested_action, created_at, expires_at`
+          principal_id, replaced_session_id, requested_action, invitation_id,
+          invitation_token_sha256, created_at, expires_at`
 
 	externalPrincipalSQL = `
 SELECT principal.principal_id, principal.principal_type, principal.display_name
@@ -59,6 +62,21 @@ ORDER BY membership.tenant_id
 LIMIT 2
 FOR SHARE OF principal, membership, organization`
 
+	membershipAuthorityByTenantSQL = `
+SELECT membership.tenant_id, membership.role_id,
+       GREATEST(principal.authorization_version, membership.authorization_version, organization.authorization_version)
+FROM atlas_identity.principals AS principal
+JOIN atlas_identity.memberships AS membership
+  ON membership.principal_id = principal.principal_id
+JOIN atlas_identity.organizations AS organization
+  ON organization.tenant_id = membership.tenant_id
+WHERE principal.principal_id = $1
+  AND membership.tenant_id = $2
+  AND principal.status = 'active'
+  AND membership.status = 'active'
+  AND organization.status = 'active'
+FOR SHARE OF principal, membership, organization`
+
 	workforceAuthoritySQL = `
 SELECT principal_role.role_id,
        GREATEST(principal.authorization_version, principal_role.authorization_version)
@@ -82,11 +100,12 @@ ORDER BY permission_id`
 INSERT INTO atlas_identity.sessions (
     session_id, principal_id, population, tenant_id, global_scope, verifier_sha256,
     assurance, status, authorization_version, rotation_version, version, created_at,
-    last_seen_at, idle_expires_at, absolute_expires_at, client_label
+    last_seen_at, idle_expires_at, absolute_expires_at, client_label,
+    step_up_action, step_up_verified_at, invitation_id, verified_email_sha256
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, 'active', $8, $9, 1, $10,
-    $10, $11, $12, $13
+    $10, $11, $12, $13, $14, $15, $16, $17
 )`
 
 	activeSessionCountSQL = `
@@ -101,7 +120,9 @@ WHERE principal_id = $1
 SELECT session.session_id, session.principal_id, principal.principal_type, principal.display_name,
        session.population, session.tenant_id, session.assurance, session.authorization_version,
        session.rotation_version, session.created_at, session.last_seen_at, session.idle_expires_at,
-       session.absolute_expires_at, session.revoked_at, session.client_label, session.status
+       session.absolute_expires_at, session.revoked_at, session.step_up_action,
+       session.step_up_verified_at, session.client_label, session.status,
+       session.global_scope, session.invitation_id, session.verified_email_sha256
 FROM atlas_identity.sessions AS session
 JOIN atlas_identity.principals AS principal
   ON principal.principal_id = session.principal_id
@@ -142,12 +163,19 @@ func (store *SessionStore) PutOIDCTransaction(ctx context.Context, transaction i
 	if transaction.RequestedAction != "" {
 		requestedAction = transaction.RequestedAction
 	}
+	var invitationID any
+	var invitationTokenDigest any
+	if !transaction.InvitationID.IsZero() {
+		invitationID = transaction.InvitationID.String()
+		invitationTokenDigest = transaction.InvitationTokenDigest[:]
+	}
 	_, err := store.pool.Exec(
 		ctx, putOIDCTransactionSQL,
 		transaction.TransactionID.String(), string(transaction.Kind), string(transaction.Population),
 		transaction.StateDigest[:], transaction.NonceDigest[:], transaction.EncryptedPKCE,
 		transaction.EncryptionKeyVersion, transaction.ReturnTo, principalID, replacedSessionID,
-		requestedAction, transaction.CreatedAt, transaction.ExpiresAt,
+		requestedAction, invitationID, invitationTokenDigest,
+		transaction.CreatedAt, transaction.ExpiresAt,
 	)
 	if err != nil {
 		return identity.ErrIdentityUnavailable
@@ -163,11 +191,13 @@ func (store *SessionStore) TakeOIDCTransaction(
 	var transaction identity.OIDCTransaction
 	var transactionID, kind, population string
 	var nonceDigest []byte
-	var principalID, replacedSessionID, requestedAction *string
+	var principalID, replacedSessionID, requestedAction, invitationID *string
+	var invitationTokenDigest []byte
 	err := store.pool.QueryRow(ctx, takeOIDCTransactionSQL, stateDigest[:], now).Scan(
 		&transactionID, &kind, &population, &nonceDigest, &transaction.EncryptedPKCE,
 		&transaction.EncryptionKeyVersion, &transaction.ReturnTo, &principalID,
-		&replacedSessionID, &requestedAction, &transaction.CreatedAt, &transaction.ExpiresAt,
+		&replacedSessionID, &requestedAction, &invitationID, &invitationTokenDigest,
+		&transaction.CreatedAt, &transaction.ExpiresAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return identity.OIDCTransaction{}, identity.ErrOIDCTransactionInvalid
@@ -198,7 +228,256 @@ func (store *SessionStore) TakeOIDCTransaction(
 	if requestedAction != nil {
 		transaction.RequestedAction = *requestedAction
 	}
+	if invitationID != nil {
+		transaction.InvitationID, err = identifier.Parse(*invitationID)
+		if err != nil || len(invitationTokenDigest) != 32 {
+			return identity.OIDCTransaction{}, identity.ErrIdentityUnavailable
+		}
+		copy(transaction.InvitationTokenDigest[:], invitationTokenDigest)
+	}
 	return transaction, nil
+}
+
+func (store *SessionStore) ClaimStepUp(
+	ctx context.Context,
+	command identity.StepUpClaimCommand,
+) (identity.StepUpClaimResult, error) {
+	transaction, err := store.pool.Begin(ctx)
+	if err != nil {
+		return identity.StepUpClaimResult{}, identity.ErrIdentityUnavailable
+	}
+	defer func() { _ = transaction.Rollback(ctx) }()
+	inserted, err := insertStepUpClaim(ctx, transaction, command)
+	if err != nil {
+		return identity.StepUpClaimResult{}, err
+	}
+	if inserted {
+		if err := transaction.Commit(ctx); err != nil {
+			return identity.StepUpClaimResult{}, identity.ErrIdentityUnavailable
+		}
+		return identity.StepUpClaimResult{
+			ChallengeRequestID: command.ChallengeRequestID, Owner: true,
+		}, nil
+	}
+
+	var requestID, principalID, lifecycle string
+	var requestDigest []byte
+	var transactionID, authorizationURL *string
+	var expiresAt, processingExpiresAt *time.Time
+	var retainedUntil time.Time
+	err = transaction.QueryRow(ctx, `
+SELECT challenge_request_id, principal_id, request_sha256, lifecycle, transaction_id,
+       authorization_url, challenge_expires_at, processing_expires_at, retained_until
+FROM atlas_identity.step_up_challenge_requests
+WHERE idempotency_scope_sha256 = $1
+FOR UPDATE`,
+		command.IdempotencyScope[:],
+	).Scan(
+		&requestID, &principalID, &requestDigest, &lifecycle, &transactionID,
+		&authorizationURL, &expiresAt, &processingExpiresAt, &retainedUntil,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return identity.StepUpClaimResult{}, identity.ErrIdentityUnavailable
+	}
+	if err != nil {
+		return identity.StepUpClaimResult{}, identity.ErrIdentityUnavailable
+	}
+	if !command.Now.Before(retainedUntil) {
+		tag, updateErr := transaction.Exec(ctx, `
+UPDATE atlas_identity.step_up_challenge_requests
+SET challenge_request_id = $2,
+    principal_id = $3,
+    population = $4,
+    tenant_id = $5,
+    global_scope = $6,
+    request_sha256 = $7,
+    requested_action = $8,
+    lifecycle = 'processing',
+    transaction_id = NULL,
+    authorization_url = NULL,
+    challenge_expires_at = NULL,
+    processing_expires_at = $9,
+    correlation_id = $10,
+    created_at = $11,
+    updated_at = $11,
+    retained_until = $12
+WHERE idempotency_scope_sha256 = $1`,
+			command.IdempotencyScope[:], command.ChallengeRequestID.String(),
+			command.Actor.PrincipalID.String(), string(command.Actor.Population),
+			stepUpTenant(command.Actor), stepUpGlobalScope(command.Actor),
+			command.RequestDigest[:], command.Action, command.ProcessingExpiresAt,
+			command.CorrelationID.String(), command.Now, command.RetainedUntil,
+		)
+		if updateErr != nil || tag.RowsAffected() != 1 {
+			return identity.StepUpClaimResult{}, identity.ErrIdentityUnavailable
+		}
+		if err := transaction.Commit(ctx); err != nil {
+			return identity.StepUpClaimResult{}, identity.ErrIdentityUnavailable
+		}
+		return identity.StepUpClaimResult{
+			ChallengeRequestID: command.ChallengeRequestID, Owner: true,
+		}, nil
+	}
+	if principalID != command.Actor.PrincipalID.String() ||
+		len(requestDigest) != 32 || !equalDigest(requestDigest, command.RequestDigest) {
+		return identity.StepUpClaimResult{}, identity.ErrIdempotencyConflict
+	}
+	parsedRequestID, err := identifier.Parse(requestID)
+	if err != nil {
+		return identity.StepUpClaimResult{}, identity.ErrIdentityUnavailable
+	}
+	if lifecycle == "completed" {
+		if transactionID == nil || authorizationURL == nil || expiresAt == nil {
+			return identity.StepUpClaimResult{}, identity.ErrIdentityUnavailable
+		}
+		parsedTransactionID, parseErr := identifier.Parse(*transactionID)
+		if parseErr != nil {
+			return identity.StepUpClaimResult{}, identity.ErrIdentityUnavailable
+		}
+		if err := transaction.Commit(ctx); err != nil {
+			return identity.StepUpClaimResult{}, identity.ErrIdentityUnavailable
+		}
+		return identity.StepUpClaimResult{
+			ChallengeRequestID: parsedRequestID, Replay: true,
+			TransactionID: parsedTransactionID, AuthorizationURL: *authorizationURL,
+			ExpiresAt: expiresAt.UTC(),
+		}, nil
+	}
+	if lifecycle == "processing" && processingExpiresAt != nil &&
+		command.Now.Before(*processingExpiresAt) {
+		return identity.StepUpClaimResult{}, identity.ErrIdempotencyInProgress
+	}
+	tag, err := transaction.Exec(ctx, `
+UPDATE atlas_identity.step_up_challenge_requests
+SET challenge_request_id = $2,
+    lifecycle = 'processing',
+    processing_expires_at = $4,
+    correlation_id = $5,
+    updated_at = $3,
+    retained_until = GREATEST(retained_until, $6)
+WHERE idempotency_scope_sha256 = $1`,
+		command.IdempotencyScope[:], command.ChallengeRequestID.String(),
+		command.Now, command.ProcessingExpiresAt,
+		command.CorrelationID.String(), command.RetainedUntil,
+	)
+	if err != nil || tag.RowsAffected() != 1 {
+		return identity.StepUpClaimResult{}, identity.ErrIdentityUnavailable
+	}
+	if err := transaction.Commit(ctx); err != nil {
+		return identity.StepUpClaimResult{}, identity.ErrIdentityUnavailable
+	}
+	return identity.StepUpClaimResult{
+		ChallengeRequestID: command.ChallengeRequestID, Owner: true,
+	}, nil
+}
+
+func insertStepUpClaim(
+	ctx context.Context,
+	transaction pgx.Tx,
+	command identity.StepUpClaimCommand,
+) (bool, error) {
+	tag, err := transaction.Exec(ctx, `
+INSERT INTO atlas_identity.step_up_challenge_requests (
+    challenge_request_id, principal_id, population, tenant_id, global_scope,
+    idempotency_scope_sha256, request_sha256, requested_action, lifecycle,
+    processing_expires_at, correlation_id, created_at, updated_at, retained_until
+) VALUES (
+    $1, $2, $3, $4, $5,
+    $6, $7, $8, 'processing',
+    $9, $10, $11, $11, $12
+)
+ON CONFLICT (idempotency_scope_sha256) DO NOTHING`,
+		command.ChallengeRequestID.String(), command.Actor.PrincipalID.String(),
+		string(command.Actor.Population), stepUpTenant(command.Actor),
+		stepUpGlobalScope(command.Actor), command.IdempotencyScope[:],
+		command.RequestDigest[:], command.Action, command.ProcessingExpiresAt,
+		command.CorrelationID.String(), command.Now, command.RetainedUntil,
+	)
+	if err != nil {
+		return false, identity.ErrIdentityUnavailable
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
+func (store *SessionStore) CompleteStepUp(
+	ctx context.Context,
+	command identity.CompleteStepUpCommand,
+) error {
+	transaction, err := store.pool.Begin(ctx)
+	if err != nil {
+		return identity.ErrIdentityUnavailable
+	}
+	defer func() { _ = transaction.Rollback(ctx) }()
+	oidc := command.Transaction
+	_, err = transaction.Exec(
+		ctx, putOIDCTransactionSQL,
+		oidc.TransactionID.String(), string(oidc.Kind), string(oidc.Population),
+		oidc.StateDigest[:], oidc.NonceDigest[:], oidc.EncryptedPKCE,
+		oidc.EncryptionKeyVersion, oidc.ReturnTo, oidc.PrincipalID.String(),
+		oidc.ReplacedSessionID.String(), oidc.RequestedAction, nil, nil,
+		oidc.CreatedAt, oidc.ExpiresAt,
+	)
+	if err != nil {
+		return identity.ErrIdentityUnavailable
+	}
+	tag, err := transaction.Exec(ctx, `
+UPDATE atlas_identity.step_up_challenge_requests
+SET lifecycle = 'completed',
+    transaction_id = $3,
+    authorization_url = $4,
+    challenge_expires_at = $5,
+    processing_expires_at = NULL,
+    updated_at = $6
+WHERE challenge_request_id = $1
+  AND idempotency_scope_sha256 = $2
+  AND lifecycle = 'processing'`,
+		command.ChallengeRequestID.String(), command.IdempotencyScope[:],
+		oidc.TransactionID.String(), command.AuthorizationURL, oidc.ExpiresAt,
+		command.CompletedAt,
+	)
+	if err != nil || tag.RowsAffected() != 1 {
+		return identity.ErrIdentityUnavailable
+	}
+	if err := transaction.Commit(ctx); err != nil {
+		return identity.ErrIdentityUnavailable
+	}
+	return nil
+}
+
+func (store *SessionStore) FailStepUp(
+	ctx context.Context,
+	challengeRequestID identifier.ID,
+	idempotencyScope [32]byte,
+	now time.Time,
+) error {
+	_, err := store.pool.Exec(ctx, `
+UPDATE atlas_identity.step_up_challenge_requests
+SET lifecycle = 'failed-retryable',
+    processing_expires_at = NULL,
+    updated_at = $3
+WHERE challenge_request_id = $1
+  AND idempotency_scope_sha256 = $2
+  AND lifecycle = 'processing'`,
+		challengeRequestID.String(), idempotencyScope[:], now,
+	)
+	if err != nil {
+		return identity.ErrIdentityUnavailable
+	}
+	return nil
+}
+
+func stepUpTenant(actor identity.Session) any {
+	if actor.TenantID.IsZero() {
+		return nil
+	}
+	return actor.TenantID.String()
+}
+
+func stepUpGlobalScope(actor identity.Session) any {
+	if actor.TenantID.IsZero() {
+		return "identity-security"
+	}
+	return nil
 }
 
 func (store *SessionStore) CreateSession(
@@ -211,12 +490,85 @@ func (store *SessionStore) CreateSession(
 	}
 	defer func() { _ = transaction.Rollback(ctx) }()
 
+	acceptanceOnly := command.Kind == identity.TransactionInvitationAcceptance
+	var invitationTenant identifier.ID
+	if acceptanceOnly {
+		if command.Population != identity.PopulationMerchant || command.InvitationID.IsZero() ||
+			command.InvitationID.Prefix() != "inv" ||
+			command.InvitationTokenDigest == ([32]byte{}) ||
+			command.VerifiedEmailDigest == ([32]byte{}) ||
+			command.ProvisionalPrincipalID.IsZero() || command.ProvisionalPrincipalID.Prefix() != "usr" ||
+			command.ProvisionalExternalSubjectID.IsZero() || command.ProvisionalExternalSubjectID.Prefix() != "ext" {
+			return identity.Session{}, identity.ErrOIDCTransactionInvalid
+		}
+		var tenantText, status string
+		var storedToken, storedEmail []byte
+		var expiresAt time.Time
+		err = transaction.QueryRow(ctx, `
+SELECT invitation.tenant_id, invitation.token_sha256, invitation.email_sha256,
+       invitation.status, invitation.expires_at
+FROM atlas_identity.organization_invitations AS invitation
+JOIN atlas_identity.organizations AS organization
+  ON organization.tenant_id = invitation.tenant_id
+WHERE invitation.invitation_id = $1
+  AND organization.status = 'active'
+FOR SHARE OF invitation, organization`, command.InvitationID.String()).Scan(
+			&tenantText, &storedToken, &storedEmail, &status, &expiresAt,
+		)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return identity.Session{}, identity.ErrOIDCTransactionInvalid
+		}
+		if err != nil {
+			return identity.Session{}, identity.ErrIdentityUnavailable
+		}
+		if status != "pending" || !command.AuthorizationAt.Before(expiresAt) ||
+			!equalDigest(storedToken, command.InvitationTokenDigest) ||
+			!equalDigest(storedEmail, command.VerifiedEmailDigest) {
+			return identity.Session{}, identity.ErrOIDCTransactionInvalid
+		}
+		invitationTenant, err = identifier.Parse(tenantText)
+		if err != nil {
+			return identity.Session{}, identity.ErrIdentityUnavailable
+		}
+		if _, err := transaction.Exec(ctx, `
+SELECT pg_advisory_xact_lock(hashtextextended($1 || ':' || $2 || ':' || $3, 0))`,
+			string(command.Population), command.Claims.Issuer, command.Claims.Subject,
+		); err != nil {
+			return identity.Session{}, identity.ErrIdentityUnavailable
+		}
+	}
+
 	var principalIDText, principalType, displayName string
 	err = transaction.QueryRow(
 		ctx, externalPrincipalSQL,
 		string(command.Population), command.Claims.Issuer, command.Claims.Subject,
 	).Scan(&principalIDText, &principalType, &displayName)
-	if errors.Is(err, pgx.ErrNoRows) {
+	if errors.Is(err, pgx.ErrNoRows) && acceptanceOnly {
+		principalIDText = command.ProvisionalPrincipalID.String()
+		principalType = string(identity.PopulationMerchant)
+		displayName = "Invited merchant"
+		personAnchor := "syn_person_invited_" + strings.ToLower(
+			strings.TrimPrefix(principalIDText, "usr_"),
+		)
+		if _, err = transaction.Exec(ctx, `
+INSERT INTO atlas_identity.principals (
+    principal_id, principal_type, display_name, person_anchor, status,
+    authorization_version, version, created_at, updated_at
+) VALUES ($1, 'merchant', $2, $3, 'active', 1, 1, $4, $4)`,
+			principalIDText, displayName, personAnchor, command.AuthorizationAt,
+		); err != nil {
+			return identity.Session{}, identity.ErrIdentityUnavailable
+		}
+		if _, err = transaction.Exec(ctx, `
+INSERT INTO atlas_identity.external_subjects (
+    external_subject_id, principal_id, population, issuer, subject, created_at
+) VALUES ($1, $2, 'merchant', $3, $4, $5)`,
+			command.ProvisionalExternalSubjectID.String(), principalIDText,
+			command.Claims.Issuer, command.Claims.Subject, command.AuthorizationAt,
+		); err != nil {
+			return identity.Session{}, identity.ErrIdentityUnavailable
+		}
+	} else if errors.Is(err, pgx.ErrNoRows) {
 		return identity.Session{}, identity.ErrAuthenticationRequired
 	}
 	if err != nil {
@@ -230,32 +582,58 @@ func (store *SessionStore) CreateSession(
 		return identity.Session{}, identity.ErrOIDCTransactionInvalid
 	}
 
-	tenantID, roleID, authorizationVersion, err := authorityForPrincipal(
-		ctx, transaction, principalID, command.Population,
-	)
-	if err != nil {
-		return identity.Session{}, err
-	}
-	permissions, err := permissionsForRole(ctx, transaction, roleID)
-	if err != nil {
-		return identity.Session{}, err
-	}
-
 	rotationVersion := int64(1)
+	var preferredTenant identifier.ID
 	if !command.ReplacedSessionID.IsZero() {
 		var replacedRotationVersion int64
+		var replacedTenant *string
 		err = transaction.QueryRow(ctx, `
-SELECT rotation_version
+SELECT rotation_version, tenant_id
 FROM atlas_identity.sessions
 WHERE session_id = $1 AND principal_id = $2
 FOR UPDATE`,
 			command.ReplacedSessionID.String(), principalID.String(),
-		).Scan(&replacedRotationVersion)
+		).Scan(&replacedRotationVersion, &replacedTenant)
 		if err == nil {
 			rotationVersion = replacedRotationVersion + 1
+			if replacedTenant != nil {
+				preferredTenant, err = identifier.Parse(*replacedTenant)
+				if err != nil {
+					return identity.Session{}, identity.ErrIdentityUnavailable
+				}
+			}
 		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return identity.Session{}, identity.ErrIdentityUnavailable
 		}
+	}
+
+	var tenantID identifier.ID
+	var authorizationVersion int64
+	permissions := []string{}
+	if acceptanceOnly {
+		err = transaction.QueryRow(ctx, `
+SELECT authorization_version
+FROM atlas_identity.principals
+WHERE principal_id = $1 AND status = 'active'
+FOR SHARE`, principalID.String()).Scan(&authorizationVersion)
+		if err != nil {
+			return identity.Session{}, identity.ErrIdentityUnavailable
+		}
+	} else {
+		var roleID string
+		tenantID, roleID, authorizationVersion, err = authorityForPrincipal(
+			ctx, transaction, principalID, command.Population, preferredTenant,
+		)
+		if err != nil {
+			return identity.Session{}, err
+		}
+		permissions, err = permissionsForRole(ctx, transaction, roleID)
+		if err != nil {
+			return identity.Session{}, err
+		}
+	}
+
+	if !command.ReplacedSessionID.IsZero() {
 		_, err = transaction.Exec(ctx, `
 UPDATE atlas_identity.sessions
 SET status = 'revoked', revoked_at = $3, version = version + 1
@@ -280,7 +658,9 @@ WHERE session_id = $1
 
 	var tenantValue any
 	var globalScope any
-	if tenantID.IsZero() {
+	if acceptanceOnly {
+		globalScope = "invitation-acceptance"
+	} else if tenantID.IsZero() {
 		globalScope = "workforce"
 	} else {
 		tenantValue = tenantID.String()
@@ -289,12 +669,27 @@ WHERE session_id = $1
 	if command.ClientLabel != "" {
 		clientLabel = command.ClientLabel
 	}
+	var stepUpAction any
+	var stepUpVerifiedAt any
+	if command.StepUpAction != "" && !command.StepUpVerifiedAt.IsZero() {
+		stepUpAction = command.StepUpAction
+		stepUpVerifiedAt = command.StepUpVerifiedAt
+	}
+	var invitationValue any
+	if acceptanceOnly {
+		invitationValue = command.InvitationID.String()
+	}
+	var verifiedEmailValue any
+	if command.VerifiedEmailDigest != ([32]byte{}) {
+		verifiedEmailValue = command.VerifiedEmailDigest[:]
+	}
 	_, err = transaction.Exec(
 		ctx, insertSessionSQL,
 		command.SessionID.String(), principalID.String(), string(command.Population),
 		tenantValue, globalScope, command.VerifierDigest[:], string(command.Assurance),
 		authorizationVersion, rotationVersion, command.AuthorizationAt, command.IdleExpiresAt,
-		command.AbsoluteExpiresAt, clientLabel,
+		command.AbsoluteExpiresAt, clientLabel, stepUpAction, stepUpVerifiedAt,
+		invitationValue, verifiedEmailValue,
 	)
 	if err != nil {
 		return identity.Session{}, identity.ErrIdentityUnavailable
@@ -302,7 +697,10 @@ WHERE session_id = $1
 	event := command.AuditEvent
 	event.ActorID = principalID
 	event.ActorType = principalType
-	if tenantID.IsZero() {
+	if acceptanceOnly {
+		event.GlobalScope = ""
+		event.TenantID = invitationTenant
+	} else if tenantID.IsZero() {
 		event.GlobalScope = "identity-security"
 		event.TenantID = identifier.ID{}
 	} else {
@@ -321,8 +719,13 @@ WHERE session_id = $1
 		Assurance: command.Assurance, AuthorizationVersion: authorizationVersion,
 		RotationVersion: rotationVersion, CreatedAt: command.AuthorizationAt,
 		LastSeenAt: command.AuthorizationAt, IdleExpiresAt: command.IdleExpiresAt,
-		AbsoluteExpiresAt: command.AbsoluteExpiresAt, ClientLabel: command.ClientLabel,
-		Permissions: permissions,
+		AbsoluteExpiresAt: command.AbsoluteExpiresAt,
+		StepUpAction:      command.StepUpAction, StepUpVerifiedAt: command.StepUpVerifiedAt,
+		ClientLabel:              command.ClientLabel,
+		Permissions:              permissions,
+		InvitationID:             command.InvitationID,
+		VerifiedEmailDigest:      command.VerifiedEmailDigest,
+		InvitationAcceptanceOnly: acceptanceOnly,
 	}, nil
 }
 
@@ -356,8 +759,47 @@ WHERE session_id = $1 AND status = 'active'`, session.SessionID.String())
 		_ = transaction.Commit(ctx)
 		return identity.Session{}, identity.ErrSessionExpired
 	}
+	if session.InvitationAcceptanceOnly {
+		var principalStatus, invitationStatus string
+		var authorizationVersion int64
+		var invitationExpiresAt time.Time
+		err = transaction.QueryRow(ctx, `
+SELECT principal.status, principal.authorization_version,
+       invitation.status, invitation.expires_at
+FROM atlas_identity.principals AS principal
+JOIN atlas_identity.organization_invitations AS invitation
+  ON invitation.invitation_id = $2
+WHERE principal.principal_id = $1
+FOR SHARE OF principal, invitation`,
+			session.PrincipalID.String(), session.InvitationID.String(),
+		).Scan(&principalStatus, &authorizationVersion, &invitationStatus, &invitationExpiresAt)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return identity.Session{}, identity.ErrAuthenticationRequired
+		}
+		if err != nil {
+			return identity.Session{}, identity.ErrIdentityUnavailable
+		}
+		if principalStatus != "active" ||
+			authorizationVersion != session.AuthorizationVersion ||
+			invitationStatus != "pending" || !now.Before(invitationExpiresAt) {
+			return identity.Session{}, identity.ErrAuthenticationRequired
+		}
+		_, err = transaction.Exec(ctx, `
+UPDATE atlas_identity.sessions
+SET last_seen_at = GREATEST(last_seen_at, $2), version = version + 1
+WHERE session_id = $1`, session.SessionID.String(), now)
+		if err != nil {
+			return identity.Session{}, identity.ErrIdentityUnavailable
+		}
+		if err := transaction.Commit(ctx); err != nil {
+			return identity.Session{}, identity.ErrIdentityUnavailable
+		}
+		session.LastSeenAt = now
+		session.Permissions = []string{}
+		return session, nil
+	}
 	tenantID, roleID, authorizationVersion, err := authorityForPrincipal(
-		ctx, transaction, session.PrincipalID, session.Population,
+		ctx, transaction, session.PrincipalID, session.Population, session.TenantID,
 	)
 	if err != nil || tenantID != session.TenantID || authorizationVersion != session.AuthorizationVersion {
 		return identity.Session{}, identity.ErrAuthenticationRequired
@@ -582,14 +1024,264 @@ INSERT INTO atlas_identity.session_revocation_requests (
 	return identity.RevocationResult{CurrentRevoked: currentRevoked}, nil
 }
 
+func (store *SessionStore) RevokeForSecurity(
+	ctx context.Context,
+	command identity.AdminRevocationCommand,
+) (identity.AdminRevocationResult, error) {
+	transaction, err := store.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
+	if err != nil {
+		return identity.AdminRevocationResult{}, identity.ErrIdentityUnavailable
+	}
+	defer func() { _ = transaction.Rollback(ctx) }()
+
+	if _, err := transaction.Exec(ctx, `
+SELECT pg_advisory_xact_lock(
+    hashtextextended($1 || ':' || encode($2::bytea, 'hex'), 0)
+)`,
+		command.Actor.PrincipalID.String(), command.IdempotencyDigest[:],
+	); err != nil {
+		return identity.AdminRevocationResult{}, identity.ErrIdentityUnavailable
+	}
+
+	var storedRequest []byte
+	var storedOutcome, storedDecisionID string
+	var storedCurrentRevoked bool
+	err = transaction.QueryRow(ctx, `
+SELECT request_sha256, outcome, current_revoked, decision_id
+FROM atlas_identity.admin_session_revocation_requests
+WHERE actor_principal_id = $1 AND idempotency_key_sha256 = $2`,
+		command.Actor.PrincipalID.String(), command.IdempotencyDigest[:],
+	).Scan(&storedRequest, &storedOutcome, &storedCurrentRevoked, &storedDecisionID)
+	if err == nil {
+		if len(storedRequest) != 32 || !equalDigest(storedRequest, command.RequestDigest) {
+			return identity.AdminRevocationResult{}, identity.ErrIdempotencyConflict
+		}
+		decisionID, parseErr := identifier.Parse(storedDecisionID)
+		if parseErr != nil {
+			return identity.AdminRevocationResult{}, identity.ErrIdentityUnavailable
+		}
+		if err := transaction.Commit(ctx); err != nil {
+			return identity.AdminRevocationResult{}, identity.ErrIdentityUnavailable
+		}
+		result := identity.AdminRevocationResult{
+			DecisionID: decisionID, CurrentRevoked: storedCurrentRevoked, Replay: true,
+		}
+		return adminRevocationOutcome(result, storedOutcome)
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return identity.AdminRevocationResult{}, identity.ErrIdentityUnavailable
+	}
+
+	var actorPopulation, actorStatus, actorAssurance string
+	var actorAuthorizationVersion int64
+	var stepUpAction *string
+	var stepUpVerifiedAt *time.Time
+	err = transaction.QueryRow(ctx, `
+SELECT population, status, assurance, authorization_version,
+       step_up_action, step_up_verified_at
+FROM atlas_identity.sessions
+WHERE session_id = $1 AND principal_id = $2
+FOR UPDATE`,
+		command.Actor.SessionID.String(), command.Actor.PrincipalID.String(),
+	).Scan(
+		&actorPopulation, &actorStatus, &actorAssurance, &actorAuthorizationVersion,
+		&stepUpAction, &stepUpVerifiedAt,
+	)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return identity.AdminRevocationResult{}, identity.ErrIdentityUnavailable
+	}
+
+	authorized := err == nil &&
+		actorPopulation == string(identity.PopulationWorkforce) &&
+		actorStatus == "active"
+	denialReason := "authority_stale_or_revoked"
+	roleID := ""
+	if authorized {
+		_, role, currentAuthorizationVersion, authorityErr := authorityForPrincipal(
+			ctx, transaction, command.Actor.PrincipalID, identity.PopulationWorkforce, identifier.ID{},
+		)
+		switch {
+		case authorityErr == nil:
+			roleID = role
+			authorized = currentAuthorizationVersion == actorAuthorizationVersion &&
+				currentAuthorizationVersion == command.Actor.AuthorizationVersion
+		case errors.Is(authorityErr, identity.ErrAuthenticationRequired):
+			authorized = false
+		default:
+			return identity.AdminRevocationResult{}, identity.ErrIdentityUnavailable
+		}
+	}
+	hasPermission := false
+	if authorized {
+		permissions, permissionErr := permissionsForRole(ctx, transaction, roleID)
+		if permissionErr != nil {
+			return identity.AdminRevocationResult{}, permissionErr
+		}
+		hasPermission = containsPermission(permissions, "identity.sessions.revoke_admin")
+		if !hasPermission {
+			authorized = false
+			denialReason = "permission_denied"
+		}
+	}
+	stepUpSatisfied := actorAssurance == string(identity.AssurancePhishingResistant) &&
+		stepUpAction != nil && *stepUpAction == "identity.session.admin_revoke" &&
+		stepUpVerifiedAt != nil &&
+		!stepUpVerifiedAt.Before(command.Now.Add(-5*time.Minute)) &&
+		!stepUpVerifiedAt.After(command.Now.Add(time.Minute))
+	if authorized && !stepUpSatisfied {
+		authorized = false
+		denialReason = "step_up_required"
+	}
+	if !authorized {
+		event := command.AuditEvent
+		event.Decision = "denied"
+		event.ReasonCode = denialReason
+		event.SafeBeforeReference = "session:unchanged"
+		event.SafeAfterReference = "session:unchanged"
+		result := identity.AdminRevocationResult{DecisionID: event.DecisionID}
+		outcome := "denied"
+		if denialReason == "step_up_required" {
+			outcome = "step_up_required"
+		}
+		if err := store.recordAdminRevocation(
+			ctx, transaction, command, event, outcome, false,
+		); err != nil {
+			return identity.AdminRevocationResult{}, err
+		}
+		if err := transaction.Commit(ctx); err != nil {
+			return identity.AdminRevocationResult{}, identity.ErrIdentityUnavailable
+		}
+		if denialReason == "step_up_required" {
+			return result, identity.ErrStepUpRequired
+		}
+		return result, identity.ErrActionNotAuthorized
+	}
+
+	var targetStatus string
+	err = transaction.QueryRow(ctx, `
+SELECT status
+FROM atlas_identity.sessions
+WHERE session_id = $1
+FOR UPDATE`,
+		command.TargetSessionID.String(),
+	).Scan(&targetStatus)
+	if errors.Is(err, pgx.ErrNoRows) {
+		event := command.AuditEvent
+		event.Decision = "denied"
+		event.ReasonCode = "not_found_or_concealed"
+		event.SafeBeforeReference = "session:concealed"
+		event.SafeAfterReference = "session:concealed"
+		result := identity.AdminRevocationResult{DecisionID: event.DecisionID}
+		if err := store.recordAdminRevocation(
+			ctx, transaction, command, event, "not_found", false,
+		); err != nil {
+			return identity.AdminRevocationResult{}, err
+		}
+		if err := transaction.Commit(ctx); err != nil {
+			return identity.AdminRevocationResult{}, identity.ErrIdentityUnavailable
+		}
+		return result, identity.ErrSessionNotFound
+	}
+	if err != nil {
+		return identity.AdminRevocationResult{}, identity.ErrIdentityUnavailable
+	}
+
+	currentRevoked := false
+	if targetStatus != "revoked" {
+		tag, updateErr := transaction.Exec(ctx, `
+UPDATE atlas_identity.sessions
+SET status = 'revoked', revoked_at = $2, version = version + 1
+WHERE session_id = $1 AND status <> 'revoked'`,
+			command.TargetSessionID.String(), command.Now,
+		)
+		if updateErr != nil || tag.RowsAffected() != 1 {
+			return identity.AdminRevocationResult{}, identity.ErrIdentityUnavailable
+		}
+		currentRevoked = command.TargetSessionID == command.Actor.SessionID
+	}
+	event := command.AuditEvent
+	event.SafeBeforeReference = "session:" + targetStatus
+	event.SafeAfterReference = "session:revoked"
+	result := identity.AdminRevocationResult{
+		DecisionID: event.DecisionID, CurrentRevoked: currentRevoked,
+	}
+	if err := store.recordAdminRevocation(
+		ctx, transaction, command, event, "executed", currentRevoked,
+	); err != nil {
+		return identity.AdminRevocationResult{}, err
+	}
+	if err := transaction.Commit(ctx); err != nil {
+		return identity.AdminRevocationResult{}, identity.ErrIdentityUnavailable
+	}
+	return result, nil
+}
+
+func (store *SessionStore) recordAdminRevocation(
+	ctx context.Context,
+	transaction pgx.Tx,
+	command identity.AdminRevocationCommand,
+	event audit.Event,
+	outcome string,
+	currentRevoked bool,
+) error {
+	if err := store.recorder.Record(ctx, transaction, event); err != nil {
+		return identity.ErrIdentityUnavailable
+	}
+	_, err := transaction.Exec(ctx, `
+INSERT INTO atlas_identity.admin_session_revocation_requests (
+    revocation_request_id, actor_principal_id, actor_session_id, target_session_id,
+    idempotency_key_sha256, request_sha256, purpose, reason_code, outcome,
+    current_revoked, decision_id, committed_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+		command.RevocationRequestID.String(), command.Actor.PrincipalID.String(),
+		command.Actor.SessionID.String(), command.TargetSessionID.String(),
+		command.IdempotencyDigest[:], command.RequestDigest[:], command.Purpose,
+		command.Reason, outcome, currentRevoked, event.DecisionID.String(), command.Now,
+	)
+	if err != nil {
+		return identity.ErrIdentityUnavailable
+	}
+	return nil
+}
+
+func adminRevocationOutcome(
+	result identity.AdminRevocationResult,
+	outcome string,
+) (identity.AdminRevocationResult, error) {
+	switch outcome {
+	case "executed":
+		return result, nil
+	case "denied":
+		return result, identity.ErrActionNotAuthorized
+	case "step_up_required":
+		return result, identity.ErrStepUpRequired
+	case "not_found":
+		return result, identity.ErrSessionNotFound
+	default:
+		return identity.AdminRevocationResult{}, identity.ErrIdentityUnavailable
+	}
+}
+
+func containsPermission(permissions []string, wanted string) bool {
+	index := sort.SearchStrings(permissions, wanted)
+	return index < len(permissions) && permissions[index] == wanted
+}
+
 func authorityForPrincipal(
 	ctx context.Context,
 	transaction pgx.Tx,
 	principalID identifier.ID,
 	population identity.Population,
+	preferredTenant identifier.ID,
 ) (identifier.ID, string, int64, error) {
 	if population == identity.PopulationCustomer || population == identity.PopulationMerchant {
-		rows, err := transaction.Query(ctx, membershipAuthoritySQL, principalID.String())
+		query := membershipAuthoritySQL
+		arguments := []any{principalID.String()}
+		if !preferredTenant.IsZero() {
+			query = membershipAuthorityByTenantSQL
+			arguments = append(arguments, preferredTenant.String())
+		}
+		rows, err := transaction.Query(ctx, query, arguments...)
 		if err != nil {
 			return identifier.ID{}, "", 0, identity.ErrIdentityUnavailable
 		}
@@ -610,7 +1302,9 @@ func authorityForPrincipal(
 		if rows.Err() != nil {
 			return identifier.ID{}, "", 0, identity.ErrIdentityUnavailable
 		}
-		if len(found) != 1 {
+		if len(found) == 0 ||
+			(population == identity.PopulationCustomer && len(found) != 1) ||
+			(!preferredTenant.IsZero() && len(found) != 1) {
 			return identifier.ID{}, "", 0, identity.ErrAuthenticationRequired
 		}
 		tenantID, err := identifier.Parse(found[0].tenantID)
@@ -672,13 +1366,16 @@ func permissionsForRole(ctx context.Context, transaction pgx.Tx, roleID string) 
 func scanSession(row pgx.Row) (identity.Session, string, error) {
 	var session identity.Session
 	var sessionID, principalID, population, assurance, status string
-	var tenantID, clientLabel *string
-	var revokedAt *time.Time
+	var tenantID, clientLabel, stepUpAction, globalScope, invitationID *string
+	var revokedAt, stepUpVerifiedAt *time.Time
+	var verifiedEmailDigest []byte
 	err := row.Scan(
 		&sessionID, &principalID, &session.PrincipalType, &session.DisplayName,
 		&population, &tenantID, &assurance, &session.AuthorizationVersion,
 		&session.RotationVersion, &session.CreatedAt, &session.LastSeenAt,
-		&session.IdleExpiresAt, &session.AbsoluteExpiresAt, &revokedAt, &clientLabel, &status,
+		&session.IdleExpiresAt, &session.AbsoluteExpiresAt, &revokedAt,
+		&stepUpAction, &stepUpVerifiedAt, &clientLabel, &status,
+		&globalScope, &invitationID, &verifiedEmailDigest,
 	)
 	if err != nil {
 		return identity.Session{}, "", err
@@ -704,6 +1401,25 @@ func scanSession(row pgx.Row) (identity.Session, string, error) {
 	}
 	if revokedAt != nil {
 		session.RevokedAt = revokedAt.UTC()
+	}
+	if stepUpAction != nil {
+		session.StepUpAction = *stepUpAction
+	}
+	if stepUpVerifiedAt != nil {
+		session.StepUpVerifiedAt = stepUpVerifiedAt.UTC()
+	}
+	if invitationID != nil {
+		session.InvitationID, err = identifier.Parse(*invitationID)
+		if err != nil || globalScope == nil || *globalScope != "invitation-acceptance" {
+			return identity.Session{}, "", errors.New("invalid invitation session")
+		}
+		session.InvitationAcceptanceOnly = true
+	}
+	if len(verifiedEmailDigest) > 0 {
+		if len(verifiedEmailDigest) != 32 {
+			return identity.Session{}, "", errors.New("invalid verified email digest")
+		}
+		copy(session.VerifiedEmailDigest[:], verifiedEmailDigest)
 	}
 	return session, status, nil
 }

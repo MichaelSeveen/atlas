@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "evidence_id": "EVD-P01-S05-CATALOGUE-PRECOMMIT",
+  "created_at": "2026-08-09T00:00:00Z",
+  "phase": "PHASE-01_IDENTITY_ACCESS_TENANCY",
+  "slice": "P01-S05",
+  "source_revision": "UNCOMMITTED_WORKTREE(base=d9634ecbf054c893a072221eb544074e9ffc1a1c)",
+  "sanitization": "Only public source identities, closed synthetic operation and role names, bounded PASS statements, migration identity, artifact digests, requirement/threat/test identifiers, and control semantics are included. Credentials, database URLs, cookies, CSRF/idempotency/invitation/OIDC material, opaque product identifiers, raw SQL errors, WAL/data pages, network addresses, and real identity data are excluded.",
+  "artifacts": [
+    {
+      "evidence_id": "EVD-P01-S05-TENANCY-CLOSURE",
+      "path": "evidence/phase-01/tenancy-authorization/S05-tenancy-closure-precommit.md",
+      "sha256": "ce2213aab17e5a081e886475b40dc631b98307aa6ba53fee390981c526e46d71",
+      "result": "PASS",
+      "requirements": ["IAM-010..015", "IAM-020..026 organization-bound"],
+      "threats": ["THR-005", "THR-006", "THR-038", "THR-041", "THR-044", "THR-057", "THR-058"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/verify-p01-s05.ps1 -Live -ContainerRuntime podman",
+      "limitation": "Same-host synthetic scope; administrator mutations and product frontend closure remain deferred as recorded in the report.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S05-VERIFIER",
+      "path": "scripts/verify-p01-s05.ps1",
+      "sha256": "6a2d0d6ef34d29c0ef220ec28ce247340abf7e7d6b37494d73c9019d463a06fe",
+      "result": "PASS",
+      "requirements": ["IAM-010..015"],
+      "threats": ["THR-005", "THR-006", "THR-038", "THR-044"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/verify-p01-s05.ps1 -Live -ContainerRuntime podman",
+      "limitation": "Cumulative local verifier; hosted/independent closure is deferred to S09.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S05-NAME-PROJECTION",
+      "path": "internal/identity/organization_name.go",
+      "sha256": "48e05cd0cb430a7e73ad938f5f8a2a2ddfa341eaa3bb53030a49ae682238ea97",
+      "result": "PASS",
+      "requirements": ["IAM-010", "IAM-013"],
+      "threats": ["THR-005", "THR-057"],
+      "reproduce": "go test ./internal/identity -run OrganizationName -count=1",
+      "limitation": "NFKC/case-fold projection only; externally supplied UTS39 skeleton generation has no Phase 01 creation owner.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S05-CONFUSABLE-DATABASE",
+      "path": "internal/identity/persistence/organization_name_integration_test.go",
+      "sha256": "ba8e031598ee6532c097327f0869075a3e5f39e66d65538d9b8fb776292df09f",
+      "result": "PASS",
+      "requirements": ["IAM-010", "IAM-013"],
+      "threats": ["THR-005", "THR-057"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/verify-p01-s05.ps1 -Live -ContainerRuntime podman",
+      "limitation": "Proves stored-projection collision rejection, not a complete external-name creation workflow.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S05-OBSERVABILITY",
+      "path": "deploy/observability/catalog.json",
+      "sha256": "a6e60d2bdad7d70749bcdc47f2048ccd939682c6af89bef5d5ef95293011a41e",
+      "result": "PASS",
+      "requirements": ["IAM-015", "IAM-025"],
+      "threats": ["THR-006", "THR-041", "THR-058"],
+      "reproduce": "go test ./internal/platform/telemetry -count=1; pwsh -NoProfile -File ./scripts/test-s06-alert-catalog-canary.ps1",
+      "limitation": "Catalogue and emitted local metrics only; no deployed alert backend or production routing is claimed.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S05-RUNBOOK",
+      "path": "docs/runbooks/SESSION_COMPROMISE_AND_REVOCATION.md",
+      "sha256": "e229b6d4a57d419b1740ce5e7e00200661f366576577360c9a0064cc4b17c9c4",
+      "result": "PASS",
+      "requirements": ["IAM-015"],
+      "threats": ["THR-006", "THR-041", "THR-058"],
+      "reproduce": "review linked P01-S05-ALR-001 metadata and execute the canonical S05 verifier",
+      "limitation": "Synthetic reference response procedure; not a production incident-response claim.",
+      "revalidate_by": "2026-11-09"
+    }
+  ]
+}

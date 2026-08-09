@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "cardinality_budget_per_metric": 256,
+  "cardinality_budget_per_metric": 384,
   "metrics": [
     {
       "name": "http.server.request.count",
@@ -9,7 +9,7 @@
       "owner": "platform-on-call",
       "labels": {
         "atlas.outcome": ["ok", "rejected", "error"],
-        "http.request.method": ["GET", "POST", "DELETE", "OPTIONS", "OTHER"],
+        "http.request.method": ["GET", "POST", "PUT", "PATCH", "DELETE", "OTHER"],
         "http.response.status_code": ["bounded-http-status"],
         "http.route": [
           "/health/live",
@@ -22,7 +22,16 @@
           "/v1/sessions",
           "/v1/sessions/{session_id}",
           "/v1/sessions/revoke-all",
+          "/v1/security/sessions/{session_id}/revocations",
           "/v1/step-up/challenges",
+          "/v1/me/active-organization",
+          "/v1/organizations",
+          "/v1/organizations/{organization_id}/members",
+          "/v1/organizations/{organization_id}/members/{member_id}",
+          "/v1/organizations/{organization_id}/invitations",
+          "/v1/organization-invitations/{invitation_route}",
+          "/v1/api-credentials/{credential_route}",
+          "/v1/approvals/{approval_route}",
           "unmatched"
         ]
       }
@@ -34,7 +43,7 @@
       "owner": "platform-on-call",
       "labels": {
         "atlas.outcome": ["ok", "rejected", "error"],
-        "http.request.method": ["GET", "POST", "DELETE", "OPTIONS", "OTHER"],
+        "http.request.method": ["GET", "POST", "PUT", "PATCH", "DELETE", "OTHER"],
         "http.response.status_code": ["bounded-http-status"],
         "http.route": [
           "/health/live",
@@ -47,7 +56,16 @@
           "/v1/sessions",
           "/v1/sessions/{session_id}",
           "/v1/sessions/revoke-all",
+          "/v1/security/sessions/{session_id}/revocations",
           "/v1/step-up/challenges",
+          "/v1/me/active-organization",
+          "/v1/organizations",
+          "/v1/organizations/{organization_id}/members",
+          "/v1/organizations/{organization_id}/members/{member_id}",
+          "/v1/organizations/{organization_id}/invitations",
+          "/v1/organization-invitations/{invitation_route}",
+          "/v1/api-credentials/{credential_route}",
+          "/v1/approvals/{approval_route}",
           "unmatched"
         ]
       }
@@ -58,7 +76,7 @@
       "status": "emitted",
       "owner": "identity-on-call",
       "labels": {
-        "atlas.identity.operation": ["login", "callback", "current", "logout", "session_list", "session_revoke", "session_revoke_all", "step_up"],
+        "atlas.identity.operation": ["login", "callback", "current", "logout", "session_list", "session_revoke", "session_revoke_all", "session_admin_revoke", "step_up", "organization_list", "organization_member_list", "organization_member_role_change", "organization_member_revoke", "organization_switch", "invitation_create", "invitation_authenticate", "invitation_accept"],
         "atlas.outcome": ["ok", "rejected", "error"],
         "http.response.status_code": ["bounded-http-status"]
       }
@@ -69,7 +87,7 @@
       "status": "emitted",
       "owner": "identity-on-call",
       "labels": {
-        "atlas.identity.operation": ["login", "callback", "current", "logout", "session_list", "session_revoke", "session_revoke_all", "step_up"],
+        "atlas.identity.operation": ["login", "callback", "current", "logout", "session_list", "session_revoke", "session_revoke_all", "session_admin_revoke", "step_up", "organization_list", "organization_member_list", "organization_member_role_change", "organization_member_revoke", "organization_switch", "invitation_create", "invitation_authenticate", "invitation_accept"],
         "atlas.outcome": ["ok", "rejected", "error"],
         "http.response.status_code": ["bounded-http-status"]
       }
@@ -86,6 +104,103 @@
       }
     },
     {
+      "name": "atlas.operations.approval.operation.count",
+      "kind": "counter",
+      "status": "emitted",
+      "owner": "operations-on-call",
+      "labels": {
+        "atlas.operations.approval.operation": ["create", "list", "get", "decide", "execute", "cancel"],
+        "atlas.outcome": ["ok", "rejected", "error"],
+        "http.response.status_code": ["bounded-http-status"]
+      }
+    },
+    {
+      "name": "atlas.operations.approval.operation.duration",
+      "kind": "histogram",
+      "status": "emitted",
+      "owner": "operations-on-call",
+      "labels": {
+        "atlas.operations.approval.operation": ["create", "list", "get", "decide", "execute", "cancel"],
+        "atlas.outcome": ["ok", "rejected", "error"],
+        "http.response.status_code": ["bounded-http-status"]
+      }
+    },
+    {
+      "name": "atlas.operations.approval.status.count",
+      "kind": "counter",
+      "status": "emitted",
+      "owner": "operations-on-call",
+      "labels": {
+        "atlas.operations.approval.operation": ["create", "list", "get", "decide", "execute", "cancel"],
+        "atlas.operations.approval.status": ["pending", "approved", "rejected", "cancelled", "expired", "executed", "execution_failed", "superseded"]
+      }
+    },
+    {
+      "name": "atlas.operations.approval.age",
+      "kind": "histogram",
+      "status": "emitted",
+      "owner": "operations-on-call",
+      "labels": {
+        "atlas.operations.approval.operation": ["create", "list", "get", "decide", "execute", "cancel"],
+        "atlas.operations.approval.status": ["pending", "approved", "rejected", "cancelled", "expired", "executed", "execution_failed", "superseded"]
+      }
+    },
+    {
+      "name": "atlas.operations.approval.conflict.count",
+      "kind": "counter",
+      "status": "emitted",
+      "owner": "operations-on-call",
+      "labels": {
+        "atlas.operations.approval.operation": ["create", "decide", "execute", "cancel"],
+        "atlas.operations.approval.conflict": ["state", "precondition", "idempotency", "superseded"]
+      }
+    },
+    {
+      "name": "atlas.operations.approval.integrity_failure.count",
+      "kind": "counter",
+      "status": "emitted",
+      "owner": "operations-on-call",
+      "labels": {
+        "atlas.operations.approval.integrity_reason": ["payload_metadata_invalid", "payload_digest_mismatch", "payload_canonicalization_invalid", "payload_revalidation_failed", "payload_binding_mismatch", "maker_checker_integrity_failure"]
+      }
+    },
+    {
+      "name": "atlas.identity.api_credential.authentication.count",
+      "kind": "counter",
+      "status": "emitted",
+      "owner": "identity-on-call",
+      "labels": {
+        "atlas.identity.credential_auth_outcome": ["success", "invalid", "rate_limited", "unavailable"]
+      }
+    },
+    {
+      "name": "atlas.identity.api_credential.anomaly.count",
+      "kind": "counter",
+      "status": "emitted",
+      "owner": "identity-on-call",
+      "labels": {
+        "atlas.identity.credential_anomaly": ["new_network_signal"]
+      }
+    },
+    {
+      "name": "atlas.identity.api_credential.rate_rejection.count",
+      "kind": "counter",
+      "status": "emitted",
+      "owner": "identity-on-call",
+      "labels": {
+        "atlas.identity.credential_rate_mode": ["redis", "local_fallback"]
+      }
+    },
+    {
+      "name": "atlas.identity.api_credential.rate_fallback.count",
+      "kind": "counter",
+      "status": "emitted",
+      "owner": "identity-on-call",
+      "labels": {
+        "atlas.outcome": ["allowed", "rejected"]
+      }
+    },
+    {
       "name": "atlas.identity.provider.request.duration",
       "kind": "histogram",
       "status": "emitted",
@@ -94,6 +209,15 @@
         "atlas.identity.provider.operation": ["discovery", "token"],
         "atlas.identity.population": ["customer", "merchant", "workforce"],
         "atlas.outcome": ["ok", "error"]
+      }
+    },
+    {
+      "name": "atlas.identity.break_glass.attempt.count",
+      "kind": "counter",
+      "status": "definition-only",
+      "owner": "security-on-call",
+      "labels": {
+        "atlas.outcome": ["authorized", "rejected", "error"]
       }
     },
     {
@@ -185,6 +309,116 @@
       "rationale": "New authentication and step-up fail closed during provider outage while existing low-risk application sessions remain independently validated.",
       "runbook": "docs/runbooks/IDENTITY_PROVIDER_UNAVAILABLE.md",
       "test": "scripts/test-s06-alert-catalog-canary.ps1"
+    },
+    {
+      "id": "P01-S05-ALR-001",
+      "metric": "atlas.identity.operation.count",
+      "severity": "ticket",
+      "owner": "identity-on-call",
+      "condition": "combined organization_member_role_change and organization_member_revoke ok outcomes exceed 20 in five minutes",
+      "rationale": "Direct membership mutations are individually audited; a bounded aggregate spike warrants review without putting tenant or actor identifiers into telemetry.",
+      "runbook": "docs/runbooks/SESSION_COMPROMISE_AND_REVOCATION.md",
+      "test": "scripts/test-s06-alert-catalog-canary.ps1"
+    },
+    {
+      "id": "P01-S06-ALR-001",
+      "metric": "atlas.identity.operation.count",
+      "severity": "ticket",
+      "owner": "identity-on-call",
+      "condition": "organization_member_list rejected outcomes with HTTP 404 exceed 30 in five minutes",
+      "rationale": "The concealed response is intentionally uniform, while a bounded aggregate spike may indicate tenant-identifier probing; tenant, actor, request, decision, and resource identifiers remain excluded from metric labels.",
+      "runbook": "docs/runbooks/AUTHORIZATION_INCIDENT_AND_INVALIDATION.md",
+      "test": "scripts/test-s06-alert-catalog-canary.ps1"
+    },
+    {
+      "id": "P01-S07-ALR-001",
+      "metric": "atlas.operations.approval.age",
+      "severity": "ticket",
+      "owner": "operations-on-call",
+      "condition": "pending approvals older than 20 hours are observed in two consecutive five-minute windows",
+      "rationale": "Warns before the fixed 24-hour expiry without adding tenant, actor, target, request, decision, or approval identifiers to telemetry.",
+      "runbook": "docs/runbooks/APPROVAL_INTEGRITY_AND_RECOVERY.md",
+      "test": "scripts/test-s07-approval-alert-catalog-canary.ps1"
+    },
+    {
+      "id": "P01-S07-ALR-002",
+      "metric": "atlas.operations.approval.status.count",
+      "severity": "ticket",
+      "owner": "operations-on-call",
+      "condition": "expired or execution_failed approval observations exceed 10 in fifteen minutes",
+      "rationale": "Detects stuck review or execution behavior using only closed status labels.",
+      "runbook": "docs/runbooks/APPROVAL_INTEGRITY_AND_RECOVERY.md",
+      "test": "scripts/test-s07-approval-alert-catalog-canary.ps1"
+    },
+    {
+      "id": "P01-S07-ALR-003",
+      "metric": "atlas.operations.approval.integrity_failure.count",
+      "severity": "page",
+      "owner": "operations-on-call",
+      "condition": "any approval payload or maker-checker integrity failure is observed",
+      "rationale": "Canonical payload or principal-separation failures are never expected in normal operation and execution is already fail-closed.",
+      "runbook": "docs/runbooks/APPROVAL_INTEGRITY_AND_RECOVERY.md",
+      "test": "scripts/test-s07-approval-alert-catalog-canary.ps1"
+    },
+    {
+      "id": "P01-S07-ALR-004",
+      "metric": "atlas.operations.approval.conflict.count",
+      "severity": "ticket",
+      "owner": "operations-on-call",
+      "condition": "approval state, precondition, idempotency, or supersession conflicts exceed 20 in five minutes",
+      "rationale": "A bounded aggregate spike may indicate stale clients, racing checkers, replay misuse, or repeated stale-target execution attempts.",
+      "runbook": "docs/runbooks/APPROVAL_INTEGRITY_AND_RECOVERY.md",
+      "test": "scripts/test-s07-approval-alert-catalog-canary.ps1"
+    },
+    {
+      "id": "P01-S08-ALR-001",
+      "metric": "atlas.identity.api_credential.anomaly.count",
+      "severity": "ticket",
+      "owner": "identity-on-call",
+      "condition": "any new_network_signal anomaly is observed for a previously used credential",
+      "rationale": "A deterministic network-signal change may indicate credential copying; no credential, tenant, principal, request, or raw network identifier is placed in metric labels.",
+      "runbook": "docs/runbooks/API_CREDENTIAL_COMPROMISE_AND_ROTATION.md",
+      "test": "scripts/test-p01-s08-credential-alert-catalog-canary.ps1"
+    },
+    {
+      "id": "P01-S08-ALR-002",
+      "metric": "atlas.identity.api_credential.rate_rejection.count",
+      "severity": "ticket",
+      "owner": "identity-on-call",
+      "condition": "credential rate rejections exceed 30 in five minutes in either Redis or local-fallback mode",
+      "rationale": "A bounded aggregate spike indicates misuse or automation failure without exposing credential, tenant, principal, request, or network identities.",
+      "runbook": "docs/runbooks/API_CREDENTIAL_COMPROMISE_AND_ROTATION.md",
+      "test": "scripts/test-p01-s08-credential-alert-catalog-canary.ps1"
+    },
+    {
+      "id": "P01-S08-ALR-003",
+      "metric": "atlas.identity.api_credential.rate_fallback.count",
+      "severity": "ticket",
+      "owner": "identity-on-call",
+      "condition": "local fallback evaluates credential traffic for more than five consecutive minutes",
+      "rationale": "Redis is not authorization truth, but prolonged fallback reduces abuse-control capacity and warrants recovery while PostgreSQL validity remains fail-closed.",
+      "runbook": "docs/runbooks/API_CREDENTIAL_COMPROMISE_AND_ROTATION.md",
+      "test": "scripts/test-p01-s08-credential-alert-catalog-canary.ps1"
+    },
+    {
+      "id": "P01-S09-ALR-001",
+      "metric": "atlas.identity.break_glass.attempt.count",
+      "severity": "page",
+      "owner": "security-on-call",
+      "condition": "any authorized or rejected break-glass attempt is observed after the separately governed capability is enabled",
+      "rationale": "Break-glass is disabled and has no executable route in Phase 01; the definition-only metric and page are activation gates, not a claim that dormant code emits telemetry.",
+      "runbook": "docs/runbooks/AUTHORIZATION_INCIDENT_AND_INVALIDATION.md",
+      "test": "scripts/test-p01-s09-operational-catalog-canary.ps1"
+    },
+    {
+      "id": "P01-S09-ALR-002",
+      "metric": "atlas.identity.operation.count",
+      "severity": "ticket",
+      "owner": "identity-on-call",
+      "condition": "step_up rejected outcomes exceed 20 in five minutes",
+      "rationale": "A bounded aggregate spike may indicate user lockout, provider failure, replay, or hostile verification attempts without adding principal, session, tenant, request, or network identifiers.",
+      "runbook": "docs/runbooks/IDENTITY_PROVIDER_UNAVAILABLE.md",
+      "test": "scripts/test-p01-s09-operational-catalog-canary.ps1"
     }
   ],
   "dashboards": [
@@ -208,6 +442,46 @@
         "atlas.identity.operation.duration",
         "atlas.identity.provider.request.count",
         "atlas.identity.provider.request.duration"
+      ]
+    },
+    {
+      "name": "phase-01-approval",
+      "owner": "operations-on-call",
+      "panels": [
+        "atlas.operations.approval.operation.count",
+        "atlas.operations.approval.operation.duration",
+        "atlas.operations.approval.status.count",
+        "atlas.operations.approval.age",
+        "atlas.operations.approval.conflict.count",
+        "atlas.operations.approval.integrity_failure.count"
+      ]
+    },
+    {
+      "name": "phase-01-api-credentials",
+      "owner": "identity-on-call",
+      "panels": [
+        "atlas.identity.operation.count",
+        "atlas.identity.api_credential.authentication.count",
+        "atlas.identity.api_credential.anomaly.count",
+        "atlas.identity.api_credential.rate_rejection.count",
+        "atlas.identity.api_credential.rate_fallback.count"
+      ]
+    },
+    {
+      "name": "phase-01-identity-access-tenancy",
+      "owner": "security-on-call",
+      "panels": [
+        "atlas.identity.operation.count",
+        "atlas.identity.operation.duration",
+        "atlas.identity.provider.request.count",
+        "atlas.operations.approval.operation.count",
+        "atlas.operations.approval.status.count",
+        "atlas.operations.approval.conflict.count",
+        "atlas.operations.approval.integrity_failure.count",
+        "atlas.identity.api_credential.authentication.count",
+        "atlas.identity.api_credential.anomaly.count",
+        "atlas.identity.api_credential.rate_rejection.count",
+        "atlas.identity.break_glass.attempt.count"
       ]
     }
   ]

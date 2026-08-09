@@ -19,8 +19,12 @@ import (
 )
 
 const (
-	SessionCookieName = "__Host-atlas_session"
-	CSRFHeaderName    = "X-Atlas-CSRF-Token"
+	SessionCookieName                   = "__Host-atlas_session"
+	CSRFHeaderName                      = "X-Atlas-CSRF-Token"
+	stepUpClaimLease                    = 30 * time.Second
+	stepUpRetention                     = 24 * time.Hour
+	stepUpFreshness                     = 5 * time.Minute
+	invitationAcceptanceSessionLifetime = 15 * time.Minute
 )
 
 var (
@@ -54,6 +58,11 @@ var (
 		domainerror.KindPermissionDenied,
 		false,
 	)
+	ErrStepUpRequired = domainerror.New(
+		domainerror.MustCode("STEP_UP_REQUIRED"),
+		domainerror.KindPermissionDenied,
+		false,
+	)
 	ErrIdentityUnavailable = domainerror.New(
 		domainerror.MustCode("IDENTITY_UNAVAILABLE"),
 		domainerror.KindUnavailable,
@@ -63,6 +72,16 @@ var (
 		domainerror.MustCode("SESSION_CONFLICT"),
 		domainerror.KindConflict,
 		false,
+	)
+	ErrIdempotencyConflict = domainerror.New(
+		domainerror.MustCode("IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST"),
+		domainerror.KindConflict,
+		false,
+	)
+	ErrIdempotencyInProgress = domainerror.New(
+		domainerror.MustCode("IDEMPOTENCY_REQUEST_IN_PROGRESS"),
+		domainerror.KindConflict,
+		true,
 	)
 	ErrSessionNotFound = domainerror.New(
 		domainerror.MustCode("SESSION_NOT_FOUND"),
@@ -141,24 +160,27 @@ var DefaultSessionPolicies = map[Population]SessionPolicy{
 type TransactionKind string
 
 const (
-	TransactionLogin  TransactionKind = "login"
-	TransactionStepUp TransactionKind = "step-up"
+	TransactionLogin                TransactionKind = "login"
+	TransactionStepUp               TransactionKind = "step-up"
+	TransactionInvitationAcceptance TransactionKind = "invitation-acceptance"
 )
 
 type OIDCTransaction struct {
-	TransactionID        identifier.ID
-	Kind                 TransactionKind
-	Population           Population
-	StateDigest          [32]byte
-	NonceDigest          [32]byte
-	EncryptedPKCE        []byte
-	EncryptionKeyVersion uint64
-	ReturnTo             string
-	PrincipalID          identifier.ID
-	ReplacedSessionID    identifier.ID
-	RequestedAction      string
-	CreatedAt            time.Time
-	ExpiresAt            time.Time
+	TransactionID         identifier.ID
+	Kind                  TransactionKind
+	Population            Population
+	StateDigest           [32]byte
+	NonceDigest           [32]byte
+	EncryptedPKCE         []byte
+	EncryptionKeyVersion  uint64
+	ReturnTo              string
+	PrincipalID           identifier.ID
+	ReplacedSessionID     identifier.ID
+	RequestedAction       string
+	InvitationID          identifier.ID
+	InvitationTokenDigest [32]byte
+	CreatedAt             time.Time
+	ExpiresAt             time.Time
 }
 
 type ProviderClaims struct {
@@ -167,6 +189,8 @@ type ProviderClaims struct {
 	Nonce           string
 	Assurance       Assurance
 	AuthenticatedAt time.Time
+	Email           string
+	EmailVerified   bool
 }
 
 type Provider interface {
@@ -182,22 +206,27 @@ type Provider interface {
 }
 
 type Session struct {
-	SessionID            identifier.ID
-	PrincipalID          identifier.ID
-	PrincipalType        string
-	DisplayName          string
-	Population           Population
-	TenantID             identifier.ID
-	Assurance            Assurance
-	AuthorizationVersion int64
-	RotationVersion      int64
-	CreatedAt            time.Time
-	LastSeenAt           time.Time
-	IdleExpiresAt        time.Time
-	AbsoluteExpiresAt    time.Time
-	RevokedAt            time.Time
-	ClientLabel          string
-	Permissions          []string
+	SessionID                identifier.ID
+	PrincipalID              identifier.ID
+	PrincipalType            string
+	DisplayName              string
+	Population               Population
+	TenantID                 identifier.ID
+	Assurance                Assurance
+	AuthorizationVersion     int64
+	RotationVersion          int64
+	CreatedAt                time.Time
+	LastSeenAt               time.Time
+	IdleExpiresAt            time.Time
+	AbsoluteExpiresAt        time.Time
+	RevokedAt                time.Time
+	StepUpAction             string
+	StepUpVerifiedAt         time.Time
+	ClientLabel              string
+	Permissions              []string
+	InvitationID             identifier.ID
+	VerifiedEmailDigest      [32]byte
+	InvitationAcceptanceOnly bool
 }
 
 type SessionSummary struct {
@@ -214,19 +243,26 @@ type SessionSummary struct {
 }
 
 type CreateSessionCommand struct {
-	Claims            ProviderClaims
-	Population        Population
-	Kind              TransactionKind
-	ExpectedPrincipal identifier.ID
-	ReplacedSessionID identifier.ID
-	SessionID         identifier.ID
-	VerifierDigest    [32]byte
-	Assurance         Assurance
-	AuthorizationAt   time.Time
-	IdleExpiresAt     time.Time
-	AbsoluteExpiresAt time.Time
-	ClientLabel       string
-	AuditEvent        audit.Event
+	Claims                       ProviderClaims
+	Population                   Population
+	Kind                         TransactionKind
+	ExpectedPrincipal            identifier.ID
+	ReplacedSessionID            identifier.ID
+	SessionID                    identifier.ID
+	VerifierDigest               [32]byte
+	Assurance                    Assurance
+	AuthorizationAt              time.Time
+	StepUpAction                 string
+	StepUpVerifiedAt             time.Time
+	IdleExpiresAt                time.Time
+	AbsoluteExpiresAt            time.Time
+	ClientLabel                  string
+	InvitationID                 identifier.ID
+	InvitationTokenDigest        [32]byte
+	VerifiedEmailDigest          [32]byte
+	ProvisionalPrincipalID       identifier.ID
+	ProvisionalExternalSubjectID identifier.ID
+	AuditEvent                   audit.Event
 }
 
 type RevocationCommand struct {
@@ -245,15 +281,66 @@ type RevocationResult struct {
 	Replay         bool
 }
 
+type AdminRevocationCommand struct {
+	Actor               Session
+	TargetSessionID     identifier.ID
+	RevocationRequestID identifier.ID
+	IdempotencyDigest   [32]byte
+	RequestDigest       [32]byte
+	Purpose             string
+	Reason              string
+	Now                 time.Time
+	AuditEvent          audit.Event
+}
+
+type AdminRevocationResult struct {
+	DecisionID     identifier.ID
+	CurrentRevoked bool
+	Replay         bool
+}
+
+type StepUpClaimCommand struct {
+	ChallengeRequestID  identifier.ID
+	Actor               Session
+	IdempotencyScope    [32]byte
+	RequestDigest       [32]byte
+	Action              string
+	CorrelationID       identifier.ID
+	Now                 time.Time
+	ProcessingExpiresAt time.Time
+	RetainedUntil       time.Time
+}
+
+type StepUpClaimResult struct {
+	ChallengeRequestID identifier.ID
+	Owner              bool
+	Replay             bool
+	TransactionID      identifier.ID
+	AuthorizationURL   string
+	ExpiresAt          time.Time
+}
+
+type CompleteStepUpCommand struct {
+	ChallengeRequestID identifier.ID
+	IdempotencyScope   [32]byte
+	Transaction        OIDCTransaction
+	AuthorizationURL   string
+	CompletedAt        time.Time
+}
+
 type Store interface {
 	PutOIDCTransaction(context.Context, OIDCTransaction) error
 	TakeOIDCTransaction(context.Context, [32]byte, time.Time) (OIDCTransaction, error)
+	ClaimStepUp(context.Context, StepUpClaimCommand) (StepUpClaimResult, error)
+	CompleteStepUp(context.Context, CompleteStepUpCommand) error
+	FailStepUp(context.Context, identifier.ID, [32]byte, time.Time) error
 	CreateSession(context.Context, CreateSessionCommand) (Session, error)
 	Authenticate(context.Context, [32]byte, time.Time, time.Duration) (Session, error)
 	ListSessions(context.Context, Session, time.Time) ([]SessionSummary, error)
 	RevokeCurrent(context.Context, Session, time.Time, audit.Event) error
 	RevokeOne(context.Context, RevocationCommand) (RevocationResult, error)
 	RevokeAll(context.Context, RevocationCommand) (RevocationResult, error)
+	RevokeForSecurity(context.Context, AdminRevocationCommand) (AdminRevocationResult, error)
 }
 
 type TransactionCryptor interface {
@@ -268,25 +355,35 @@ type CSRFProtector interface {
 type IDGenerator func(string) (identifier.ID, error)
 
 type ServiceOptions struct {
-	Store           Store
-	Provider        Provider
-	Cryptor         TransactionCryptor
-	CSRF            CSRFProtector
-	Clock           clock.Clock
-	NewID           IDGenerator
-	Entropy         io.Reader
-	SessionPolicies map[Population]SessionPolicy
+	Store                      Store
+	Organizations              OrganizationStore
+	Credentials                CredentialStore
+	CredentialLimiter          CredentialRateLimiter
+	CredentialEnvironment      string
+	CredentialNetworkSignalKey []byte
+	Provider                   Provider
+	Cryptor                    TransactionCryptor
+	CSRF                       CSRFProtector
+	Clock                      clock.Clock
+	NewID                      IDGenerator
+	Entropy                    io.Reader
+	SessionPolicies            map[Population]SessionPolicy
 }
 
 type Service struct {
-	store           Store
-	provider        Provider
-	cryptor         TransactionCryptor
-	csrf            CSRFProtector
-	clock           clock.Clock
-	newID           IDGenerator
-	entropy         io.Reader
-	sessionPolicies map[Population]SessionPolicy
+	store                      Store
+	organizations              OrganizationStore
+	credentials                CredentialStore
+	credentialLimiter          CredentialRateLimiter
+	credentialEnvironment      string
+	credentialNetworkSignalKey []byte
+	provider                   Provider
+	cryptor                    TransactionCryptor
+	csrf                       CSRFProtector
+	clock                      clock.Clock
+	newID                      IDGenerator
+	entropy                    io.Reader
+	sessionPolicies            map[Population]SessionPolicy
 }
 
 func NewService(options ServiceOptions) (*Service, error) {
@@ -296,6 +393,15 @@ func NewService(options ServiceOptions) (*Service, error) {
 	}
 	if options.Clock == nil {
 		options.Clock = clock.System{}
+	}
+	if options.Credentials != nil {
+		if options.CredentialLimiter == nil || !validCredentialEnvironment(options.CredentialEnvironment) ||
+			len(options.CredentialNetworkSignalKey) != 32 {
+			return nil, errors.New("credential service dependencies are incomplete")
+		}
+	} else if options.CredentialLimiter != nil || options.CredentialEnvironment != "" ||
+		len(options.CredentialNetworkSignalKey) != 0 {
+		return nil, errors.New("credential service configuration is inconsistent")
 	}
 	if options.NewID == nil {
 		options.NewID = identifier.New
@@ -312,7 +418,11 @@ func NewService(options ServiceOptions) (*Service, error) {
 		copied[population] = policy
 	}
 	return &Service{
-		store: options.Store, provider: options.Provider, cryptor: options.Cryptor,
+		store: options.Store, organizations: options.Organizations, credentials: options.Credentials,
+		credentialLimiter:          options.CredentialLimiter,
+		credentialEnvironment:      options.CredentialEnvironment,
+		credentialNetworkSignalKey: append([]byte(nil), options.CredentialNetworkSignalKey...),
+		provider:                   options.Provider, cryptor: options.Cryptor,
 		csrf: options.CSRF, clock: options.Clock, newID: options.NewID,
 		entropy: options.Entropy, sessionPolicies: copied,
 	}, nil
@@ -329,6 +439,40 @@ type BeginLoginResult struct {
 	Population       Population
 	AuthorizationURL string
 	ExpiresAt        time.Time
+}
+
+// BeginInvitationAuthentication starts a merchant OIDC transaction bound to one
+// invitation verifier without granting tenant authority.
+func (service *Service) BeginInvitationAuthentication(
+	ctx context.Context,
+	invitationID identifier.ID,
+	acceptanceToken string,
+	cookieValue string,
+) (BeginLoginResult, error) {
+	if invitationID.IsZero() || invitationID.Prefix() != "inv" ||
+		!validProtocolToken(acceptanceToken) {
+		return BeginLoginResult{}, ErrInputInvalid
+	}
+	transaction := OIDCTransaction{
+		Kind:                  TransactionInvitationAcceptance,
+		Population:            PopulationMerchant,
+		ReturnTo:              service.sessionPolicies[PopulationMerchant].AllowedReturnTo,
+		InvitationID:          invitationID,
+		InvitationTokenDigest: sha256.Sum256([]byte(acceptanceToken)),
+	}
+	if cookieValue != "" {
+		session, _, err := service.Current(ctx, cookieValue)
+		switch {
+		case err == nil:
+			transaction.ReplacedSessionID = session.SessionID
+		case errors.Is(err, ErrAuthenticationRequired),
+			errors.Is(err, ErrSessionExpired),
+			errors.Is(err, ErrSessionRevoked):
+		default:
+			return BeginLoginResult{}, err
+		}
+	}
+	return service.beginTransaction(ctx, transaction)
 }
 
 func (service *Service) BeginLogin(ctx context.Context, request BeginLoginRequest) (BeginLoginResult, error) {
@@ -362,9 +506,11 @@ func (service *Service) BeginLogin(ctx context.Context, request BeginLoginReques
 }
 
 type BeginStepUpRequest struct {
-	CookieValue string
-	CSRFToken   string
-	Action      string
+	CookieValue    string
+	CSRFToken      string
+	Action         string
+	IdempotencyKey string
+	CorrelationID  identifier.ID
 }
 
 var stepUpActions = map[string]struct{}{
@@ -384,46 +530,131 @@ func (service *Service) BeginStepUp(ctx context.Context, request BeginStepUpRequ
 	if err != nil {
 		return BeginLoginResult{}, err
 	}
+	if session.InvitationAcceptanceOnly {
+		return BeginLoginResult{}, ErrActionNotAuthorized
+	}
 	if !constantTimeStringEqual(csrf, request.CSRFToken) {
 		return BeginLoginResult{}, ErrCSRFValidationFailed
 	}
 	if _, allowed := stepUpActions[request.Action]; !allowed {
 		return BeginLoginResult{}, ErrInputInvalid
 	}
+	if !validIdempotencyKey(request.IdempotencyKey) ||
+		request.CorrelationID.IsZero() || request.CorrelationID.Prefix() != "cor" {
+		return BeginLoginResult{}, ErrInputInvalid
+	}
 	policy := service.sessionPolicies[session.Population]
-	return service.beginTransaction(ctx, OIDCTransaction{
+	now := service.clock.Now().UTC()
+	challengeRequestID, err := service.generatedID("idr")
+	if err != nil {
+		return BeginLoginResult{}, ErrIdentityUnavailable
+	}
+	scope := "v1\n" + session.PrincipalID.String() + "\n"
+	if session.TenantID.IsZero() {
+		scope += "global:identity-security\n"
+	} else {
+		scope += "tenant:" + session.TenantID.String() + "\n"
+	}
+	scope += "POST\n/v1/step-up/challenges\n" + request.IdempotencyKey
+	idempotencyScope := sha256.Sum256([]byte(scope))
+	requestDigest := sha256.Sum256([]byte("v1\naction=" + request.Action))
+	claim, err := service.store.ClaimStepUp(ctx, StepUpClaimCommand{
+		ChallengeRequestID: challengeRequestID, Actor: session,
+		IdempotencyScope: idempotencyScope, RequestDigest: requestDigest,
+		Action: request.Action, CorrelationID: request.CorrelationID, Now: now,
+		ProcessingExpiresAt: now.Add(stepUpClaimLease),
+		RetainedUntil:       now.Add(stepUpRetention),
+	})
+	if err != nil {
+		return BeginLoginResult{}, err
+	}
+	if claim.Replay {
+		return BeginLoginResult{
+			TransactionID: claim.TransactionID, Population: session.Population,
+			AuthorizationURL: claim.AuthorizationURL, ExpiresAt: claim.ExpiresAt,
+		}, nil
+	}
+	if !claim.Owner {
+		return BeginLoginResult{}, ErrIdempotencyInProgress
+	}
+	transaction, authorizationURL, err := service.prepareTransaction(ctx, OIDCTransaction{
 		Kind: TransactionStepUp, Population: session.Population,
 		ReturnTo: policy.AllowedReturnTo, PrincipalID: session.PrincipalID,
 		ReplacedSessionID: session.SessionID, RequestedAction: request.Action,
 	})
+	if err != nil {
+		_ = service.store.FailStepUp(
+			ctx,
+			claim.ChallengeRequestID,
+			idempotencyScope,
+			service.clock.Now().UTC(),
+		)
+		return BeginLoginResult{}, err
+	}
+	err = service.store.CompleteStepUp(ctx, CompleteStepUpCommand{
+		ChallengeRequestID: claim.ChallengeRequestID, IdempotencyScope: idempotencyScope,
+		Transaction: transaction, AuthorizationURL: authorizationURL,
+		CompletedAt: service.clock.Now().UTC(),
+	})
+	if err != nil {
+		_ = service.store.FailStepUp(
+			ctx,
+			claim.ChallengeRequestID,
+			idempotencyScope,
+			service.clock.Now().UTC(),
+		)
+		return BeginLoginResult{}, err
+	}
+	return BeginLoginResult{
+		TransactionID: transaction.TransactionID, Population: transaction.Population,
+		AuthorizationURL: authorizationURL, ExpiresAt: transaction.ExpiresAt,
+	}, nil
 }
 
 func (service *Service) beginTransaction(ctx context.Context, transaction OIDCTransaction) (BeginLoginResult, error) {
+	prepared, authorizationURL, err := service.prepareTransaction(ctx, transaction)
+	if err != nil {
+		return BeginLoginResult{}, err
+	}
+	if err := service.store.PutOIDCTransaction(ctx, prepared); err != nil {
+		return BeginLoginResult{}, err
+	}
+	return BeginLoginResult{
+		TransactionID: prepared.TransactionID, Population: prepared.Population,
+		AuthorizationURL: authorizationURL,
+		ExpiresAt:        prepared.ExpiresAt,
+	}, nil
+}
+
+func (service *Service) prepareTransaction(
+	ctx context.Context,
+	transaction OIDCTransaction,
+) (OIDCTransaction, string, error) {
 	state, stateDigest, err := randomToken(service.entropy)
 	if err != nil {
-		return BeginLoginResult{}, ErrIdentityUnavailable
+		return OIDCTransaction{}, "", ErrIdentityUnavailable
 	}
 	nonce, nonceDigest, err := randomToken(service.entropy)
 	if err != nil {
-		return BeginLoginResult{}, ErrIdentityUnavailable
+		return OIDCTransaction{}, "", ErrIdentityUnavailable
 	}
 	pkce, _, err := randomToken(service.entropy)
 	if err != nil {
-		return BeginLoginResult{}, ErrIdentityUnavailable
+		return OIDCTransaction{}, "", ErrIdentityUnavailable
 	}
 	encrypted, version, err := service.cryptor.Encrypt([]byte(pkce))
 	if err != nil {
-		return BeginLoginResult{}, ErrIdentityUnavailable
+		return OIDCTransaction{}, "", ErrIdentityUnavailable
 	}
 	authorizationURL, err := service.provider.AuthorizationURL(
 		ctx, transaction.Population, state, nonce, pkce, transaction.Kind,
 	)
 	if err != nil {
-		return BeginLoginResult{}, ErrIdentityUnavailable
+		return OIDCTransaction{}, "", ErrIdentityUnavailable
 	}
 	transactionID, err := service.generatedID("oid")
 	if err != nil {
-		return BeginLoginResult{}, ErrIdentityUnavailable
+		return OIDCTransaction{}, "", ErrIdentityUnavailable
 	}
 	now := service.clock.Now().UTC()
 	transaction.TransactionID = transactionID
@@ -433,14 +664,7 @@ func (service *Service) beginTransaction(ctx context.Context, transaction OIDCTr
 	transaction.EncryptionKeyVersion = version
 	transaction.CreatedAt = now
 	transaction.ExpiresAt = now.Add(defaultOIDCTransactionExpiry)
-	if err := service.store.PutOIDCTransaction(ctx, transaction); err != nil {
-		return BeginLoginResult{}, err
-	}
-	return BeginLoginResult{
-		TransactionID: transactionID, Population: transaction.Population,
-		AuthorizationURL: authorizationURL,
-		ExpiresAt:        transaction.ExpiresAt,
-	}, nil
+	return transaction, authorizationURL, nil
 }
 
 type CompleteLoginRequest struct {
@@ -496,6 +720,10 @@ func (service *Service) CompleteLogin(ctx context.Context, request CompleteLogin
 	if transaction.Kind == TransactionStepUp && assurance == AssuranceBaseline {
 		return CompleteLoginResult{}, ErrOIDCTransactionInvalid
 	}
+	if transaction.Kind == TransactionStepUp &&
+		!claims.AuthenticatedAt.After(now.Add(-stepUpFreshness)) {
+		return CompleteLoginResult{}, ErrOIDCTransactionInvalid
+	}
 	if !assuranceSatisfies(assurance, policy.Minimum) {
 		return CompleteLoginResult{}, ErrOIDCTransactionInvalid
 	}
@@ -515,12 +743,49 @@ func (service *Service) CompleteLogin(ctx context.Context, request CompleteLogin
 	}
 	idleExpiry := now.Add(policy.Idle)
 	absoluteExpiry := now.Add(policy.Absolute)
+	verifiedEmailDigest := [32]byte{}
+	provisionalPrincipalID := identifier.ID{}
+	provisionalExternalSubjectID := identifier.ID{}
+	if transaction.Population == PopulationMerchant && claims.EmailVerified {
+		verifiedEmailDigest, _, err = invitationEmail(claims.Email)
+		if err != nil {
+			return CompleteLoginResult{}, ErrOIDCTransactionInvalid
+		}
+	}
+	if transaction.Kind == TransactionInvitationAcceptance {
+		if transaction.Population != PopulationMerchant || !claims.EmailVerified ||
+			verifiedEmailDigest == ([32]byte{}) {
+			return CompleteLoginResult{}, ErrOIDCTransactionInvalid
+		}
+		provisionalPrincipalID, err = service.generatedID("usr")
+		if err != nil {
+			return CompleteLoginResult{}, ErrIdentityUnavailable
+		}
+		provisionalExternalSubjectID, err = service.generatedID("ext")
+		if err != nil {
+			return CompleteLoginResult{}, ErrIdentityUnavailable
+		}
+		idleExpiry = now.Add(invitationAcceptanceSessionLifetime)
+		absoluteExpiry = idleExpiry
+	}
+	stepUpVerifiedAt := time.Time{}
+	if transaction.Kind == TransactionStepUp {
+		stepUpVerifiedAt = claims.AuthenticatedAt.UTC()
+	}
 	session, err := service.store.CreateSession(ctx, CreateSessionCommand{
 		Claims: claims, Population: transaction.Population, Kind: transaction.Kind,
 		ExpectedPrincipal: transaction.PrincipalID, ReplacedSessionID: transaction.ReplacedSessionID,
 		SessionID: sessionID, VerifierDigest: verifierDigest, Assurance: assurance,
-		AuthorizationAt: now, IdleExpiresAt: idleExpiry, AbsoluteExpiresAt: absoluteExpiry,
-		ClientLabel: sanitizeClientLabel(request.ClientLabel), AuditEvent: auditEvent,
+		AuthorizationAt: now, StepUpAction: transaction.RequestedAction,
+		StepUpVerifiedAt: stepUpVerifiedAt,
+		IdleExpiresAt:    idleExpiry, AbsoluteExpiresAt: absoluteExpiry,
+		ClientLabel:                  sanitizeClientLabel(request.ClientLabel),
+		InvitationID:                 transaction.InvitationID,
+		InvitationTokenDigest:        transaction.InvitationTokenDigest,
+		VerifiedEmailDigest:          verifiedEmailDigest,
+		ProvisionalPrincipalID:       provisionalPrincipalID,
+		ProvisionalExternalSubjectID: provisionalExternalSubjectID,
+		AuditEvent:                   auditEvent,
 	})
 	if err != nil {
 		return CompleteLoginResult{}, err
@@ -568,6 +833,9 @@ func (service *Service) Sessions(ctx context.Context, cookieValue string) ([]Ses
 	if err != nil {
 		return nil, err
 	}
+	if session.InvitationAcceptanceOnly {
+		return nil, ErrActionNotAuthorized
+	}
 	return service.store.ListSessions(ctx, session, service.clock.Now().UTC())
 }
 
@@ -605,6 +873,9 @@ func (service *Service) RevokeOne(
 	if err != nil {
 		return RevocationResult{}, err
 	}
+	if session.InvitationAcceptanceOnly {
+		return RevocationResult{}, ErrActionNotAuthorized
+	}
 	if !constantTimeStringEqual(expectedCSRF, csrfToken) {
 		return RevocationResult{}, ErrCSRFValidationFailed
 	}
@@ -633,6 +904,9 @@ func (service *Service) RevokeAll(
 	if err != nil {
 		return RevocationResult{}, err
 	}
+	if session.InvitationAcceptanceOnly {
+		return RevocationResult{}, ErrActionNotAuthorized
+	}
 	if !constantTimeStringEqual(expectedCSRF, csrfToken) {
 		return RevocationResult{}, ErrCSRFValidationFailed
 	}
@@ -654,6 +928,82 @@ func (service *Service) RevokeAll(
 		Actor: session, IncludeCurrent: includeCurrent, RevocationRequestID: revocationRequestID,
 		IdempotencyDigest: idempotencyDigest, RequestDigest: requestDigest,
 		Now: now, AuditEvent: event,
+	})
+}
+
+type AdminRevokeSessionRequest struct {
+	CookieValue     string
+	CSRFToken       string
+	TargetSessionID identifier.ID
+	Purpose         string
+	Reason          string
+	IdempotencyKey  string
+	CorrelationID   identifier.ID
+}
+
+var adminRevocationReasons = map[string]struct{}{
+	"compromised_session":         {},
+	"suspected_account_takeover":  {},
+	"workforce_security_response": {},
+}
+
+func (service *Service) RevokeForSecurity(
+	ctx context.Context,
+	request AdminRevokeSessionRequest,
+) (AdminRevocationResult, error) {
+	session, expectedCSRF, err := service.Current(ctx, request.CookieValue)
+	if err != nil {
+		return AdminRevocationResult{}, err
+	}
+	if !constantTimeStringEqual(expectedCSRF, request.CSRFToken) {
+		return AdminRevocationResult{}, ErrCSRFValidationFailed
+	}
+	if request.TargetSessionID.IsZero() || request.TargetSessionID.Prefix() != "ses" {
+		return AdminRevocationResult{}, ErrSessionNotFound
+	}
+	if request.Purpose != "security_review" {
+		return AdminRevocationResult{}, ErrInputInvalid
+	}
+	if _, allowed := adminRevocationReasons[request.Reason]; !allowed {
+		return AdminRevocationResult{}, ErrInputInvalid
+	}
+	if !validIdempotencyKey(request.IdempotencyKey) ||
+		request.CorrelationID.IsZero() || request.CorrelationID.Prefix() != "cor" {
+		return AdminRevocationResult{}, ErrInputInvalid
+	}
+	requestID, err := service.generatedID("asr")
+	if err != nil {
+		return AdminRevocationResult{}, ErrIdentityUnavailable
+	}
+	auditID, err := service.generatedID("aud")
+	if err != nil {
+		return AdminRevocationResult{}, ErrIdentityUnavailable
+	}
+	decisionID, err := service.generatedID("dec")
+	if err != nil {
+		return AdminRevocationResult{}, ErrIdentityUnavailable
+	}
+	now := service.clock.Now().UTC()
+	idempotencyDigest := sha256.Sum256([]byte(request.IdempotencyKey))
+	requestDigest := sha256.Sum256([]byte(
+		"v1\ntarget=" + request.TargetSessionID.String() +
+			"\npurpose=" + request.Purpose +
+			"\nreason=" + request.Reason,
+	))
+	return service.store.RevokeForSecurity(ctx, AdminRevocationCommand{
+		Actor: session, TargetSessionID: request.TargetSessionID,
+		RevocationRequestID: requestID, IdempotencyDigest: idempotencyDigest,
+		RequestDigest: requestDigest, Purpose: request.Purpose, Reason: request.Reason,
+		Now: now,
+		AuditEvent: audit.Event{
+			AuditEventID: auditID, ActorID: session.PrincipalID,
+			ActorType: session.PrincipalType, GlobalScope: "identity-security",
+			SessionAssurance: string(session.Assurance),
+			Action:           "identity.session.admin_revoke", TargetType: "session",
+			TargetID: request.TargetSessionID.String(), DecisionID: decisionID,
+			Decision: "executed", ReasonCode: request.Reason,
+			CorrelationID: request.CorrelationID, OccurredAt: now,
+		},
 	})
 }
 
@@ -685,6 +1035,9 @@ func (service *Service) authenticationAudit(
 	if transaction.Kind == TransactionStepUp {
 		action = "identity.session.step_up"
 		reason = "oidc_step_up"
+	} else if transaction.Kind == TransactionInvitationAcceptance {
+		action = "identity.organization.invitation.authenticate"
+		reason = "oidc_invitation_authentication"
 	}
 	return audit.Event{
 		AuditEventID: auditID, ActorID: transaction.PrincipalID,
@@ -739,6 +1092,23 @@ func validProtocolToken(value string) bool {
 	}
 	decoded, err := base64.RawURLEncoding.DecodeString(value)
 	return err == nil && len(decoded) >= 32
+}
+
+func validIdempotencyKey(value string) bool {
+	if len(value) < 16 || len(value) > 128 {
+		return false
+	}
+	for index := range value {
+		character := value[index]
+		if (character >= 'A' && character <= 'Z') ||
+			(character >= 'a' && character <= 'z') ||
+			(character >= '0' && character <= '9') ||
+			character == '.' || character == '_' || character == ':' || character == '-' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func constantTimeStringEqual(left, right string) bool {

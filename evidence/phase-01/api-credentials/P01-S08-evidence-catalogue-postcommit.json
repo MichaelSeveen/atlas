@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "evidence_id": "EVD-P01-S08-CATALOGUE-POSTCOMMIT",
+  "created_at": "2026-08-09T00:00:00Z",
+  "phase": "PHASE-01_IDENTITY_ACCESS_TENANCY",
+  "slice": "P01-S08",
+  "source_revision": "b4a84a6b2fea5d01f267ee082ca978f161636f7d",
+  "sanitization": "Only public source identities, closed synthetic scope/status/action names, bounded PASS aggregates, artifact digests, migration identity, requirement/threat identifiers, and control semantics are included. Full secrets, verifiers, database and Redis credentials or URLs, cookies, CSRF/idempotency material, network signals, opaque runtime identifiers, raw SQL errors, WAL/data pages, and real identity data are excluded.",
+  "artifacts": [
+    {
+      "evidence_id": "EVD-P01-S08-CREDENTIAL-CLOSURE",
+      "path": "evidence/phase-01/api-credentials/S08-api-credential-closure-precommit.md",
+      "sha256": "38d9457005609da73914e94df94fd4e34382d9cc39d1472f350cb135f7c3d6fc",
+      "result": "PASS",
+      "requirements": ["IAM-006", "IAM-020..026", "IAM-040..044"],
+      "threats": ["THR-020", "THR-023", "THR-024", "THR-041", "THR-044", "THR-056..058"],
+      "reproduce": "git show b4a84a6b2fea5d01f267ee082ca978f161636f7d:evidence/phase-01/api-credentials/S08-api-credential-closure-precommit.md",
+      "limitation": "Same-host synthetic credential proof; not a production, financial, or independent-review claim.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S08-VERIFIER",
+      "path": "scripts/verify-p01-s08.ps1",
+      "sha256": "8acbd5ef64c371dea573fd0ad1fc4edc8b0181cf656a8ad98367d098de54bba1",
+      "result": "PASS",
+      "requirements": ["IAM-040..044"],
+      "threats": ["THR-020", "THR-023", "THR-024", "THR-044", "THR-056..058"],
+      "reproduce": "git show b4a84a6b2fea5d01f267ee082ca978f161636f7d:scripts/verify-p01-s08.ps1",
+      "limitation": "Historical committed verifier; later cumulative gates may add controls without rewriting this artifact.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S08-POSTGRES-ADVERSARIAL",
+      "path": "internal/identity/persistence/credential_integration_test.go",
+      "sha256": "64ebe8a42c1b6a4e0d564a06dec3eb210fae48af07da767c53e21fddb29f083c",
+      "result": "PASS",
+      "requirements": ["IAM-041..043"],
+      "threats": ["THR-020", "THR-023", "THR-024", "THR-041", "THR-058"],
+      "reproduce": "git show b4a84a6b2fea5d01f267ee082ca978f161636f7d:internal/identity/persistence/credential_integration_test.go",
+      "limitation": "Real local PostgreSQL and synthetic principals; distributed production failure modes are not claimed.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S08-REDIS-ABUSE-CONTROL",
+      "path": "internal/identity/ratelimit/redis_test.go",
+      "sha256": "311851273d231b2e45647d5e2ddb070a762e2daf6a0179fb58a8eb01f9b3fb47",
+      "result": "PASS",
+      "requirements": ["IAM-044"],
+      "threats": ["THR-023", "THR-044", "THR-056", "THR-057"],
+      "reproduce": "git show b4a84a6b2fea5d01f267ee082ca978f161636f7d:internal/identity/ratelimit/redis_test.go",
+      "limitation": "Local fallback is deliberately stricter and process-local; globally exact quotas during Redis loss are not claimed.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S08-MIGRATION",
+      "path": "db/migrations/000015_phase_01_api_credentials.sql",
+      "sha256": "744cdf0ef96b03b66a2caa2e17a38ddbecc40fb51d8165d427b5c26b617f26c3",
+      "result": "PASS",
+      "requirements": ["IAM-040..044"],
+      "threats": ["THR-020", "THR-023", "THR-024"],
+      "reproduce": "git show b4a84a6b2fea5d01f267ee082ca978f161636f7d:db/migrations/000015_phase_01_api_credentials.sql",
+      "limitation": "Local synthetic roles and unencrypted developer backup/WAL custody only.",
+      "revalidate_by": "2026-11-09"
+    }
+  ]
+}

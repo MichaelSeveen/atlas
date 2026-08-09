@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	CurrentVersion  = 6
-	CurrentChecksum = "b8c46daa86ff72667161201fc494fb296325737330d988117fd1e76c62f6e9a0"
+	CurrentVersion  = 15
+	CurrentChecksum = "744cdf0ef96b03b66a2caa2e17a38ddbecc40fb51d8165d427b5c26b617f26c3"
 )
 
 var (
@@ -254,14 +254,14 @@ func validateSQL(content []byte) error {
 	for _, match := range atlasSchemaSQL.FindAllStringSubmatch(lower, -1) {
 		schema := match[1]
 		switch schema {
-		case "atlas_foundation", "atlas_identity", "atlas_audit":
+		case "atlas_foundation", "atlas_identity", "atlas_audit", "atlas_operations":
 		default:
 			return fmt.Errorf("migration references an unratified schema %q", schema)
 		}
 	}
 	for _, match := range createSchemaSQL.FindAllStringSubmatch(lower, -1) {
 		switch match[1] {
-		case "atlas_foundation", "atlas_identity", "atlas_audit":
+		case "atlas_foundation", "atlas_identity", "atlas_audit", "atlas_operations":
 		default:
 			return fmt.Errorf("migration creates an unratified schema %q", match[1])
 		}

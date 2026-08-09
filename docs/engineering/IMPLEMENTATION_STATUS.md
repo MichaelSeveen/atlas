@@ -1,20 +1,20 @@
 # Atlas implementation status
 
-- **Status date:** 2026-07-26
+- **Status date:** 2026-08-09
 - **Current phase:** [Phase 01 — Identity, access, tenancy, and privileged workforce controls](../atlas-prd/02-phases/PHASE-01_IDENTITY_ACCESS_TENANCY.md)
-- **Current slice:** `P01-S04` synthetic OIDC BFF and durable session lifecycle is underway. The core checkpoint is committed at `d276ad457e1ce7e3863cbd4717dfb5c432e2e29d` with revision-bound static/live evidence. It adds exact OIDC validation, server-side login transactions, encrypted durable application sessions, rotation/revocation/audit behavior, synthetic customer/merchant flows, workforce baseline denial, bounded identity telemetry, real PostgreSQL concurrency proof, and product-state PITR revalidation.
-- **Implementation state:** Phase 00 remains historically complete for its bounded synthetic feature-free foundation, P01-S03 consumed the `first-product-schema`/`first-product-durable-state` triggers, and the S04 core runtime now exposes the eight approved identity/session routes alongside the three operational routes. All 30 IAM rows remain `Planned`: step-up still lacks the contracted idempotency/replay boundary and a successful live higher-assurance completion, admin security revocation is absent, and the remaining enumeration/browser/cache/storage evidence is open. No authorization evaluator, credential, approval, event, worker job, financial workflow, managed production secret provider, or wallet UI exists.
+- **Current slice:** `P01-S09` frontend flows, operational proof, adversarial acceptance, and Phase 01 closure is complete at bounded synthetic local/reference evidence depth. `EVD-P01-S09-CLOSURE` binds all thirty IAM dispositions, six deterministic identity-provider subjects, generated OpenAPI TypeScript shapes, customer/merchant/workforce browser boundaries, support/risk/finance personas, one-time credential-secret handling, cross-tab/history denial, the inherited full-stack/PITR gate, closed-cardinality operational controls, four runbook exercises, and the aggregate verifier. Static, live/recovery/browser, history/security, and focused supply-chain lanes each have a passing result; the earlier combined one-hour timeout remains preserved as an inconclusive historical attempt. The copy-ready [Phase 02 kickoff prompt](PHASE-02-KICKOFF-PROMPT.md) starts planning-only `P02-S01`; all 26 Phase 02 requirements remain Planned and financial implementation has not begun.
+- **Implementation state:** Phase 00 remains historically complete for its bounded synthetic feature-free foundation, and Phase 01 is complete only for its ratified identity/access/tenancy scope. The runtime exposes nine S04 identity/session operations, eight S05 organization/tenancy operations, six S07 approval operations, and four S08 credential lifecycle operations alongside the three operational routes. The React web application consumes generated immutable OpenAPI shapes through a credentialed no-store BFF transport; server authorization remains authoritative and browser state holds no provider token or durable credential. `GET /v1/me` accepts the strict `AtlasKey` machine scheme but rejects ambiguous cookie-plus-key identity. PostgreSQL validates credential verifier/status/tenant/environment/audience/scope/expiry on every request; Redis holds only reconstructible counters. Administrator membership removal and break-glass remain fail-closed. No event, worker job, financial credential scope, financial workflow, managed production secret provider, real IdP/data, or wallet/money-movement behavior exists.
 
 ## Repository baseline
 
 | Area | Verified state |
 |---|---|
 | Version control | Valid Git repository with origin `https://github.com/MichaelSeveen/atlas.git`. PR #22 passed all five required checks and merged as `9761754709a09c96fdbb07bf1a55c39994b50e72`. Active ruleset `19577130` protects `main` with PR-only updates, five strict required contexts, conversation resolution, deletion/non-fast-forward protection, no bypass actors, and zero fabricated approvals under ADR 0012. |
-| Specification | Canonical PRD is `docs/atlas-prd/`: 67 files including the manifest and 14 accepted ADRs. The corpus retains 399 requirements, 60 threats, and 154 adversarial tests. OpenAPI 3.1.1 now contains 54 paths/65 operations, including the complete approved Phase 01 transport surface; AsyncAPI 3.0.0 remains 9 channels/17 messages because ADR 0014 deliberately adds no Phase 01 event. One canonical contract/spec root remains enforced by manifest and duplicate guards. |
-| Application code | Go module `github.com/MichaelSeveen/atlas`; `cmd/api` serves liveness, readiness, version, and the eight approved S04 identity/session operations through Identity and Audit application boundaries, while worker/simulator remain feature-free. Identity owns typed tenant context, policy-bound seeds, OIDC verification, encrypted server-side login/session state, population lifetimes, rotation, and revocation; Audit owns validated event/application interfaces and caller-transaction PostgreSQL recording. `cmd/dbctl` validates six released migrations and `cmd/contractctl` lints/compares canonical contracts. No generated product client exists. |
-| Tooling | Go 1.25.12 with language baseline 1.25.0, pgx/v5 5.10.0, OpenTelemetry Go 1.43.0, Bun 1.3.0, and React 19.2.7 are pinned; `bun.lock` is frozen. `verify-p01-s04.ps1` composes prior Phase 01 regression with migration/seed integrity, real PostgreSQL roles/recovery, a disposable session/revocation concurrency database, rebuilt synthetic Keycloak flows, HTTP negative matrices, and bounded identity telemetry. GitHub Linux supplied the prior Phase 00 race/Gosec/CodeQL and constrained-pool evidence. |
+| Specification | Canonical PRD is `docs/atlas-prd/`: 69 files including the manifest and 16 accepted ADRs. The corpus retains 399 requirements, 60 threats, and 154 adversarial tests. OpenAPI 3.1.1 contains 56 paths/67 operations; ADR 0015 closes the `IAM-004` administrator-revocation transport defect and ADR 0016 closes `P01-D16` without weakening the established BFF/session boundary. AsyncAPI 3.0.0 remains 9 channels/17 messages because Phase 01 deliberately adds no event. One canonical contract/spec root remains enforced by manifest and duplicate guards. |
+| Application code | Go module `github.com/MichaelSeveen/atlas`; `cmd/api` serves liveness, readiness, version, 21 S04/S05/S08 Identity operations, and six S07 approval operations, while worker/simulator remain feature-free. Identity owns session/tenant/authorization/credential truth and the approved membership-role target command; Operations owns approval state and execution protocol; Audit owns validated caller-transaction recording. The React application renders customer, merchant, and workforce identity/operations routes from server truth through OpenAPI-generated immutable TypeScript shapes; browser permissions are presentation-only. `cmd/dbctl` validates fifteen released migrations and `cmd/contractctl` lints/compares canonical contracts. |
+| Tooling | Go 1.25.12 with language baseline 1.25.0, pgx/v5 5.10.0, go-redis/v9 9.21.0, OpenTelemetry Go 1.43.0, gRPC 1.82.1, Bun 1.3.0, React 19.2.7, `openapi-typescript` 7.13.0, and `@playwright/cli` 0.1.18 are pinned; `bun.lock` is frozen. `verify-p01.ps1` composes the complete Phase 01 static gate and, under `-Live`, the inherited real-stack/PITR gate, empty-state Keycloak rebuild, six identity personas, real-provider browser journey, and adversarial client-state journey. GitHub Linux supplied the prior Phase 00 race/Gosec/CodeQL and constrained-pool evidence. |
 | Local environment | Compose-compatible PostgreSQL, Redis, NATS JetStream, MinIO, OTel Collector, Keycloak, API, worker, simulator, and web run in a constrained loopback-only synthetic namespace. API, worker, and simulator export bounded OTLP traces/metrics; collector availability is explicitly non-authoritative for readiness. Local scripts use the installed WSL `podman-compose` fallback, and successful run `29964442782` independently reproduced the full one-command Docker path on a fresh GitHub-hosted runner. |
-| Verified pins | Go 1.25.12/language 1.25.0; module `github.com/MichaelSeveen/atlas`; pgx/v5 5.10.0; OpenTelemetry Go/SDK/exporters 1.43.0; Bun 1.3.0; React/React DOM 19.2.7; immutable GitHub Action SHAs; hash-verified scanner archives; and tag-plus-digest external/base images. Release signatures and exact-source SLSA/SPDX attestations pass automated and independent hosted verification. |
+| Verified pins | Go 1.25.12/language 1.25.0; module `github.com/MichaelSeveen/atlas`; pgx/v5 5.10.0; OpenTelemetry Go/SDK/exporters 1.43.0; gRPC 1.82.1; Bun 1.3.0; React/React DOM 19.2.7; immutable GitHub Action SHAs; hash-verified scanner archives; and tag-plus-digest external/base images. Release signatures and exact-source SLSA/SPDX attestations pass automated and independent hosted verification. |
 | Sensitive/generated/binary scan | Gitleaks scans the complete history with no finding; a disposable repository proves a deleted synthetic secret is still detected. Local binaries/reports remain under ignored `.tmp/`; the hosted release retains the four sanitized SPDX surfaces for 90 days with archive and document hashes recorded in EVD-P00-S08-008. The eleven removed root PRD duplicates remain guarded against reappearance. |
 
 ## Phase 00 requirement state
@@ -30,16 +30,30 @@
 
 “Satisfied” is requirement- and scope-specific: S01–S08 foundation mechanics named below are verified at the stated depth. Phase 00 gate completion does not imply independent human review, product database ownership, executable product seeds, provider behavior, identity integration, managed secret custody, worker/event behavior, encrypted product-state recovery, production readiness, or any later-phase capability. ADR 0013 and the machine gate require revalidation when those surfaces appear. See the [per-requirement audit](PHASE-00-PLAN.md#requirement-by-requirement-audit).
 
+## Phase 01 requirement state
+
+| Classification | Count | Requirement IDs |
+|---|---:|---|
+| Verified | 30 | `IAM-001..007`, `IAM-010..015`, `IAM-020..026`, `IAM-030..034`, `IAM-040..044` |
+| Planned | 0 | None. |
+
+These thirty rows are verified only for their explicit Phase 01 current-action scope. `IAM-002`
+binds the implemented login, step-up, privilege-change, and tenant-switch rotation boundaries.
+`IAM-006` binds implemented merchant-secret creation and approval decisions; named future
+privileged/financial actions remain reserved fail-closed and must be evidenced in their owning
+phase. Phase 01 closure is not a production, real-identity, financial, scale, availability,
+compliance, or independent-review claim.
+
 ## Completed requirement IDs
 
 - `FND-001` — roadmap-aligned directories, canonical-source guard, pinned Go metadata, and repository-owned verification exist.
 - `FND-002` — dependency rules are documented and enforced by a clean-tree scanner plus a seeded cross-context persistence-import rejection.
-- `FND-003` — API, worker, and provider-simulator Go entry points build independently; only the API has a runtime lifecycle, now serving the three operational and eight approved identity/session endpoints.
+- `FND-003` — API, worker, and provider-simulator Go entry points build independently; only the API has a runtime lifecycle, now serving the three operational routes and seventeen approved identity/session/organization operations.
 - `FND-004` — React + TypeScript is consistently selected in the PRD, with no competing frontend implementation.
 - `FND-005` — bounded integer money/currency, cryptographically random opaque IDs, injectable UTC clocks, explicit actor/correlation contexts, and data-minimizing domain errors pass table/property/fuzz and mutation proof.
 - `FND-006` — the architecture checker rejects seeded floating-money and direct domain wall-clock violations while permitting explicit safe controls.
 - `FND-010` — successful release run `29964442782` completed the full fresh-host Docker S08 command, including the constrained topology, readiness/smoke/trace/outage, real PostgreSQL/NATS, backup/restore, hosted race, exit-zero bounded teardown, and exact clean-clone cleanup.
-- `FND-011` — the original foundation catalogue remains immutable; P01-S03 consumes the first-product-schema trigger with a separate checksum-bound, fixed-time, transactional Identity/Audit seed tied to the canonical policy digest. Executable provider scenarios remain a guarded future trigger.
+- `FND-011` — the original foundation catalogue and released Phase 01 identity seed v1 remain immutable; P01-S03 consumes the first-product-schema trigger, while S04 advances the canonical policy binding through checksum-bound additive seed v2 after verifying the exact v1 predecessor. Both seeds are transactional and pass upgrade, fresh, replay, backup, and restore lanes. Executable provider scenarios remain a guarded future trigger.
 - `FND-012` — portfolio configuration is synthetic-only, loopback/reserved-host constrained, and rejects real/public endpoint, development-key, wildcard, and missing-synthetic canaries.
 - `FND-013` — reset is limited to local/test, validates target containment, prints its resolved target, and requires the exact environment confirmation.
 - `FND-020` — PR #19 run `29949126130` passed static/history/contracts, real PostgreSQL/NATS, both CodeQL languages, race/Gosec, supply-chain, and solo sensitive-declaration checks; active `main` ruleset `19577130` strictly requires the five hosted contexts with no bypass actors.
@@ -81,10 +95,16 @@ S08 static/live/history/supply acceptance is preserved in EVD-P00-S08-001 throug
 |---|---|---|
 | Production broker, IdP deployment, object store, and secret manager are not selected | Local/reference products are accepted only by ADR 0008; production semantics, key rotation, backup, and promotion remain blocked. | Resolve with scoped ADRs before any reference release; do not treat local NATS/Keycloak/MinIO as a production selection. |
 | Independent code-owner approval remains trigger-bound | Active ruleset `19577130` requires the passing PR gates and successful hosted release identity is recorded, but ADR 0012 does not represent owner self-review as organizational separation. | Keep the ruleset active and obtain genuine qualified approval before any real-data/provider/deployment/second-maintainer/production-readiness trigger. |
-| Generated product-client strategy is deferred | S07 enforces compatibility directly from the sole canonical contracts and introduces no client or product call. | Select a deterministic generated-client path before the first product API consumer; never create a second hand-edited contract. |
+| Generated product-client strategy | Resolved by `P01-D13`: `openapi-typescript` 7.13.0 produces immutable TypeScript shapes from the sole canonical OpenAPI contract; the thin handwritten browser transport owns only cookie, CSRF, idempotency, and safe failure mechanics. | Preserve deterministic generation/drift checks and never duplicate contract models by hand or create a second mutable contract. |
 | Local backup/WAL volumes are not encrypted | P01-S04 revalidates synthetic Identity/Audit rows, checksums, grants, and revoked application-session authority through isolated PITR only. | Before a reference deployment or backup encryption/key custody, select deployment/object/key controls and run the complete encrypted isolated restore/replay gate. |
+| `P01-D15`: administrator session-revocation transport | Resolved by ADR 0015 and `POST /v1/security/sessions/{session_id}/revocations`; the self-owned delete operation remains unchanged. | Preserve the closed workforce permission/purpose/reason/action-bound-step-up/idempotency/decision/Audit semantics and rerun migration/recovery evidence on every change. |
+| `P01-D16`: invitation-acceptance bootstrap authentication | Resolved by ADR 0016 and the additive authentication operation. Merchant OIDC must return a verified recipient before Atlas creates a 15-minute invitation-bound bootstrap with no tenant authority. | Preserve hash-only token/recipient binding, concealed invalid cases, acceptance-only authorization, and the serializable membership/invitation/session/Audit commit; rerun migration, concurrency, expiry, recipient-mismatch, and Audit-outage evidence on every change. |
 
-These are missing implementation decisions, not contradictory product semantics. No accepted ADR conflict was found.
+The first four rows are missing implementation decisions rather than contradictory product
+semantics. ADR 0015 resolves the implementation-discovered `P01-D15` defect additively and retains
+the owner-only operation’s original scope. ADR 0016 resolves the implementation-discovered
+`P01-D16` conflict additively; invitation acceptance remains fail-closed outside its verified,
+invitation-bound bootstrap and atomic persistence boundary.
 
 ## Known deviations
 
@@ -97,8 +117,8 @@ These are missing implementation decisions, not contradictory product semantics.
 - S07 local image/SBOM proof uses the existing Podman WSL fallback. Syft completed with valid artifacts but emitted non-fatal Windows temporary-directory cleanup warnings; EVD-P00-S08-008 separately proves the full clean hosted Docker path.
 - The Windows host has CGO disabled and Gosec 2.25.0 does not complete in a bounded local run. GitHub Linux run `29943586545` supplied S08 race/Gosec/CodeQL proof, including `s08_named_skipped_test_10=PASS`.
 - EVD-P00-S08-006 retains attempt 1's cleanup failure and zero publication; EVD-P00-S08-007 retains attempt 2's missing-token verification failure after partial publication; EVD-P00-S08-008 records the corrected green release, including Bun exit `0` in `213ms`.
-- The Phase 00 seed catalogue remains historical. P01-S03/S04 use separate synthetic Identity/Audit seeds and runtime-only Keycloak users; they are not real identities or a production IdP selection.
-- The S04 core checkpoint proves login/current/session-list/logout, revoke-one/all mechanics, fail-closed step-up initiation, injected-provider outage behavior, and synthetic customer/merchant flows. It does not yet prove contracted step-up idempotency, live higher-assurance success, admin security revocation, bounded account-enumeration timing, or the complete browser cache/storage/BFCache matrix.
+- The Phase 00 seed catalogue remains historical. P01-S03/S04 use a separate immutable synthetic Identity/Audit seed, an additive policy-binding seed, and runtime-only Keycloak users; they are not real identities or a production IdP selection.
+- The S04 closure proves login/current/session-list/logout, revoke-one/all mechanics, durable exact step-up replay/conflict, stale-claim rejection, injected-provider outage behavior, live customer/merchant higher-assurance rotation with old-cookie rejection, bounded three-population known/absent-user response/timing differentials, real-browser signed-out reload/history/direct-route protection, and audit-atomic workforce administrator revocation. The browser remains a synthetic shell detached from product APIs, Keycloak evidence is not a real-provider or MFA claim, and no production recovery/rate-control posture is claimed.
 - Project policy forbids React class components. Because React 19 has no function-component error-boundary API, the feature-free web shell now uses a route-aware root `onUncaughtError` fallback; strict subtree-local error containment is not claimed.
 - The PRD validation report proves planning-pack consistency only; it is not implementation, security, performance, recovery, or compliance evidence.
 
@@ -117,7 +137,26 @@ These are missing implementation decisions, not contradictory product semantics.
 - [Phase 01 S02 pre-commit evidence catalogue](../../evidence/phase-01/architecture/P01-evidence-catalogue-precommit.json)
 - [Phase 01 S03 pre-commit evidence catalogue](../../evidence/phase-01/persistence/P01-S03-evidence-catalogue-precommit.json)
 - [Phase 01 S04 pre-commit evidence catalogue](../../evidence/phase-01/identity-session/P01-S04-evidence-catalogue-precommit.json)
+- [Phase 01 S04 step-up idempotency and assurance evidence](../../evidence/phase-01/identity-session/S04-step-up-idempotency-and-assurance-precommit.md)
+- [Phase 01 S04 step-up evidence catalogue](../../evidence/phase-01/identity-session/P01-S04-evidence-catalogue-step-up-precommit.json)
+- [Phase 01 S04 account-enumeration evidence](../../evidence/phase-01/identity-session/S04-account-enumeration-precommit.md)
+- [Phase 01 S04 closure evidence](../../evidence/phase-01/identity-session/S04-closure-precommit.md)
+- [Phase 01 S04 closure catalogue](../../evidence/phase-01/identity-session/P01-S04-evidence-catalogue-closure-precommit.json)
+- [Phase 01 S05 tenancy closure evidence](../../evidence/phase-01/tenancy-authorization/S05-tenancy-closure-precommit.md)
+- [Phase 01 S05 tenancy closure catalogue](../../evidence/phase-01/tenancy-authorization/P01-S05-evidence-catalogue-precommit.json)
+- [Phase 01 S06 authorization closure catalogue](../../evidence/phase-01/authorization/P01-S06-evidence-catalogue-postcommit.json)
+- [Phase 01 S07 approval closure catalogue](../../evidence/phase-01/approvals/P01-S07-evidence-catalogue-postcommit.json)
+- [Phase 01 S08 credential closure catalogue](../../evidence/phase-01/api-credentials/P01-S08-evidence-catalogue-postcommit.json)
+- [Phase 01 S09 phase-closure evidence](../../evidence/phase-01/acceptance/S09-phase-01-closure-precommit.md)
+- [Phase 01 S09 phase-closure catalogue](../../evidence/phase-01/acceptance/P01-S09-evidence-catalogue-postcommit.json)
+- [Phase 01 final gates and Phase 02 handoff evidence](../../evidence/phase-01/acceptance/S09-final-gates-and-phase02-handoff-precommit.md)
+- [Phase 01 final handoff post-commit verification](../../evidence/phase-01/acceptance/S09-final-gates-and-phase02-handoff-postcommit.md)
+- [Phase 01 final handoff post-commit catalogue](../../evidence/phase-01/acceptance/P01-S09-final-handoff-evidence-catalogue-postcommit.json)
+- [Phase 02 clean-start kickoff prompt](PHASE-02-KICKOFF-PROMPT.md)
+- [Phase 01 S04 step-up post-commit verification](../../evidence/phase-01/identity-session/S04-step-up-idempotency-and-assurance-post-commit.md)
+- [Phase 01 S04 step-up post-commit catalogue](../../evidence/phase-01/identity-session/P01-S04-evidence-catalogue-step-up-postcommit.json)
 - [ADR 0014 identity/access contract boundary](../atlas-prd/06-governance/adrs/0014-phase-01-identity-access-contract-boundary.md)
+- [ADR 0015 administrator session-revocation boundary](../atlas-prd/06-governance/adrs/0015-admin-session-revocation-boundary.md)
 - [Machine-readable identity/access policy](../atlas-prd/03-contracts/identity-access-policy.json)
 - [Current S01 boundary report](../../evidence/phase-00/architecture/S01-boundary-report-v3.md)
 - [Current S02 primitives report](../../evidence/phase-00/primitives/S02-primitives-report.md)

@@ -25,7 +25,9 @@ try {
 
     & (Join-Path $PSScriptRoot 'test-p01-s02-contract-canary.ps1')
     if (-not $?) { throw 'Phase 01 S02 contract canaries failed.' }
-    & (Join-Path $PSScriptRoot 'test-p01-evidence-integrity.ps1')
+    & (Join-Path $PSScriptRoot 'test-p01-evidence-integrity.ps1') `
+        -CatalogueRelativePath 'evidence/phase-01/identity-session/P01-S04-evidence-catalogue-closure-postcommit.json' `
+        -ExpectedSlice 'P01-S04'
     if (-not $?) { throw 'Phase 01 evidence integrity failed.' }
 
     Write-Output 'p01_s02_runtime_routes=NOT_IMPLEMENTED(contract-and-decision-slice-only)'

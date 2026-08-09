@@ -263,19 +263,27 @@ func TestOrganizationMembersCarriesExplicitTenantAndAuthorizationDecision(t *tes
 	service.organizations = organizationStore
 	result, err := service.OrganizationMembers(context.Background(), ListOrganizationMembersRequest{
 		CookieValue: cookie, OrganizationID: sessionStore.session.TenantID,
-		PageSize: "25", PageSizeProvided: true, CorrelationID: mustTestID(t, "cor", 86),
+		Purpose: "organization_administration", PageSize: "25", PageSizeProvided: true,
+		CorrelationID: mustTestID(t, "cor", 86),
 	})
 	if err != nil || result.DecisionID.IsZero() || len(result.Page.Members) != 1 {
 		t.Fatalf("member page=%+v err=%v", result, err)
 	}
 	command := organizationStore.membersCommand
 	if command.Actor.SessionID != sessionStore.session.SessionID ||
-		command.OrganizationID != sessionStore.session.TenantID || command.PageSize != "25" ||
+		command.OrganizationID != sessionStore.session.TenantID ||
+		command.Purpose != "organization_administration" || command.PageSize != "25" ||
 		!command.PageSizeProvided ||
 		command.AuditEvent.DecisionID != result.DecisionID ||
 		command.AuditEvent.Action != "identity.organization.members.list" ||
 		command.AuditEvent.TenantID != sessionStore.session.TenantID {
 		t.Fatalf("incomplete member-list command: %+v", command)
+	}
+	if _, err := service.OrganizationMembers(context.Background(), ListOrganizationMembersRequest{
+		CookieValue: cookie, OrganizationID: sessionStore.session.TenantID,
+		CorrelationID: mustTestID(t, "cor", 87),
+	}); err != nil || organizationStore.membersCommand.Purpose != "self_service" {
+		t.Fatalf("default member-list purpose=%q err=%v", organizationStore.membersCommand.Purpose, err)
 	}
 }
 

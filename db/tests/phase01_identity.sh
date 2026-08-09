@@ -7,7 +7,7 @@ set -eu
 
 test_database='atlas_p01_s03_seed_test'
 failure_output='/tmp/atlas-p01-s03-denial.out'
-expected_migration_count='12'
+expected_migration_count='13'
 expected_seed_count='3'
 expected_policy_checksum='2acd97d4467eed25c0991331e5283b303df3fd52d0f4c9d5f6851353db64c2d1'
 

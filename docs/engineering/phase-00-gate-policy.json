@@ -101,6 +101,8 @@
         "db/migrations/000007_phase_01_step_up_idempotency.metadata.json",
         "db/migrations/000008_phase_01_admin_session_revocation.sql",
         "db/migrations/000008_phase_01_admin_session_revocation.metadata.json",
+        "db/migrations/000013_phase_01_membership_email_hint.sql",
+        "db/migrations/000013_phase_01_membership_email_hint.metadata.json",
         "scripts/s05.ps1",
         "docs/atlas-prd/06-governance/adrs/0013-phase-00-closed-world-completion.md"
       ],
@@ -133,6 +135,7 @@
         "db/migrations/000007_phase_01_step_up_idempotency.sql",
         "db/migrations/000008_phase_01_admin_session_revocation.sql",
         "db/migrations/000012_phase_01_membership_revocations.sql",
+        "db/migrations/000013_phase_01_membership_email_hint.sql",
         "db/tests/role_matrix.sh",
         "evidence/phase-01/persistence/S03-identity-audit-persistence-report.md",
         "evidence/phase-01/identity-session/S04-identity-session-core-report.md"
@@ -143,7 +146,7 @@
     {"path": ".github/solo-maintainer-policy.json", "sha256": "4524d7cae2b0575a6ebe0669f6e44db4cbbecad6ecdd696ad534233c7c993d96"},
     {"path": "cmd/worker/main.go", "sha256": "64781eb8f4d3148f0165e85a6ff04fc492ed89fd28949fdc99e7463f4b049453"},
     {"path": "cmd/simulator/main.go", "sha256": "a52a3f919146c72e30ee0aae16757c0aa5042a6972218341244230897a8c84e6"},
-    {"path": "db/migrations/MANIFEST.sha256", "sha256": "652b4306b7914910914bd2d2a1b838619c92711459c59603dc3f462387ece616"},
+    {"path": "db/migrations/MANIFEST.sha256", "sha256": "d16a9f3d837a6bdbcd6a506aa767899672e1499f77f2ed1f39355609f9d42c20"},
     {"path": "db/seeds/MANIFEST.sha256", "sha256": "84d97e47b3410ecb93c7dbe0ad885836dee03cc169fc510bb404071b430afbf0"},
     {"path": "db/seeds/000001_phase_01_identity.json", "sha256": "e5a8ab37437edad69ed655e6589efffd824ca4b9151b6f9d9358632bf1f13d6c"},
     {"path": "db/seeds/000002_phase_01_policy.json", "sha256": "81fe47f0e194698e4145a4315cfa40e2470746313e8ee62e8e62693e0d373d40"},
@@ -157,13 +160,13 @@
     {"path": "deploy/environments/test.json", "sha256": "5dfa70d9d1dabe62b0da29244b2837b0afbc283778667dce5ff08514c105e0a7"},
     {"path": "deploy/environments/staging.json", "sha256": "623983eb09bd417014b737cac860613a08639f7ed15ed5298d6b7b4104714bc3"},
     {"path": "deploy/environments/production-reference.json", "sha256": "884cd96d38ee6756a4937c9320ac7df81c1893546b29c15b65e24266ac3a7865"},
-    {"path": "deploy/observability/catalog.json", "sha256": "a6e60d2bdad7d70749bcdc47f2048ccd939682c6af89bef5d5ef95293011a41e"},
+    {"path": "deploy/observability/catalog.json", "sha256": "fa4d16380e8c1b689ebe8ff500ae5956d96effef479b9c244cc6597328bf59ac"},
     {"path": "deploy/seeds/foundation.json", "sha256": "d350303e1f1129c41ba96af24ea33315fb1739f721b6bc7b7bcf96c774debe4d"}
   ],
   "guarded_directories": [
     {"path": "cmd/worker", "files": ["main.go"]},
     {"path": "cmd/simulator", "files": ["main.go"]},
-    {"path": "db/migrations", "files": ["000001_foundation_control_schema.metadata.json", "000001_foundation_control_schema.sql", "000002_recovery_probe.metadata.json", "000002_recovery_probe.sql", "000003_phase_01_identity_persistence.metadata.json", "000003_phase_01_identity_persistence.sql", "000004_phase_01_audit_persistence.metadata.json", "000004_phase_01_audit_persistence.sql", "000005_phase_01_oidc_sessions.metadata.json", "000005_phase_01_oidc_sessions.sql", "000006_phase_01_session_authority_lock_grant.metadata.json", "000006_phase_01_session_authority_lock_grant.sql", "000007_phase_01_step_up_idempotency.metadata.json", "000007_phase_01_step_up_idempotency.sql", "000008_phase_01_admin_session_revocation.metadata.json", "000008_phase_01_admin_session_revocation.sql", "000009_phase_01_organization_invitations.metadata.json", "000009_phase_01_organization_invitations.sql", "000010_phase_01_invitation_acceptance.metadata.json", "000010_phase_01_invitation_acceptance.sql", "000011_phase_01_membership_role_changes.metadata.json", "000011_phase_01_membership_role_changes.sql", "000012_phase_01_membership_revocations.metadata.json", "000012_phase_01_membership_revocations.sql", "MANIFEST.sha256"]},
+    {"path": "db/migrations", "files": ["000001_foundation_control_schema.metadata.json", "000001_foundation_control_schema.sql", "000002_recovery_probe.metadata.json", "000002_recovery_probe.sql", "000003_phase_01_identity_persistence.metadata.json", "000003_phase_01_identity_persistence.sql", "000004_phase_01_audit_persistence.metadata.json", "000004_phase_01_audit_persistence.sql", "000005_phase_01_oidc_sessions.metadata.json", "000005_phase_01_oidc_sessions.sql", "000006_phase_01_session_authority_lock_grant.metadata.json", "000006_phase_01_session_authority_lock_grant.sql", "000007_phase_01_step_up_idempotency.metadata.json", "000007_phase_01_step_up_idempotency.sql", "000008_phase_01_admin_session_revocation.metadata.json", "000008_phase_01_admin_session_revocation.sql", "000009_phase_01_organization_invitations.metadata.json", "000009_phase_01_organization_invitations.sql", "000010_phase_01_invitation_acceptance.metadata.json", "000010_phase_01_invitation_acceptance.sql", "000011_phase_01_membership_role_changes.metadata.json", "000011_phase_01_membership_role_changes.sql", "000012_phase_01_membership_revocations.metadata.json", "000012_phase_01_membership_revocations.sql", "000013_phase_01_membership_email_hint.metadata.json", "000013_phase_01_membership_email_hint.sql", "MANIFEST.sha256"]},
     {"path": "db/seeds", "files": ["000001_phase_01_identity.json", "000002_phase_01_policy.json", "000003_phase_01_policy.json", "MANIFEST.sha256", "load-phase-01-identity.sql", "load-phase-01-policy-v3.sql", "load-phase-01-policy.sql"]},
     {"path": "deploy/environments", "files": ["local.json", "production-reference.json", "staging.json", "test.json"]},
     {"path": "internal/platform/secret", "files": ["secret.go", "secret_test.go"]}

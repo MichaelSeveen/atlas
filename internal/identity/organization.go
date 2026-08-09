@@ -86,6 +86,7 @@ type OrganizationMemberPage struct {
 type ListOrganizationMembersRequest struct {
 	CookieValue      string
 	OrganizationID   identifier.ID
+	Purpose          string
 	PageSize         string
 	PageSizeProvided bool
 	Cursor           string
@@ -97,6 +98,7 @@ type ListOrganizationMembersRequest struct {
 type ListOrganizationMembersCommand struct {
 	Actor            Session
 	OrganizationID   identifier.ID
+	Purpose          string
 	PageSize         string
 	PageSizeProvided bool
 	Cursor           string
@@ -498,8 +500,12 @@ func (service *Service) OrganizationMembers(
 		return ListOrganizationMembersResult{}, ErrIdentityUnavailable
 	}
 	now := service.clock.Now().UTC()
+	purpose := request.Purpose
+	if purpose == "" {
+		purpose = "self_service"
+	}
 	return service.organizations.ListMembers(ctx, ListOrganizationMembersCommand{
-		Actor: actor, OrganizationID: request.OrganizationID,
+		Actor: actor, OrganizationID: request.OrganizationID, Purpose: purpose,
 		PageSize: request.PageSize, PageSizeProvided: request.PageSizeProvided,
 		Cursor: request.Cursor, CursorProvided: request.CursorProvided, Now: now,
 		AuditEvent: audit.Event{

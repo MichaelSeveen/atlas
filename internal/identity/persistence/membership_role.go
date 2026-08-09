@@ -358,7 +358,8 @@ func administratorMerchantRole(role string) bool {
 func memberRoleChangeDatabaseError(err error) error {
 	var databaseError *pgconn.PgError
 	if errors.As(err, &databaseError) &&
-		(databaseError.Code == "40001" || databaseError.Code == "40P01") {
+		(databaseError.Code == "40001" || databaseError.Code == "40P01" ||
+			databaseError.Code == "55P03") {
 		return errRetryMemberRoleChange
 	}
 	return identity.ErrIdentityUnavailable

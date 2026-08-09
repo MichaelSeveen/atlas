@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/MichaelSeveen/atlas/internal/audit"
 	auditapplication "github.com/MichaelSeveen/atlas/internal/audit/application"
 	"github.com/MichaelSeveen/atlas/internal/identity"
+	"github.com/MichaelSeveen/atlas/internal/platform/clock"
 	"github.com/MichaelSeveen/atlas/internal/platform/identifier"
 )
 
@@ -22,7 +24,7 @@ func TestOrganizationStoreRealPostgresListAndZeroGraceSwitch(t *testing.T) {
 	if apiURL == "" || migrationURL == "" {
 		t.Skip("real Phase 01 database URLs are not configured")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	apiPool, err := pgxpool.New(ctx, apiURL)
 	if err != nil {
@@ -60,8 +62,13 @@ func TestOrganizationStoreRealPostgresListAndZeroGraceSwitch(t *testing.T) {
 	loginAuditID := newIntegrationID(t, "aud")
 	switchAuditID := newIntegrationID(t, "aud")
 	memberListDenialAuditID := newIntegrationID(t, "aud")
+	memberListSensitiveAuditID := newIntegrationID(t, "aud")
 	loginCorrelationID := newIntegrationID(t, "cor")
 	switchCorrelationID := newIntegrationID(t, "cor")
+	auditIDs := []string{
+		loginAuditID.String(), switchAuditID.String(), memberListDenialAuditID.String(),
+		memberListSensitiveAuditID.String(),
+	}
 	now := time.Date(2026, 7, 27, 10, 0, 0, 0, time.UTC)
 	uniqueName := "synthetic-" + targetTenant.String()
 	setup, err := migrationPool.Begin(ctx)
@@ -83,7 +90,7 @@ INSERT INTO atlas_identity.memberships (
     membership_id, tenant_id, principal_id, role_id, population, status,
     authorization_version, version, created_at, updated_at
 ) VALUES (
-    $2, $1, 'usr_01JAT1AS00000000000002', 'merchant_operator', 'merchant',
+    $2, $1, 'usr_01JAT1AS00000000000002', 'merchant_security_admin', 'merchant',
     'active', 1, 1, $3, $3
 )`,
 		targetTenant.String(), targetMembership.String(), now,
@@ -102,9 +109,10 @@ INSERT INTO atlas_identity.principals (
 	if _, err := setup.Exec(ctx, `
 INSERT INTO atlas_identity.memberships (
     membership_id, tenant_id, principal_id, role_id, population, status,
-    authorization_version, version, created_at, updated_at
-) VALUES ($1, $2, $3, 'merchant_viewer', 'merchant', 'active', 1, 1, $4, $4)`,
+    authorization_version, version, created_at, updated_at, email_hint
+) VALUES ($1, $2, $3, 'merchant_viewer', 'merchant', 'active', 1, 1, $4, $4, $5)`,
 		listedMembership.String(), targetTenant.String(), listedPrincipal.String(), now,
+		"l***@example.invalid",
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +125,7 @@ INSERT INTO atlas_identity.memberships (
 		_, _ = migrationPool.Exec(
 			cleanupCtx,
 			`DELETE FROM atlas_audit.audit_events WHERE audit_event_id = ANY($1)`,
-			[]string{loginAuditID.String(), switchAuditID.String(), memberListDenialAuditID.String()},
+			auditIDs,
 		)
 		_, _ = migrationPool.Exec(
 			cleanupCtx,
@@ -211,7 +219,8 @@ INSERT INTO atlas_identity.memberships (
 		SafeAfterReference: "organization-members:masked",
 	}
 	firstPage, err := organizationStore.ListMembers(ctx, identity.ListOrganizationMembersCommand{
-		Actor: authenticated, OrganizationID: targetTenant, PageSize: "1", PageSizeProvided: true,
+		Actor: authenticated, OrganizationID: targetTenant, Purpose: "self_service",
+		PageSize: "1", PageSizeProvided: true,
 		Now: now.Add(2 * time.Minute), AuditEvent: memberListEvent,
 	})
 	if err != nil || len(firstPage.Page.Members) != 1 || !firstPage.Page.HasMore ||
@@ -223,7 +232,8 @@ INSERT INTO atlas_identity.memberships (
 	secondListEvent.DecisionID = newIntegrationID(t, "dec")
 	secondListEvent.CorrelationID = newIntegrationID(t, "cor")
 	secondPage, err := organizationStore.ListMembers(ctx, identity.ListOrganizationMembersCommand{
-		Actor: authenticated, OrganizationID: targetTenant, PageSize: "1", PageSizeProvided: true,
+		Actor: authenticated, OrganizationID: targetTenant, Purpose: "self_service",
+		PageSize: "1", PageSizeProvided: true,
 		Cursor: firstPage.Page.NextCursor, CursorProvided: true, Now: now.Add(2 * time.Minute),
 		AuditEvent: secondListEvent,
 	})
@@ -240,6 +250,54 @@ INSERT INTO atlas_identity.memberships (
 			t.Fatalf("cross-tenant or sensitive member field: %+v", member)
 		}
 	}
+	sensitiveEvent := memberListEvent
+	sensitiveEvent.AuditEventID = memberListSensitiveAuditID
+	sensitiveEvent.DecisionID = newIntegrationID(t, "dec")
+	sensitiveEvent.CorrelationID = newIntegrationID(t, "cor")
+	sensitivePage, err := organizationStore.ListMembers(ctx, identity.ListOrganizationMembersCommand{
+		Actor: authenticated, OrganizationID: targetTenant,
+		Purpose: "organization_administration", PageSize: "10", PageSizeProvided: true,
+		Now: now.Add(2 * time.Minute), AuditEvent: sensitiveEvent,
+	})
+	if err != nil || sensitivePage.DecisionID != sensitiveEvent.DecisionID ||
+		len(sensitivePage.Page.Members) != 2 {
+		t.Fatalf("sensitive member page=%+v err=%v", sensitivePage, err)
+	}
+	foundMaskedHint := false
+	for _, member := range sensitivePage.Page.Members {
+		if member.PrincipalID == listedPrincipal && member.EmailHint != nil &&
+			*member.EmailHint == "l***@example.invalid" {
+			foundMaskedHint = true
+		}
+	}
+	if !foundMaskedHint {
+		t.Fatalf("authorized masked hint absent: %+v", sensitivePage.Page.Members)
+	}
+	var sensitiveAuditCount int
+	if err := migrationPool.QueryRow(ctx, `
+SELECT count(*) FROM atlas_audit.audit_events
+WHERE audit_event_id = $1
+  AND action = 'identity.organization.members.sensitive.list'
+  AND decision_id = $2`,
+		memberListSensitiveAuditID.String(), sensitiveEvent.DecisionID.String(),
+	).Scan(&sensitiveAuditCount); err != nil || sensitiveAuditCount != 1 {
+		t.Fatalf("sensitive member-list audit count=%d err=%v", sensitiveAuditCount, err)
+	}
+	failingListStore, err := NewOrganizationStore(apiPool, failingAuditRecorder{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	failedSensitiveEvent := sensitiveEvent
+	failedSensitiveEvent.AuditEventID = newIntegrationID(t, "aud")
+	failedSensitiveEvent.DecisionID = newIntegrationID(t, "dec")
+	failedSensitiveEvent.CorrelationID = newIntegrationID(t, "cor")
+	if _, err := failingListStore.ListMembers(ctx, identity.ListOrganizationMembersCommand{
+		Actor: authenticated, OrganizationID: targetTenant,
+		Purpose: "organization_administration", PageSize: "10", PageSizeProvided: true,
+		Now: now.Add(2 * time.Minute), AuditEvent: failedSensitiveEvent,
+	}); !errors.Is(err, identity.ErrIdentityUnavailable) {
+		t.Fatalf("sensitive member-list Audit outage error=%v", err)
+	}
 	denialEvent := memberListEvent
 	denialEvent.AuditEventID = memberListDenialAuditID
 	denialEvent.DecisionID = newIntegrationID(t, "dec")
@@ -247,7 +305,7 @@ INSERT INTO atlas_identity.memberships (
 	denialEvent.TargetID = oldSession.TenantID.String()
 	denied, err := organizationStore.ListMembers(ctx, identity.ListOrganizationMembersCommand{
 		Actor: authenticated, OrganizationID: oldSession.TenantID,
-		PageSize: "1", PageSizeProvided: true,
+		Purpose: "self_service", PageSize: "1", PageSizeProvided: true,
 		Cursor: "malformed-cursor", CursorProvided: true,
 		Now: now.Add(2 * time.Minute), AuditEvent: denialEvent,
 	})
@@ -261,6 +319,41 @@ SELECT count(*) FROM atlas_audit.audit_events WHERE audit_event_id = $1`,
 	).Scan(&memberListDenialCount); err != nil || memberListDenialCount != 1 {
 		t.Fatalf("member-list denial audit count=%d err=%v", memberListDenialCount, err)
 	}
+	absentTenant := newIntegrationID(t, "ten")
+	wallClock := clock.System{}
+	knownForeignDurations := make([]time.Duration, 0, 16)
+	absentDurations := make([]time.Duration, 0, 16)
+	measureConcealed := func(organizationID identifier.ID) time.Duration {
+		t.Helper()
+		event := memberListEvent
+		event.AuditEventID = newIntegrationID(t, "aud")
+		event.DecisionID = newIntegrationID(t, "dec")
+		event.CorrelationID = newIntegrationID(t, "cor")
+		event.TargetID = organizationID.String()
+		event.TenantID = targetTenant
+		auditIDs = append(auditIDs, event.AuditEventID.String())
+		started := wallClock.Now()
+		result, callErr := organizationStore.ListMembers(ctx, identity.ListOrganizationMembersCommand{
+			Actor: authenticated, OrganizationID: organizationID, Purpose: "self_service",
+			PageSize: "10", PageSizeProvided: true, Now: now.Add(2 * time.Minute), AuditEvent: event,
+		})
+		duration := wallClock.Now().Sub(started)
+		if !errors.Is(callErr, identity.ErrOrganizationNotFound) || result.DecisionID != event.DecisionID ||
+			len(result.Page.Members) != 0 || result.Page.NextCursor != "" || result.Page.HasMore {
+			t.Fatalf("concealed timing result=%+v err=%v", result, callErr)
+		}
+		return duration
+	}
+	for sample := 0; sample < 16; sample++ {
+		if sample%2 == 0 {
+			knownForeignDurations = append(knownForeignDurations, measureConcealed(oldSession.TenantID))
+			absentDurations = append(absentDurations, measureConcealed(absentTenant))
+			continue
+		}
+		absentDurations = append(absentDurations, measureConcealed(absentTenant))
+		knownForeignDurations = append(knownForeignDurations, measureConcealed(oldSession.TenantID))
+	}
+	assertConcealmentTimingBound(t, knownForeignDurations, absentDurations)
 	_, failedDigest := integrationToken(t)
 	failingStore, err := NewOrganizationStore(apiPool, failingAuditRecorder{})
 	if err != nil {
@@ -296,4 +389,49 @@ SELECT count(*) FROM atlas_audit.audit_events WHERE audit_event_id = $1`,
 	).Scan(&auditCount); err != nil || auditCount != 1 {
 		t.Fatalf("switch audit count=%d err=%v", auditCount, err)
 	}
+}
+
+func assertConcealmentTimingBound(t *testing.T, known, absent []time.Duration) {
+	t.Helper()
+	knownMedian := durationPercentile(known, 0.5)
+	absentMedian := durationPercentile(absent, 0.5)
+	knownP95 := durationPercentile(known, 0.95)
+	absentP95 := durationPercentile(absent, 0.95)
+	medianDelta := knownMedian - absentMedian
+	if medianDelta < 0 {
+		medianDelta = -medianDelta
+	}
+	p95Delta := knownP95 - absentP95
+	if p95Delta < 0 {
+		p95Delta = -p95Delta
+	}
+	smallerMedian := knownMedian
+	if absentMedian < smallerMedian {
+		smallerMedian = absentMedian
+	}
+	medianRatio := 1.0
+	if smallerMedian >= 5*time.Millisecond {
+		largerMedian := knownMedian
+		if absentMedian > largerMedian {
+			largerMedian = absentMedian
+		}
+		medianRatio = float64(largerMedian) / float64(smallerMedian)
+	}
+	if medianDelta > 150*time.Millisecond || medianRatio > 2.5 || p95Delta > 500*time.Millisecond {
+		t.Fatalf(
+			"concealment timing exceeded bound: known_median=%s absent_median=%s ratio=%.2f known_p95=%s absent_p95=%s",
+			knownMedian, absentMedian, medianRatio, knownP95, absentP95,
+		)
+	}
+	t.Logf(
+		"concealment timing bounded: samples=%d median_delta=%s ratio=%.2f p95_delta=%s",
+		len(known), medianDelta, medianRatio, p95Delta,
+	)
+}
+
+func durationPercentile(values []time.Duration, percentile float64) time.Duration {
+	sorted := append([]time.Duration(nil), values...)
+	sort.Slice(sorted, func(left, right int) bool { return sorted[left] < sorted[right] })
+	index := int(float64(len(sorted)-1) * percentile)
+	return sorted[index]
 }

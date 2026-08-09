@@ -398,6 +398,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/PageSize'
         - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/XAtlasPurpose'
       responses:
         '200':
           description: Authorized organization-member page
@@ -1889,6 +1890,15 @@ components:
         minLength: 43
         maxLength: 128
         pattern: '^[A-Za-z0-9_-]+$'
+    XAtlasPurpose:
+      name: X-Atlas-Purpose
+      in: header
+      required: false
+      description: |
+        Closed server-side authorization purpose. Omission selects `self_service`; a purpose never
+        grants permission by itself and sensitive fields remain masked unless the role permission
+        and the field rule's exact purpose both allow disclosure.
+      schema: {$ref: '#/components/schemas/Purpose'}
     AuthPopulation:
       name: population
       in: query

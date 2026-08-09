@@ -211,6 +211,16 @@
       "rationale": "Direct membership mutations are individually audited; a bounded aggregate spike warrants review without putting tenant or actor identifiers into telemetry.",
       "runbook": "docs/runbooks/SESSION_COMPROMISE_AND_REVOCATION.md",
       "test": "scripts/test-s06-alert-catalog-canary.ps1"
+    },
+    {
+      "id": "P01-S06-ALR-001",
+      "metric": "atlas.identity.operation.count",
+      "severity": "ticket",
+      "owner": "identity-on-call",
+      "condition": "organization_member_list rejected outcomes with HTTP 404 exceed 30 in five minutes",
+      "rationale": "The concealed response is intentionally uniform, while a bounded aggregate spike may indicate tenant-identifier probing; tenant, actor, request, decision, and resource identifiers remain excluded from metric labels.",
+      "runbook": "docs/runbooks/AUTHORIZATION_INCIDENT_AND_INVALIDATION.md",
+      "test": "scripts/test-s06-alert-catalog-canary.ps1"
     }
   ],
   "dashboards": [

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -438,6 +439,7 @@ func TestOrganizationMemberListHTTPPaginationAndConcealmentContract(t *testing.T
 		nil,
 	)
 	request.AddCookie(&http.Cookie{Name: identity.SessionCookieName, Value: cookieValue})
+	request.Header.Set("X-Atlas-Purpose", "organization_administration")
 	response := httptest.NewRecorder()
 	app.Handler().ServeHTTP(response, request)
 	if response.Code != http.StatusOK ||
@@ -447,6 +449,23 @@ func TestOrganizationMemberListHTTPPaginationAndConcealmentContract(t *testing.T
 		!strings.Contains(response.Body.String(), `"next_cursor":"`) ||
 		strings.Contains(response.Body.String(), cookieValue) {
 		t.Fatalf("member list status=%d headers=%v body=%s", response.Code, response.Header(), response.Body)
+	}
+	if store.organizationStore.membersCommand.Purpose != "organization_administration" {
+		t.Fatalf("member list purpose=%q", store.organizationStore.membersCommand.Purpose)
+	}
+
+	ambiguousPurpose := httptest.NewRequest(
+		http.MethodGet,
+		"/v1/organizations/"+tenantID.String()+"/members",
+		nil,
+	)
+	ambiguousPurpose.AddCookie(&http.Cookie{Name: identity.SessionCookieName, Value: cookieValue})
+	ambiguousPurpose.Header.Add("X-Atlas-Purpose", "self_service")
+	ambiguousPurpose.Header.Add("X-Atlas-Purpose", "organization_administration")
+	ambiguousPurposeResponse := httptest.NewRecorder()
+	app.Handler().ServeHTTP(ambiguousPurposeResponse, ambiguousPurpose)
+	if ambiguousPurposeResponse.Code != http.StatusBadRequest {
+		t.Fatalf("ambiguous purpose status=%d body=%s", ambiguousPurposeResponse.Code, ambiguousPurposeResponse.Body)
 	}
 
 	malformed := httptest.NewRequest(
@@ -462,18 +481,43 @@ func TestOrganizationMemberListHTTPPaginationAndConcealmentContract(t *testing.T
 	}
 
 	store.organizationStore.membersErr = identity.ErrOrganizationNotFound
-	concealed := httptest.NewRequest(
-		http.MethodGet,
-		"/v1/organizations/ten_00000000000000000122/members",
-		nil,
-	)
-	concealed.AddCookie(&http.Cookie{Name: identity.SessionCookieName, Value: cookieValue})
-	concealedResponse := httptest.NewRecorder()
-	app.Handler().ServeHTTP(concealedResponse, concealed)
-	if concealedResponse.Code != http.StatusNotFound ||
-		!strings.Contains(concealedResponse.Body.String(), `"code":"NOT_FOUND_OR_CONCEALED"`) ||
-		strings.Contains(concealedResponse.Body.String(), "00000000000000000122") {
-		t.Fatalf("concealed member-list status=%d body=%s", concealedResponse.Code, concealedResponse.Body)
+	callConcealed := func(organizationID string) (*httptest.ResponseRecorder, problemResponse) {
+		t.Helper()
+		request := httptest.NewRequest(
+			http.MethodGet, "/v1/organizations/"+organizationID+"/members", nil,
+		)
+		request.AddCookie(&http.Cookie{Name: identity.SessionCookieName, Value: cookieValue})
+		response := httptest.NewRecorder()
+		app.Handler().ServeHTTP(response, request)
+		var problem problemResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &problem); err != nil {
+			t.Fatalf("decode concealed member-list problem: %v", err)
+		}
+		return response, problem
+	}
+	knownForeignID := "ten_00000000000000000122"
+	absentID := "ten_00000000000000000123"
+	knownForeign, knownForeignProblem := callConcealed(knownForeignID)
+	absent, absentProblem := callConcealed(absentID)
+	if knownForeign.Code != http.StatusNotFound || absent.Code != http.StatusNotFound ||
+		knownForeignProblem.Type != absentProblem.Type ||
+		knownForeignProblem.Title != absentProblem.Title ||
+		knownForeignProblem.Status != absentProblem.Status ||
+		knownForeignProblem.Code != absentProblem.Code ||
+		knownForeignProblem.Retryable != absentProblem.Retryable ||
+		knownForeignProblem.Code != "NOT_FOUND_OR_CONCEALED" ||
+		knownForeignProblem.RequestID == "" || absentProblem.RequestID == "" ||
+		strings.Contains(knownForeign.Body.String(), knownForeignID) ||
+		strings.Contains(absent.Body.String(), absentID) {
+		t.Fatalf("concealment mismatch known=%d/%+v absent=%d/%+v",
+			knownForeign.Code, knownForeignProblem, absent.Code, absentProblem)
+	}
+	for _, body := range []string{knownForeign.Body.String(), absent.Body.String()} {
+		for _, forbidden := range []string{"data", "page", "next_cursor", "has_more", "total", "suggest"} {
+			if strings.Contains(body, `"`+forbidden+`"`) {
+				t.Fatalf("concealed member-list body exposes %q: %s", forbidden, body)
+			}
+		}
 	}
 }
 
@@ -835,14 +879,15 @@ type httpIdentityStore struct {
 }
 
 type httpOrganizationStore struct {
-	sessions      *httpIdentityStore
-	organizations []identity.Organization
-	members       identity.ListOrganizationMembersResult
-	membersErr    error
-	invitation    identity.CreateInvitationStoreResult
-	acceptance    identity.AcceptInvitationStoreResult
-	roleChange    identity.UpdateOrganizationMemberRoleResult
-	revocation    identity.RevokeOrganizationMemberResult
+	sessions       *httpIdentityStore
+	organizations  []identity.Organization
+	members        identity.ListOrganizationMembersResult
+	membersErr     error
+	membersCommand identity.ListOrganizationMembersCommand
+	invitation     identity.CreateInvitationStoreResult
+	acceptance     identity.AcceptInvitationStoreResult
+	roleChange     identity.UpdateOrganizationMemberRoleResult
+	revocation     identity.RevokeOrganizationMemberResult
 }
 
 func (store *httpOrganizationStore) RevokeMember(
@@ -931,6 +976,7 @@ func (store *httpOrganizationStore) ListMembers(
 	_ context.Context,
 	command identity.ListOrganizationMembersCommand,
 ) (identity.ListOrganizationMembersResult, error) {
+	store.membersCommand = command
 	result := store.members
 	if result.DecisionID.IsZero() {
 		result.DecisionID = command.AuditEvent.DecisionID

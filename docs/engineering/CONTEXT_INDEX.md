@@ -51,7 +51,10 @@ invitation issuance, tenant-authorized member listing, ADR 0016 recipient-bound 
 direct viewer/operator role changes and removal, real PostgreSQL mutation races, and stored
 Unicode projection collision rejection. Administrator-involved role transitions remain
 fail-closed pending S07 maker-checker execution; administrator removal remains fail-closed pending
-exact fresh-step-up and last-administrator policy. P01-S06 deny-by-default authorization is next. Hard
+exact fresh-step-up and last-administrator policy. P01-S06 deny-default authorization is complete
+at its bounded evidence depth, including exact policy parity, tenant concealment/timing,
+purpose-bound masking, decision Audit rollback, and two-pool PostgreSQL invalidation without cache
+truth. P01-S07 typed maker-checker approval and execution-time reauthorization is next. Hard
 order is `00 → {01,03}`,
 `01 → 02`, `{01,02,04} → 05`,
 `03 → 04`, `05 → 06 → 07`, `{01,07} → 08`, `{07,08} → 09`, `{05,09} → 10 → 11 → 12 → 13`.
@@ -87,7 +90,7 @@ Every completed requirement needs stable IDs, tests/review, evidence, an owner, 
 | Phase | Source | Load when |
 |---|---|---|
 | 00 — Engineering foundation | [PHASE-00](../atlas-prd/02-phases/PHASE-00_ENGINEERING_FOUNDATION.md) | Complete for the bounded synthetic feature-free topology; revalidate ADR 0013 triggers |
-| 01 — Identity/access/tenancy | [PHASE-01](../atlas-prd/02-phases/PHASE-01_IDENTITY_ACCESS_TENANCY.md) | Current: S01–S05 complete at bounded evidence depth; P01-S06 deny-by-default authorization, purpose, masking, and decision audit is next; admin-involved transitions fail closed pending S07 and administrator removal pending exact step-up/last-administrator policy |
+| 01 — Identity/access/tenancy | [PHASE-01](../atlas-prd/02-phases/PHASE-01_IDENTITY_ACCESS_TENANCY.md) | Current: S01–S06 complete at bounded evidence depth; P01-S07 typed maker-checker approval and execution-time reauthorization is next; administrator removal also remains pending exact step-up/last-administrator policy |
 | 02 — Customer/KYC/privacy | [PHASE-02](../atlas-prd/02-phases/PHASE-02_CUSTOMER_KYC_PRIVACY.md) | Customer lifecycle, synthetic KYC, consent, restrictions, retention |
 | 03 — Ledger core | [PHASE-03](../atlas-prd/02-phases/PHASE-03_LEDGER_CORE.md) | Chart of accounts, journal/posting, reversal, projection, period/FX foundation |
 | 04 — Wallets/holds | [PHASE-04](../atlas-prd/02-phases/PHASE-04_WALLETS_BALANCES_HOLDS.md) | Wallet lifecycle, balances, reservation/capture/release, freezes |

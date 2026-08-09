@@ -26,7 +26,7 @@ The original S04 PostgreSQL identity remains a local bootstrap identity so exist
 
 Each `db/migrations/*.sql` file has closed metadata covering lock risk, representative data,
 query-plan review, space risk, forward fix, rollback, lock timeout, and statement timeout.
-`db/migrations/MANIFEST.sha256` defines the twelve-file-pair released inventory. `dbctl verify`
+`db/migrations/MANIFEST.sha256` defines the thirteen-file-pair released inventory. `dbctl verify`
 rejects changes, deletions, unmanifested files, reordering, malformed metadata, embedded
 transaction control, privileged SQL, unratified schemas, and financial terms.
 
@@ -83,7 +83,7 @@ Pass `-ContainerRuntime docker` to the PowerShell commands when Docker Compose i
 ## Failure posture
 
 The API readiness probe uses its application credential and a 750 ms deadline to require
-migration version 12 with the exact released checksum. Connectivity, authentication, missing
+migration version 13 with the exact released checksum. Connectivity, authentication, missing
 schema, timeout, and checksum mismatch all produce the same topology-free not-ready result;
 liveness and version remain independent.
 

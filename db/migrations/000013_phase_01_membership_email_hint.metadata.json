@@ -1,0 +1,13 @@
+{
+  "version": 13,
+  "name": "phase_01_membership_email_hint",
+  "released": true,
+  "lock_timeout_ms": 500,
+  "statement_timeout_ms": 5000,
+  "lock_risk": "Adds one nullable text column without a default plus a NOT VALID-free check over the bounded Phase 01 membership fixture; PostgreSQL does not rewrite rows for the column addition, but the check takes a brief table lock and scans existing membership rows.",
+  "representative_data": "Runs against empty, previous-version, and deterministic Phase 01 identity lanes; live authorization tests prove ordinary masked reads return null while the exact sensitive permission plus organization_administration purpose may return only the stored masked hint.",
+  "query_plan_review": "The column is projected only after tenant, role, permission, purpose, assurance, authorization-version, resource-state, and cursor checks; no index or lookup by the hint is introduced.",
+  "space_risk": "Stores an optional already-masked display hint copied from a hash-bound invitation. Raw or canonical email addresses, lookup digests, cookies, tokens, and arbitrary text are forbidden by design and tests.",
+  "forward_fix": "Disable purpose-sensitive hint disclosure and add a new ordered migration for any constraint, retention, masking, or grant correction; existing null and masked values remain safe to retain.",
+  "rollback": "Disable the optional disclosure path and continue returning null. Do not recover or synthesize raw email data, loosen authorization, or edit released migration 13."
+}

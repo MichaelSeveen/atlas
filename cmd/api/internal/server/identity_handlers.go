@@ -443,9 +443,14 @@ func (a *App) listOrganizationMembers(response http.ResponseWriter, request *htt
 		a.writeIdentityError(response, request, identity.ErrIdentityUnavailable)
 		return
 	}
+	purpose, ok := optionalAuthorizationPurpose(request.Header)
+	if !ok {
+		a.malformed(response, request)
+		return
+	}
 	result, err := a.identity.OrganizationMembers(
 		request.Context(), identity.ListOrganizationMembersRequest{
-			CookieValue: cookie, OrganizationID: organizationID,
+			CookieValue: cookie, OrganizationID: organizationID, Purpose: purpose,
 			PageSize: query.Get("page_size"), PageSizeProvided: query.Has("page_size"),
 			Cursor: query.Get("cursor"), CursorProvided: query.Has("cursor"),
 			CorrelationID: correlationID,
@@ -1130,6 +1135,23 @@ func singleHeader(headers http.Header, name string) (string, bool) {
 	}
 	value := strings.TrimSpace(values[0])
 	return value, value != ""
+}
+
+func optionalAuthorizationPurpose(headers http.Header) (string, bool) {
+	values := headers.Values("X-Atlas-Purpose")
+	if len(values) == 0 {
+		return "", true
+	}
+	if len(values) != 1 || len(values[0]) < 3 || len(values[0]) > 64 ||
+		strings.TrimSpace(values[0]) != values[0] {
+		return "", false
+	}
+	for _, character := range values[0] {
+		if (character < 'a' || character > 'z') && character != '_' {
+			return "", false
+		}
+	}
+	return values[0], true
 }
 
 func requestCorrelationID(request *http.Request) (identifier.ID, bool) {

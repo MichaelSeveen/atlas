@@ -37,8 +37,9 @@ LIMIT 100`
 
 // OrganizationStore persists merchant organization context within Identity's PostgreSQL boundary.
 type OrganizationStore struct {
-	pool     *pgxpool.Pool
-	recorder audit.Recorder
+	pool          *pgxpool.Pool
+	recorder      audit.Recorder
+	authorization *identity.AuthorizationPolicy
 }
 
 // NewOrganizationStore constructs the tenant-context store.
@@ -46,7 +47,9 @@ func NewOrganizationStore(pool *pgxpool.Pool, recorder audit.Recorder) (*Organiz
 	if pool == nil || recorder == nil {
 		return nil, errors.New("organization store dependencies are incomplete")
 	}
-	return &OrganizationStore{pool: pool, recorder: recorder}, nil
+	return &OrganizationStore{
+		pool: pool, recorder: recorder, authorization: identity.DefaultAuthorizationPolicy(),
+	}, nil
 }
 
 // ListOrganizations returns only active merchant memberships owned by the principal.
@@ -155,11 +158,12 @@ func (store *OrganizationStore) ListMembers(
 
 	var (
 		status, population, tenantIDText      string
+		sessionAssurance                      string
 		authorizationVersion, rotationVersion int64
 		idleExpiresAt, absoluteExpiresAt      time.Time
 	)
 	err = transaction.QueryRow(ctx, `
-SELECT status, population, tenant_id, authorization_version, rotation_version,
+SELECT status, population, tenant_id, assurance, authorization_version, rotation_version,
        idle_expires_at, absolute_expires_at
 FROM atlas_identity.sessions
 WHERE session_id = $1 AND principal_id = $2
@@ -167,7 +171,7 @@ FOR SHARE`,
 		command.Actor.SessionID.String(),
 		command.Actor.PrincipalID.String(),
 	).Scan(
-		&status, &population, &tenantIDText, &authorizationVersion, &rotationVersion,
+		&status, &population, &tenantIDText, &sessionAssurance, &authorizationVersion, &rotationVersion,
 		&idleExpiresAt, &absoluteExpiresAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -181,7 +185,8 @@ FOR SHARE`,
 		return identity.ListOrganizationMembersResult{}, identity.ErrIdentityUnavailable
 	}
 	if status != "active" || population != string(identity.PopulationMerchant) ||
-		tenantID != command.Actor.TenantID || authorizationVersion != command.Actor.AuthorizationVersion ||
+		tenantID != command.Actor.TenantID || sessionAssurance != string(command.Actor.Assurance) ||
+		authorizationVersion != command.Actor.AuthorizationVersion ||
 		rotationVersion != command.Actor.RotationVersion || !command.Now.Before(idleExpiresAt) ||
 		!command.Now.Before(absoluteExpiresAt) {
 		return identity.ListOrganizationMembersResult{}, identity.ErrAuthenticationRequired
@@ -195,20 +200,44 @@ FOR SHARE`,
 		}
 		return identity.ListOrganizationMembersResult{}, identity.ErrAuthenticationRequired
 	}
-	if command.OrganizationID != tenantID {
-		return store.commitMemberListDenial(
-			ctx, transaction, command, "tenant_concealed", identity.ErrOrganizationNotFound,
-		)
-	}
 	permissions, err := permissionsForRole(ctx, transaction, actorRole)
 	if err != nil {
 		return identity.ListOrganizationMembersResult{}, err
 	}
-	if !containsPermission(permissions, "organization.members.read") {
+	resourceStatus := "active"
+	resourceVersion := int64(1)
+	if command.OrganizationID == tenantID {
+		err = transaction.QueryRow(ctx, `
+SELECT status, version
+FROM atlas_identity.organizations
+WHERE tenant_id = $1
+FOR SHARE`, command.OrganizationID.String()).Scan(&resourceStatus, &resourceVersion)
+		if err != nil {
+			return identity.ListOrganizationMembersResult{}, identity.ErrIdentityUnavailable
+		}
+	}
+	decision := store.authorization.Evaluate(identity.AuthorizationFacts{
+		PrincipalID: command.Actor.PrincipalID, PrincipalType: command.Actor.PrincipalType,
+		Population: command.Actor.Population, TenantID: tenantID,
+		ResourceTenantID: command.OrganizationID, Role: actorRole,
+		CurrentPermissions: permissions, Action: "organization.members.list",
+		Resource: "organization_member", Field: "email_hint", Purpose: command.Purpose,
+		Assurance:                   command.Actor.Assurance,
+		SessionAuthorizationVersion: command.Actor.AuthorizationVersion,
+		CurrentAuthorizationVersion: currentAuthorizationVersion,
+		ResourceVersion:             resourceVersion, ResourceStatus: resourceStatus,
+	})
+	if decision.Effect == identity.AuthorizationConceal {
 		return store.commitMemberListDenial(
-			ctx, transaction, command, "permission_denied", identity.ErrActionNotAuthorized,
+			ctx, transaction, command, decision.Reason, identity.ErrOrganizationNotFound,
 		)
 	}
+	if decision.Effect != identity.AuthorizationAllow {
+		return store.commitMemberListDenial(
+			ctx, transaction, command, decision.Reason, identity.ErrActionNotAuthorized,
+		)
+	}
+	revealEmailHint := decision.FieldAccess == identity.FieldAccessReveal
 
 	pageSize, err := organizationMemberPageSize(command.PageSize, command.PageSizeProvided)
 	if err != nil {
@@ -221,16 +250,40 @@ FOR SHARE`,
 		return identity.ListOrganizationMembersResult{DecisionID: command.AuditEvent.DecisionID}, err
 	}
 	query := `
-SELECT membership_id, tenant_id, principal_id, role_id, status, version, created_at, revoked_at
+SELECT membership_id, tenant_id, principal_id, NULL::text AS email_hint,
+       role_id, status, version, created_at, revoked_at
 FROM atlas_identity.memberships
 WHERE tenant_id = $1
   AND population = 'merchant'
 ORDER BY principal_id
 LIMIT $2`
 	arguments := []any{command.OrganizationID.String(), pageSize + 1}
-	if afterPrincipal != "" {
+	if revealEmailHint {
 		query = `
-SELECT membership_id, tenant_id, principal_id, role_id, status, version, created_at, revoked_at
+SELECT membership_id, tenant_id, principal_id, email_hint,
+       role_id, status, version, created_at, revoked_at
+FROM atlas_identity.memberships
+WHERE tenant_id = $1
+  AND population = 'merchant'
+ORDER BY principal_id
+LIMIT $2`
+	}
+	if afterPrincipal != "" && !revealEmailHint {
+		query = `
+SELECT membership_id, tenant_id, principal_id, NULL::text AS email_hint,
+       role_id, status, version, created_at, revoked_at
+FROM atlas_identity.memberships
+WHERE tenant_id = $1
+  AND population = 'merchant'
+  AND principal_id > $2
+ORDER BY principal_id
+LIMIT $3`
+		arguments = []any{command.OrganizationID.String(), afterPrincipal, pageSize + 1}
+	}
+	if afterPrincipal != "" && revealEmailHint {
+		query = `
+SELECT membership_id, tenant_id, principal_id, email_hint,
+       role_id, status, version, created_at, revoked_at
 FROM atlas_identity.memberships
 WHERE tenant_id = $1
   AND population = 'merchant'
@@ -249,7 +302,7 @@ LIMIT $3`
 		var member identity.OrganizationMember
 		var membershipIDText, organizationIDText, principalIDText string
 		if err := rows.Scan(
-			&membershipIDText, &organizationIDText, &principalIDText, &member.Role,
+			&membershipIDText, &organizationIDText, &principalIDText, &member.EmailHint, &member.Role,
 			&member.Status, &member.Version, &member.CreatedAt, &member.RevokedAt,
 		); err != nil {
 			return identity.ListOrganizationMembersResult{}, identity.ErrIdentityUnavailable
@@ -280,6 +333,15 @@ LIMIT $3`
 			command.OrganizationID,
 			page.Members[len(page.Members)-1].PrincipalID,
 		)
+	}
+	if revealEmailHint {
+		event := command.AuditEvent
+		event.Action = "identity.organization.members.sensitive.list"
+		event.ReasonCode = "organization_members_sensitive_listed"
+		event.SafeAfterReference = "organization-members:masked-email-hint"
+		if err := store.recorder.Record(ctx, transaction, event); err != nil {
+			return identity.ListOrganizationMembersResult{}, identity.ErrIdentityUnavailable
+		}
 	}
 	if err := transaction.Commit(ctx); err != nil {
 		return identity.ListOrganizationMembersResult{}, identity.ErrIdentityUnavailable
@@ -772,6 +834,7 @@ FOR UPDATE OF session, principal`,
 
 	var (
 		invitationTenantText, role, invitationStatus  string
+		invitationEmailHint                           string
 		storedToken, storedEmail                      []byte
 		invitationExpiresAt                           time.Time
 		acceptedPrincipalText, acceptedMembershipText *string
@@ -780,7 +843,7 @@ FOR UPDATE OF session, principal`,
 	)
 	err = transaction.QueryRow(ctx, `
 SELECT invitation.tenant_id, invitation.role_id, invitation.status,
-       invitation.token_sha256, invitation.email_sha256,
+       invitation.token_sha256, invitation.email_sha256, invitation.email_hint,
        invitation.expires_at,
        invitation.accepted_by_principal_id, invitation.accepted_membership_id,
        invitation.acceptance_idempotency_key_sha256, invitation.acceptance_request_sha256,
@@ -789,7 +852,7 @@ FROM atlas_identity.organization_invitations AS invitation
 WHERE invitation.invitation_id = $1
 FOR UPDATE`, command.InvitationID.String()).Scan(
 		&invitationTenantText, &role, &invitationStatus,
-		&storedToken, &storedEmail, &invitationExpiresAt,
+		&storedToken, &storedEmail, &invitationEmailHint, &invitationExpiresAt,
 		&acceptedPrincipalText, &acceptedMembershipText,
 		&acceptedIdempotency, &acceptedRequest, &acceptanceDecisionText,
 	)
@@ -897,11 +960,11 @@ SELECT EXISTS (
 	member, err := scanOrganizationMember(transaction.QueryRow(ctx, `
 INSERT INTO atlas_identity.memberships (
     membership_id, tenant_id, principal_id, role_id, population, status,
-    authorization_version, version, created_at, updated_at
-) VALUES ($1, $2, $3, $4, 'merchant', 'active', 1, 1, $5, $5)
+    authorization_version, version, created_at, updated_at, email_hint
+) VALUES ($1, $2, $3, $4, 'merchant', 'active', 1, 1, $5, $5, $6)
 RETURNING membership_id, tenant_id, principal_id, role_id, status, version, created_at, revoked_at`,
 		command.MembershipID.String(), invitationTenant.String(),
-		command.Actor.PrincipalID.String(), role, command.Now,
+		command.Actor.PrincipalID.String(), role, command.Now, invitationEmailHint,
 	))
 	if err != nil {
 		return identity.AcceptInvitationStoreResult{}, invitationAcceptanceDatabaseError(err)

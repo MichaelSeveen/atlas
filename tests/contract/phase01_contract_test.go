@@ -131,6 +131,37 @@ func TestPhase01CookieMutationsRequireCSRF(t *testing.T) {
 	}
 }
 
+func TestOrganizationMemberListCarriesClosedPurposeHeader(t *testing.T) {
+	document := readOpenAPIDocument(t)
+	operation := objectAt(t, objectAt(t,
+		objectAt(t, document, "paths"),
+		"/v1/organizations/{organization_id}/members"), "get")
+	parameters, ok := operation["parameters"].([]any)
+	if !ok {
+		t.Fatal("organization member list has no parameters")
+	}
+	found := false
+	for _, raw := range parameters {
+		parameter, ok := raw.(map[string]any)
+		if ok && parameter["$ref"] == "#/components/parameters/XAtlasPurpose" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("organization member list omits the closed purpose header")
+	}
+	components := objectAt(t, document, "components")
+	purposeHeader := objectAt(t, objectAt(t, components, "parameters"), "XAtlasPurpose")
+	if purposeHeader["name"] != "X-Atlas-Purpose" || purposeHeader["in"] != "header" ||
+		purposeHeader["required"] != false {
+		t.Fatalf("purpose header contract=%v", purposeHeader)
+	}
+	schema := objectAt(t, purposeHeader, "schema")
+	if schema["$ref"] != "#/components/schemas/Purpose" {
+		t.Fatalf("purpose header schema=%v", schema)
+	}
+}
+
 func TestPhase01MemberRoleChangeContractFailsClosedAroundApproval(t *testing.T) {
 	document := readOpenAPIDocument(t)
 	operation := objectAt(t, objectAt(t,

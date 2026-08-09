@@ -30,9 +30,11 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 	invitationAcceptanceSQL := readPhase01PolicyFile(t, root, "db/migrations/000010_phase_01_invitation_acceptance.sql")
 	membershipRoleChangeSQL := readPhase01PolicyFile(t, root, "db/migrations/000011_phase_01_membership_role_changes.sql")
 	membershipRevocationSQL := readPhase01PolicyFile(t, root, "db/migrations/000012_phase_01_membership_revocations.sql")
+	membershipEmailHintSQL := readPhase01PolicyFile(t, root, "db/migrations/000013_phase_01_membership_email_hint.sql")
 	allSQL := identitySQL + "\n" + auditSQL + "\n" + sessionSQL + "\n" +
 		sessionGrantSQL + "\n" + stepUpSQL + "\n" + adminRevocationSQL + "\n" + invitationSQL + "\n" +
-		invitationAcceptanceSQL + "\n" + membershipRoleChangeSQL + "\n" + membershipRevocationSQL
+		invitationAcceptanceSQL + "\n" + membershipRoleChangeSQL + "\n" + membershipRevocationSQL + "\n" +
+		membershipEmailHintSQL
 
 	tables := make([]string, 0)
 	for _, match := range phase01ProductTablePattern.FindAllStringSubmatch(allSQL, -1) {
@@ -115,6 +117,31 @@ func TestPhase01PersistenceScopeAndAppendOnlyPolicies(t *testing.T) {
 	}
 }
 
+func TestMembershipEmailHintMigrationIsMaskedAndOptional(t *testing.T) {
+	root := repositoryRoot(t)
+	source := readPhase01PolicyFile(t, root, "db/migrations/000013_phase_01_membership_email_hint.sql")
+	for _, required := range []string{
+		"ADD COLUMN email_hint text;",
+		"email_hint IS NULL OR length(email_hint) BETWEEN 3 AND 254",
+		"Optional already-masked invitation recipient hint.",
+		"Never stores a canonical or raw email address.",
+	} {
+		if !strings.Contains(source, required) {
+			t.Errorf("membership email-hint migration is missing %q", required)
+		}
+	}
+	for _, forbidden := range []string{
+		"ADD COLUMN email_hint text NOT NULL",
+		"ADD COLUMN email_hint text DEFAULT",
+		"email_address",
+		"email_sha256",
+	} {
+		if strings.Contains(source, forbidden) {
+			t.Errorf("membership email-hint migration contains forbidden storage %q", forbidden)
+		}
+	}
+}
+
 func TestPhase01SeedManifestIsClosedAndChecksumBound(t *testing.T) {
 	root := repositoryRoot(t)
 	directory := filepath.Join(root, "db", "seeds")
@@ -183,8 +210,8 @@ func TestPhase01TenantRepositorySignatureAndPredicateAreExplicit(t *testing.T) {
 		}
 	}
 	const memberTenantPredicate = "WHERE tenant_id = $1\n  AND population = 'merchant'"
-	if count := strings.Count(organizationSource, memberTenantPredicate); count != 2 {
-		t.Errorf("organization-member page queries have %d explicit tenant predicates, want 2", count)
+	if count := strings.Count(organizationSource, memberTenantPredicate); count != 4 {
+		t.Errorf("masked/revealed organization-member page queries have %d explicit tenant predicates, want 4", count)
 	}
 	roleChangeSource := readPhase01PolicyFile(t, root, "internal/identity/persistence/membership_role.go")
 	for _, required := range []string{

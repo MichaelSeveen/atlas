@@ -323,7 +323,8 @@ func (store *OrganizationStore) commitMemberRevocationDenial(
 func memberRevocationDatabaseError(err error) error {
 	var databaseError *pgconn.PgError
 	if errors.As(err, &databaseError) {
-		if databaseError.Code == "40001" || databaseError.Code == "40P01" {
+		if databaseError.Code == "40001" || databaseError.Code == "40P01" ||
+			databaseError.Code == "55P03" {
 			return fmt.Errorf("%w: sqlstate %s", errRetryMemberRevocation, databaseError.Code)
 		}
 		return fmt.Errorf(

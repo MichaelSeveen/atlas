@@ -441,23 +441,25 @@ No hosted release, merge, production/reference deployment, real identity provide
 
 ## Exact next implementation checkpoint
 
-The cumulative P01-S05 static/live verifier has passed against migration 12 and the synthetic
-reference stack. After the S05 closure commit, the next unblocked checkpoint is **P01-S06 —
-deny-by-default authorization, purpose, masking, and decision audit**. Do not begin S06 from a
-failed or evidence-unbound S05 revision.
+The cumulative P01-S06 static/live verifier has passed against migration 13 and the synthetic
+reference stack. After the S06 closure commit, the next unblocked checkpoint is **P01-S07 — typed
+maker-checker approval foundation and execution-time reauthorization**. Do not begin S07 from a
+failed or evidence-unbound S06 revision.
 
-S05 closes its organization/tenancy boundary at bounded evidence depth: zero-grace tenant/session
-rotation, masked count-free member listing, hash-only recipient-bound invitations, direct
-viewer/operator role changes and removal, real PostgreSQL mutation races, Audit rollback, Unicode
-stored-projection collision rejection, bounded telemetry, and a linked recovery procedure.
-`IAM-010..012` and `IAM-014..015` are Verified; `IAM-013` deliberately remains Planned until S06
-proves the complete status/body/count/cursor/timing concealment matrix.
+S06 closes the current authorization boundary at bounded evidence depth: exact canonical
+permission/role/purpose/field parity; unknown/stale default denial; server-side tenant/action/
+object/field/purpose/assurance/version/resource checks before pagination work; uniform concealed
+HTTP shape and bounded known-foreign/absent PostgreSQL timing; permission/purpose-bound already-
+masked invitation hints with Audit rollback; and two-pool role/resource/assurance invalidation
+without Redis or process-local authorization truth. `IAM-013` and `IAM-020..026` are Verified for
+the complete current Phase 01 surface. No search, suggestion, or autocomplete operation exists;
+adding one reopens `IAM-023` and its differential gate.
 
-S06 must introduce the source-controlled evaluator and decision-audit boundary without Redis
-authorization truth or browser authority. Unknown role, permission, action, object, field, purpose,
-assurance, or resource state must deny; sensitive mutations must recheck authority in their commit
-protocol; and list/search/autocomplete authorization must precede totals, cursors, rank, and timing-
-observable work. Administrator-involved role transitions remain fail-closed until S07 typed
-maker-checker execution, and administrator removal remains fail-closed until exact fresh-step-up and
+S07 must introduce the Operations-owned typed approval state machine only for the S02-ratified
+synthetic non-financial actions. Maker/checker separation, immutable payload hash, expiry/terminal
+state, exact ETag/idempotency, fresh action-bound step-up, target version/state, current permission,
+and execution-time authorization must all be rechecked at the commit boundary with Audit atomicity.
+Administrator-involved membership transitions remain fail-closed until that typed execution path
+passes; administrator removal additionally remains fail-closed until exact fresh-step-up and
 last-administrator policy are closed. No event, worker job, credential, frontend product flow, or
-financial state is added by the S06 checkpoint.
+financial state is added by the S07 checkpoint.

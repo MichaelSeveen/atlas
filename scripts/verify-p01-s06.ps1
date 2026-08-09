@@ -58,32 +58,47 @@ try {
         "UNCOMMITTED_WORKTREE(base=$baseRevision)"
     }
 
-    & (Join-Path $PSScriptRoot 'verify-p01-s04.ps1')
-    if (-not $?) {
-        throw 'Phase 01 S04 regression verification failed'
-    }
-
-    $s05PostcommitCatalogue = 'evidence/phase-01/tenancy-authorization/P01-S05-evidence-catalogue-postcommit.json'
-    $s05PrecommitCatalogue = 'evidence/phase-01/tenancy-authorization/P01-S05-evidence-catalogue-precommit.json'
-    $s05Catalogue = if (Test-Path -LiteralPath (Join-Path $repositoryRoot $s05PostcommitCatalogue)) {
-        $s05PostcommitCatalogue
+    if ($Live) {
+        & (Join-Path $PSScriptRoot 'verify-p01-s05.ps1') -Live -ContainerRuntime $ContainerRuntime
     }
     else {
-        $s05PrecommitCatalogue
+        & (Join-Path $PSScriptRoot 'verify-p01-s05.ps1')
     }
-    & (Join-Path $PSScriptRoot 'test-p01-evidence-integrity.ps1') `
-        -CatalogueRelativePath $s05Catalogue `
-        -ExpectedSlice 'P01-S05'
     if (-not $?) {
-        throw 'Phase 01 S05 evidence integrity verification failed'
+        throw 'Phase 01 S05 regression verification failed'
+    }
+
+    Invoke-NativeChecked -Command 'go' -Arguments @(
+        'test',
+        './internal/identity',
+        './internal/identity/persistence',
+        './cmd/api/internal/server',
+        './tests/contract',
+        './internal/architecture',
+        '-count=1'
+    )
+    Invoke-NativeChecked -Command 'go' -Arguments @(
+        'run', './cmd/contractctl', 'lint',
+        'docs/atlas-prd/03-contracts/openapi.yaml',
+        'docs/atlas-prd/03-contracts/asyncapi.yaml'
+    )
+    Invoke-NativeChecked -Command 'go' -Arguments @(
+        'run', './cmd/dbctl', 'verify', '--migration-dir', 'db/migrations'
+    )
+    & (Join-Path $PSScriptRoot 'test-s06-alert-catalog-canary.ps1')
+    if (-not $?) {
+        throw 'Authorization observability catalogue verification failed'
+    }
+
+    $s06Catalogue = 'evidence/phase-01/authorization/P01-S06-evidence-catalogue-precommit.json'
+    & (Join-Path $PSScriptRoot 'test-p01-evidence-integrity.ps1') `
+        -CatalogueRelativePath $s06Catalogue `
+        -ExpectedSlice 'P01-S06'
+    if (-not $?) {
+        throw 'Phase 01 S06 evidence integrity verification failed'
     }
 
     if ($Live) {
-        & (Join-Path $PSScriptRoot 's05.ps1') -Action Migrate -ContainerRuntime $ContainerRuntime
-        if (-not $?) {
-            throw 'Phase 01 S05 database preparation failed'
-        }
-
         $runtime = Read-RuntimeEnvironment
         foreach ($required in @(
             'ATLAS_POSTGRES_API_USER',
@@ -109,7 +124,7 @@ try {
                 'test',
                 './internal/identity/persistence',
                 '-run',
-                '^Test(OrganizationStoreRealPostgresListAndZeroGraceSwitch|OrganizationNameProjectionRealPostgresRejectsUnicodeConfusableCollisions|OrganizationInvitationRealPostgresDelegationReplayAndAuditRollback|MembershipRoleChangeRealPostgresConcurrencyAuthorityAndAuditRollback|MembershipRevocationRealPostgresConcurrencyStaleTabAndAuditRollback)$',
+                '^TestAuthorizationRealPostgresMultiReplicaRoleRestrictionAndAssuranceInvalidationWithoutCache$',
                 '-count=1'
             )
         }
@@ -119,17 +134,18 @@ try {
             $runtime['ATLAS_POSTGRES_API_PASSWORD'] = $null
             $runtime['ATLAS_POSTGRES_MIGRATION_PASSWORD'] = $null
         }
-        Write-Output 'p01_s05_live_verification=PASS'
+        Write-Output 'p01_s06_live_verification=PASS'
     }
     else {
-        Write-Output 'p01_s05_live_verification=NOT_REQUESTED'
+        Write-Output 'p01_s06_live_verification=NOT_REQUESTED'
     }
 
-    Write-Output 'p01_s05_scope=organization-list,unicode-name-collision,active-tenant-switch,masked-members,invitations,recipient-acceptance,direct-role-change,direct-member-revocation'
-    Write-Output 'p01_s05_administrator_mutations=FAIL_CLOSED_PENDING_S07_AND_EXACT_REMOVAL_POLICY'
-    Write-Output 'p01_s05_financial_state=ABSENT'
+    Write-Output 'p01_s06_scope=deny-default,tenant-concealment,purpose,field-masking,decision-audit,postgresql-invalidation'
+    Write-Output 'p01_s06_authorization_cache=ABSENT'
+    Write-Output 'p01_s06_search_autocomplete_surface=ABSENT'
+    Write-Output 'p01_s06_financial_state=ABSENT'
     Write-Output "source_revision=$sourceRevision"
-    Write-Output 'p01_s05_verification=PASS'
+    Write-Output 'p01_s06_verification=PASS'
 }
 finally {
     Pop-Location

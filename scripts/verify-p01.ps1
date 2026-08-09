@@ -79,7 +79,7 @@ try {
         '^TestPhase01ClosurePolicyIsCompleteAndHonest$', '-count=1'
     )
     & (Join-Path $PSScriptRoot 'test-p01-evidence-integrity.ps1') `
-        -CatalogueRelativePath 'evidence/phase-01/acceptance/P01-S09-evidence-catalogue-precommit.json' `
+        -CatalogueRelativePath 'evidence/phase-01/acceptance/P01-S09-evidence-catalogue-postcommit.json' `
         -ExpectedSlice 'P01-S09'
     if (-not $?) { throw 'Phase 01 closure evidence integrity verification failed' }
 

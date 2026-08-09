@@ -148,7 +148,7 @@ invitation-bound bootstrap and atomic persistence boundary.
 - [Phase 01 S07 approval closure catalogue](../../evidence/phase-01/approvals/P01-S07-evidence-catalogue-postcommit.json)
 - [Phase 01 S08 credential closure catalogue](../../evidence/phase-01/api-credentials/P01-S08-evidence-catalogue-postcommit.json)
 - [Phase 01 S09 phase-closure evidence](../../evidence/phase-01/acceptance/S09-phase-01-closure-precommit.md)
-- [Phase 01 S09 phase-closure catalogue](../../evidence/phase-01/acceptance/P01-S09-evidence-catalogue-precommit.json)
+- [Phase 01 S09 phase-closure catalogue](../../evidence/phase-01/acceptance/P01-S09-evidence-catalogue-postcommit.json)
 - [Phase 01 S04 step-up post-commit verification](../../evidence/phase-01/identity-session/S04-step-up-idempotency-and-assurance-post-commit.md)
 - [Phase 01 S04 step-up post-commit catalogue](../../evidence/phase-01/identity-session/P01-S04-evidence-catalogue-step-up-postcommit.json)
 - [ADR 0014 identity/access contract boundary](../atlas-prd/06-governance/adrs/0014-phase-01-identity-access-contract-boundary.md)

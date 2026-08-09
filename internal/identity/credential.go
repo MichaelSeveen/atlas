@@ -19,13 +19,19 @@ import (
 )
 
 const (
-	APICredentialScheme                   = "AtlasKey"
-	APICredentialAudience                 = "atlas-api"
-	APICredentialScopeIdentityRead        = "identity:read"
-	CredentialPurposeManagement           = "credential_management"
-	CredentialActionRead                  = "identity.api_credential.read"
-	CredentialActionCreate                = "identity.api_credential.create"
-	CredentialActionRotate                = "identity.api_credential.rotate"
+	APICredentialScheme   = "AtlasKey"
+	APICredentialAudience = "atlas-api"
+	// #nosec G101 -- this is a public authorization scope identifier, not credential material.
+	APICredentialScopeIdentityRead = "identity:read"
+	// #nosec G101 -- this is a public authorization purpose identifier, not credential material.
+	CredentialPurposeManagement = "credential_management"
+	// #nosec G101 -- this is a public authorization action identifier, not credential material.
+	CredentialActionRead = "identity.api_credential.read"
+	// #nosec G101 -- this is a public authorization action identifier, not credential material.
+	CredentialActionCreate = "identity.api_credential.create"
+	// #nosec G101 -- this is a public authorization action identifier, not credential material.
+	CredentialActionRotate = "identity.api_credential.rotate"
+	// #nosec G101 -- this is a public authorization action identifier, not credential material.
 	CredentialActionRevoke                = "identity.api_credential.revoke"
 	CredentialDefaultExpiry               = 90 * 24 * time.Hour
 	CredentialMaximumExpiry               = 365 * 24 * time.Hour

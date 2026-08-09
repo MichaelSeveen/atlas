@@ -112,4 +112,5 @@ Do not silently resolve conflicts. Cite the exact files/sections, check accepted
 - [Implementation status](docs/engineering/IMPLEMENTATION_STATUS.md)
 - [Phase 00 execution plan](docs/engineering/PHASE-00-PLAN.md)
 - [Phase 01 execution plan](docs/engineering/PHASE-01-PLAN.md)
+- [Phase 02 clean-start kickoff prompt](docs/engineering/PHASE-02-KICKOFF-PROMPT.md)
 - [Definition of Done](docs/atlas-prd/06-governance/DEFINITION_OF_DONE.md)

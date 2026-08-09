@@ -63,7 +63,10 @@ explicit revocation, savepoint-safe concurrent lifecycle idempotency, and epheme
 credential/tenant/network abuse controls with stricter bounded fallback. P01-S09 frontend flows,
 six-persona synthetic acceptance, adversarial browser proof, operational exercises, and aggregate
 phase closure are complete at bounded local/reference evidence depth. Administrator removal and
-break-glass remain fail-closed; Phase 02 planning is next. Hard
+break-glass remain fail-closed. Static, live/recovery/browser, history/security, and focused
+supply-chain lanes have discrete passing evidence. The copy-ready [Phase 02 kickoff
+prompt](PHASE-02-KICKOFF-PROMPT.md) starts planning-only `P02-S01`; all 26 Phase 02 requirements
+remain Planned. Hard
 order is `00 → {01,03}`,
 `01 → 02`, `{01,02,04} → 05`,
 `03 → 04`, `05 → 06 → 07`, `{01,07} → 08`, `{07,08} → 09`, `{05,09} → 10 → 11 → 12 → 13`.
@@ -118,6 +121,7 @@ Every completed requirement needs stable IDs, tests/review, evidence, an owner, 
 - [Implementation status](IMPLEMENTATION_STATUS.md)
 - [Phase 00 audit and execution plan](PHASE-00-PLAN.md)
 - [Phase 01 audit and execution plan](PHASE-01-PLAN.md)
+- [Phase 02 clean-start kickoff prompt](PHASE-02-KICKOFF-PROMPT.md)
 - [Synthetic local environment and S04 commands](LOCAL_ENVIRONMENT.md)
 - [Database foundation and S05 commands](DATABASE_FOUNDATION.md)
 - [S06 Phase 00 threat model](../security/PHASE-00-THREAT-MODEL.md)

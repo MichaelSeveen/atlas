@@ -430,7 +430,10 @@ No hosted release, merge, production/reference deployment, real identity provide
 
 Phase 01 is closed at its bounded synthetic local/reference depth by `EVD-P01-S09-CLOSURE` and
 `scripts/verify-p01.ps1`. The next allowed checkpoint is **Phase 02 planning and contract/decision
-closure**, beginning from the canonical roadmap and Phase 02 specification. Do not implement a
+closure**, beginning with the copy-ready [planning-only Phase 02 kickoff
+prompt](PHASE-02-KICKOFF-PROMPT.md), the canonical roadmap, and the Phase 02 specification. The
+prompt is guarded against the current 26-row traceability and 12-operation proposed surface; all
+26 requirements remain Planned. Do not implement a
 wallet, balance, hold, journal, payment, refund, payout, transfer, beneficiary, or other
 money-moving surface until that phase's prerequisite, accounting, idempotency, recovery,
 authorization, and acceptance decisions are explicitly ratified.

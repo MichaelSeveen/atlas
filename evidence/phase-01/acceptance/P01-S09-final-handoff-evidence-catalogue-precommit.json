@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "evidence_id": "EVD-P01-S09-FINAL-HANDOFF-CATALOGUE-PRECOMMIT",
+  "created_at": "2026-08-09T16:08:38Z",
+  "phase": "PHASE-01_IDENTITY_ACCESS_TENANCY",
+  "slice": "P01-S09",
+  "source_revision": "UNCOMMITTED_WORKTREE(base=ea901dba10821ef8ce9ff3b8f04a34f908d6261a)",
+  "sanitization": "Only public source and image identities, closed synthetic scope/status names, bounded PASS aggregates, artifact digests, stable requirement identifiers, and control limitations are included. Passwords, provider tokens, cookies, CSRF/idempotency values, database/Redis credentials or URLs, raw browser/scanner output, OCI archives, and real identity data are excluded.",
+  "artifacts": [
+    {
+      "evidence_id": "EVD-P01-S09-FINAL-HANDOFF",
+      "path": "evidence/phase-01/acceptance/S09-final-gates-and-phase02-handoff-precommit.md",
+      "sha256": "3ce2dbe16b7ab9b0700b0bdb1549974c19cbd2e87b44bf6ef987c5a2e1394a05",
+      "result": "PASS",
+      "requirements": ["IAM-001..007", "IAM-010..015", "IAM-020..026", "IAM-030..034", "IAM-040..044"],
+      "threats": ["THR-009", "THR-018", "THR-020", "THR-045", "THR-060"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/test-s07-supply-chain.ps1 -ContainerRuntime podman -ToolBin ./.tmp/s07-tools/bin; go test ./internal/architecture -run ^TestPhase02KickoffPromptIsCompleteAndFailClosed$ -count=1",
+      "limitation": "Synthetic local/reference handoff and supply-chain proof only; not Phase 02 planning or product evidence.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S09-PHASE02-PROMPT",
+      "path": "docs/engineering/PHASE-02-KICKOFF-PROMPT.md",
+      "sha256": "ab78bd9c5fa037e454c5beb4c18df4bb28e85a5ca43a8d795d456db60ffdb3ac",
+      "result": "PASS",
+      "requirements": ["IAM-001..007", "IAM-010..015", "IAM-020..026", "IAM-030..034", "IAM-040..044"],
+      "threats": ["THR-009", "THR-022", "THR-026..028", "THR-037", "THR-043", "THR-045", "THR-050"],
+      "reproduce": "Get-Content -LiteralPath ./docs/engineering/PHASE-02-KICKOFF-PROMPT.md -Raw",
+      "limitation": "Copy-ready P02-S01 instruction only; all 26 Phase 02 requirements remain Planned.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S09-PHASE02-PROMPT-GUARD",
+      "path": "internal/architecture/phase02_handoff_prompt_test.go",
+      "sha256": "cceaca1e6becb38d2b1105fead5b5b0cd90960523725f581a5329032bfe2936f",
+      "result": "PASS",
+      "requirements": ["IAM-020..026"],
+      "threats": ["THR-045", "THR-060"],
+      "reproduce": "go test ./internal/architecture -run ^TestPhase02KickoffPromptIsCompleteAndFailClosed$ -count=1",
+      "limitation": "The guard intentionally fails when Phase 02 contracts or requirement statuses change so the kickoff prompt cannot remain stale.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S09-SUPPLY-CHAIN-VERIFIER",
+      "path": "scripts/test-s07-supply-chain.ps1",
+      "sha256": "2cc374edca00c0adc594ce99f6afb14dab23eb98e1cc92a936312d781bfd62c4",
+      "result": "PASS",
+      "requirements": ["FND-022..024", "FND-054"],
+      "threats": ["THR-020", "THR-045", "THR-060"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/test-s07-supply-chain.ps1 -ContainerRuntime podman -ToolBin ./.tmp/s07-tools/bin",
+      "limitation": "Same-host WSL-fallback result; hosted release publication/signing/provenance remains governed by the existing CI/release workflow.",
+      "revalidate_by": "2026-11-09"
+    },
+    {
+      "evidence_id": "EVD-P01-S09-CLOSURE-BINDING",
+      "path": "evidence/phase-01/acceptance/P01-S09-evidence-catalogue-postcommit.json",
+      "sha256": "07d87c8275808b4556db546e47ed07269a6a96df12568c70ea944e027c60ef16",
+      "result": "PASS",
+      "requirements": ["IAM-001..007", "IAM-010..015", "IAM-020..026", "IAM-030..034", "IAM-040..044"],
+      "threats": ["THR-005..009", "THR-018", "THR-020", "THR-023..024", "THR-026..028", "THR-037..041", "THR-044..045", "THR-050", "THR-053", "THR-056..060"],
+      "reproduce": "pwsh -NoProfile -File ./scripts/test-p01-evidence-integrity.ps1 -CatalogueRelativePath evidence/phase-01/acceptance/P01-S09-evidence-catalogue-postcommit.json -ExpectedSlice P01-S09",
+      "limitation": "Historical exact-source closure binding; this additive handoff does not broaden the Phase 01 capability claim.",
+      "revalidate_by": "2026-11-09"
+    }
+  ]
+}

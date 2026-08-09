@@ -150,6 +150,8 @@ invitation-bound bootstrap and atomic persistence boundary.
 - [Phase 01 S09 phase-closure evidence](../../evidence/phase-01/acceptance/S09-phase-01-closure-precommit.md)
 - [Phase 01 S09 phase-closure catalogue](../../evidence/phase-01/acceptance/P01-S09-evidence-catalogue-postcommit.json)
 - [Phase 01 final gates and Phase 02 handoff evidence](../../evidence/phase-01/acceptance/S09-final-gates-and-phase02-handoff-precommit.md)
+- [Phase 01 final handoff post-commit verification](../../evidence/phase-01/acceptance/S09-final-gates-and-phase02-handoff-postcommit.md)
+- [Phase 01 final handoff post-commit catalogue](../../evidence/phase-01/acceptance/P01-S09-final-handoff-evidence-catalogue-postcommit.json)
 - [Phase 02 clean-start kickoff prompt](PHASE-02-KICKOFF-PROMPT.md)
 - [Phase 01 S04 step-up post-commit verification](../../evidence/phase-01/identity-session/S04-step-up-idempotency-and-assurance-post-commit.md)
 - [Phase 01 S04 step-up post-commit catalogue](../../evidence/phase-01/identity-session/P01-S04-evidence-catalogue-step-up-postcommit.json)

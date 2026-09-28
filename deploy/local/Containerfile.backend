@@ -20,7 +20,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath \
     -ldflags="-s -w -X main.sourceRevision=${SOURCE_REVISION} -X main.buildTime=${BUILD_TIME}" \
     -o /out/simulator ./cmd/simulator
 
-FROM docker.io/library/alpine:3.23.5@sha256:1beb0dc0a51de7ff38e3b5274078a2e0b81113ba5c7535e1a03d5913a5edbda3
+FROM docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
 ARG SOURCE_REVISION=development
 LABEL org.opencontainers.image.source="https://github.com/MichaelSeveen/atlas" \
       org.opencontainers.image.revision="${SOURCE_REVISION}" \
